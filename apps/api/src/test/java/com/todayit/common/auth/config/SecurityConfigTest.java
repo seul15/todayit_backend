@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.todayit.common.auth.handler.RestAccessDeniedHandler;
 import com.todayit.common.auth.handler.RestAuthenticationEntryPoint;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +24,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,25 +46,47 @@ public class SecurityConfigTest {
   }
 
   @Test
+  @DisplayName("공개 API는 인증 없이 접근할 수 있다")
   void allowsAnonymousAccessToPublicEndpoint() throws Exception {
-    mockMvc.perform(post("/api/v1/auth/login")).andExpect(status().isOk());
+    // Given
+    String url = "/api/v1/auth/login";
+
+    // When
+    ResultActions result = mockMvc.perform(post(url));
+
+    // Then
+    result.andExpect(status().isOk());
   }
 
   @Test
+  @DisplayName("인증되지 않은 사용자가 보호 API에 접근하면 401을 반환한다")
   void returnsUnauthorizedWhenAnonymousUserAccessesProtectedEndpoint() throws Exception {
-    mockMvc
-        .perform(get("/api/v1/security/protected"))
+    // Given
+    String url = "/api/v1/security/protected";
+
+    // When
+    ResultActions result = mockMvc.perform(get(url));
+
+    // Then
+    result
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.success").value(false)) // $.success -> JSON 안의 값을 찾는 경로
+        .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
         .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
   }
 
   @Test
+  @DisplayName("인증된 사용자가 권한이 없는 API에 접근하면 403을 반환한다")
   @WithMockUser(roles = "USER")
   void returnsForbiddenWhenAuthenticatedUserLacksRequiredRole() throws Exception {
-    mockMvc
-        .perform(get("/api/v1/security/admin/test"))
+    // Given
+    String url = "/api/v1/security/admin/test";
+
+    // When
+    ResultActions result = mockMvc.perform(get(url));
+
+    // Then
+    result
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
@@ -71,25 +95,42 @@ public class SecurityConfigTest {
 
   // 허용된 Origin의 CORS preflight → 200 → Access-Control-Allow-Origin 확인
   @Test
+  @DisplayName("허용된 Origin의 CORS preflight 요청은 허용한다")
   void allowsCorsPreflightRequestFromConfiguredOrigin() throws Exception {
-    mockMvc
-        .perform(
-            options("/api/v1/auth/login")
-                .header(HttpHeaders.ORIGIN, "https://frontend.test")
-                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+    // Given
+    String url = "/api/v1/auth/login";
+    String origin = "https://frontend.test";
+
+    // When
+    ResultActions result =
+        mockMvc.perform(
+            options(url)
+                .header(HttpHeaders.ORIGIN, origin)
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"));
+
+    // Then
+    result
         .andExpect(status().isOk())
-        .andExpect(
-            header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "https://frontend.test"));
+        .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origin));
   }
 
   // CorsProperties의 허용 목록 확인 -> 일치하지 않음 -> CORS 단계에서 차단 -> 403
   @Test
+  @DisplayName("허용되지 않은 Origin의 CORS preflight 요청은 차단한다")
   void rejectsCorsPreflightRequestFromUnconfiguredOrigin() throws Exception {
-    mockMvc
-        .perform(
-            options("/api/v1/auth/login")
-                .header(HttpHeaders.ORIGIN, "https://not-allowed.test")
-                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"))
+    // Given
+    String url = "/api/v1/auth/login";
+    String origin = "https://not-allowed.test";
+
+    // When
+    ResultActions result =
+        mockMvc.perform(
+            options(url)
+                .header(HttpHeaders.ORIGIN, origin)
+                .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST"));
+
+    // Then
+    result
         .andExpect(status().isForbidden())
         .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN));
   }
