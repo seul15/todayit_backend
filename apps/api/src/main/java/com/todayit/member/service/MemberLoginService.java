@@ -6,6 +6,7 @@ import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.repository.MemberRepository;
+import com.todayit.member.service.command.LoginCommand;
 import com.todayit.member.service.model.MemberLoginResult;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -37,14 +38,15 @@ public class MemberLoginService {
   /**
    * 이메일과 비밀번호로 로컬 회원을 인증합니다.
    *
-   * @param email 로그인 이메일
-   * @param password 사용자가 입력한 비밀번호
+   * @param command 로그인 서비스에 전달된 이메일과 비밀번호
    * @return 인증에 성공한 회원 정보
    * @throws LoginFailedException 로그인 정보가 올바르지 않을 때
    * @throws LoginLockedException 로그인 시도 횟수를 초과해 잠긴 상태일 때
    */
-  public MemberLoginResult login(String email, String password) {
-    // 멘트 -> 5회 이상 틀려서 잠겼다.
+  public MemberLoginResult login(LoginCommand command) {
+    String email = command.email();
+    String password = command.password();
+    // 로그인 실패 횟수가 5회 이상이면 로그인 차단
     if (loginAttemptService.isLocked(email)) {
       throw new LoginLockedException();
     }

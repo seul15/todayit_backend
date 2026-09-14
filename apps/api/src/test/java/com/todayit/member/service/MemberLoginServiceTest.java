@@ -13,6 +13,7 @@ import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.repository.MemberRepository;
+import com.todayit.member.service.command.LoginCommand;
 import com.todayit.member.service.model.MemberLoginResult;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,6 +51,7 @@ class MemberLoginServiceTest {
     String password = "password1234";
     String encodedPassword = "encoded-password";
     String memberId = "member-1";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
@@ -60,7 +62,7 @@ class MemberLoginServiceTest {
     when(member.getId()).thenReturn(memberId);
 
     // When
-    MemberLoginResult result = memberLoginService.login(email, password);
+    MemberLoginResult result = memberLoginService.login(command);
 
     // Then
     assertEquals(memberId, result.memberId());
@@ -74,18 +76,19 @@ class MemberLoginServiceTest {
     // Given
     String email = "test@test.com";
     String password = "password1234";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(true);
 
     // When
     LoginLockedException exception =
-        assertThrows(LoginLockedException.class, () -> memberLoginService.login(email, password));
+        assertThrows(LoginLockedException.class, () -> memberLoginService.login(command));
 
     // Then
     assertEquals("로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.", exception.getMessage());
 
     verify(memberRepository, never()).findByEmail(email);
-    verify(passwordEncoder, never()).matches(password, "encoded-password");
+    verify(passwordEncoder, never()).matches(anyString(), anyString());
   }
 
   @Test
@@ -94,13 +97,14 @@ class MemberLoginServiceTest {
     // Given
     String email = "test@test.com";
     String password = "password1234";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.empty());
 
     // When
     LoginFailedException exception =
-        assertThrows(LoginFailedException.class, () -> memberLoginService.login(email, password));
+        assertThrows(LoginFailedException.class, () -> memberLoginService.login(command));
 
     // Then
     assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", exception.getMessage());
@@ -115,6 +119,7 @@ class MemberLoginServiceTest {
     // Given
     String email = "test@test.com";
     String password = "password1234";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
@@ -122,7 +127,7 @@ class MemberLoginServiceTest {
 
     // When
     LoginFailedException exception =
-        assertThrows(LoginFailedException.class, () -> memberLoginService.login(email, password));
+        assertThrows(LoginFailedException.class, () -> memberLoginService.login(command));
 
     // Then
     assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", exception.getMessage());
@@ -138,6 +143,7 @@ class MemberLoginServiceTest {
     // Given
     String email = "test@test.com";
     String password = "password1234";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
@@ -146,7 +152,7 @@ class MemberLoginServiceTest {
 
     // When
     LoginFailedException exception =
-        assertThrows(LoginFailedException.class, () -> memberLoginService.login(email, password));
+        assertThrows(LoginFailedException.class, () -> memberLoginService.login(command));
 
     // Then
     assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", exception.getMessage());
@@ -163,6 +169,7 @@ class MemberLoginServiceTest {
     String email = "test@test.com";
     String password = "wrong-password";
     String encodedPassword = "encoded-password";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
@@ -173,7 +180,7 @@ class MemberLoginServiceTest {
 
     // When
     LoginFailedException exception =
-        assertThrows(LoginFailedException.class, () -> memberLoginService.login(email, password));
+        assertThrows(LoginFailedException.class, () -> memberLoginService.login(command));
 
     // Then
     assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", exception.getMessage());
@@ -189,6 +196,7 @@ class MemberLoginServiceTest {
     String email = "test@test.com";
     String password = "wrong-password";
     String encodedPassword = "encoded-password";
+    LoginCommand command = new LoginCommand(email, password);
 
     when(loginAttemptService.isLocked(email)).thenReturn(false).thenReturn(true);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
@@ -199,7 +207,7 @@ class MemberLoginServiceTest {
 
     // When
     LoginLockedException exception =
-        assertThrows(LoginLockedException.class, () -> memberLoginService.login(email, password));
+        assertThrows(LoginLockedException.class, () -> memberLoginService.login(command));
 
     // Then
     assertEquals("로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.", exception.getMessage());
