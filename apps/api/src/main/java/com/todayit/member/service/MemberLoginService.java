@@ -65,13 +65,13 @@ public class MemberLoginService {
 
     // 비밀번호가 다른 경우
     if (!passwordEncoder.matches(password, member.getPassword())) {
-      loginAttemptService.recordFailure(email);
+      long failureCount = loginAttemptService.recordFailure(email);
 
-      if (loginAttemptService.isLocked(email)) {
+      if (failureCount >= 5) {
         throw new LoginLockedException();
       }
 
-      throw new LoginFailedException();
+      throw new LoginFailedException(failureCount);
     }
 
     // 로그인 성공 시 실패 횟수 초기화

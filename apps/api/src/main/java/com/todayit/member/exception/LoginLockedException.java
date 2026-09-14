@@ -5,6 +5,6 @@ public class LoginLockedException extends RuntimeException {
 
   /** 로그인 잠금 예외를 생성합니다. */
   public LoginLockedException() {
-    super("로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
+    super("로그인 시도 횟수를 초과했습니다. 비밀번호를 변경해주세요.");
   }
 }

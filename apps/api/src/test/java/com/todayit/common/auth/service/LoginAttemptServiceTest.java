@@ -1,12 +1,11 @@
 package com.todayit.common.auth.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,54 +32,39 @@ class LoginAttemptServiceTest {
   }
 
   @Test
-  @DisplayName("첫 로그인 실패 시 실패 횟수를 1 증가시키고 잠금은 설정하지 않는다")
-  void recordsFirstLoginFailureWithoutLocking() {
+  @DisplayName("첫 로그인 실패 시 실패 횟수를 1 증가시키고 1을 반환한다")
+  void recordsFirstLoginFailure() {
     // Given
     String email = "test@test.com";
     String key = "auth:login:attempt:" + email;
+
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     when(valueOperations.increment(key)).thenReturn(1L);
 
     // When
-    loginAttemptService.recordFailure(email);
+    long failureCount = loginAttemptService.recordFailure(email);
 
     // Then
+    assertEquals(1L, failureCount);
     verify(valueOperations).increment(key);
-    verify(redisTemplate, never()).expire(key, Duration.ofHours(1));
   }
 
   @Test
-  @DisplayName("로그인 실패가 5회가 되면 1시간 잠금을 설정한다")
-  void locksLoginForOneHourOnFifthFailure() {
+  @DisplayName("5번째 로그인 실패 시 실패 횟수 5를 반환한다")
+  void returnsFiveOnFifthFailure() {
     // Given
     String email = "test@test.com";
     String key = "auth:login:attempt:" + email;
+
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     when(valueOperations.increment(key)).thenReturn(5L);
 
     // When
-    loginAttemptService.recordFailure(email);
+    long failureCount = loginAttemptService.recordFailure(email);
 
     // Then
+    assertEquals(5L, failureCount);
     verify(valueOperations).increment(key);
-    verify(redisTemplate).expire(key, Duration.ofHours(1));
-  }
-
-  @Test
-  @DisplayName("이미 잠금 기준을 넘은 실패에서는 잠금 시간을 다시 설정하지 않는다")
-  void doesNotExtendLockAfterFifthFailure() {
-    // Given
-    String email = "test@test.com";
-    String key = "auth:login:attempt:" + email;
-    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-    when(valueOperations.increment(key)).thenReturn(6L);
-
-    // When
-    loginAttemptService.recordFailure(email);
-
-    // Then
-    verify(valueOperations).increment(key);
-    verify(redisTemplate, never()).expire(key, Duration.ofHours(1));
   }
 
   @Test
@@ -89,6 +73,7 @@ class LoginAttemptServiceTest {
     // Given
     String email = "test@test.com";
     String key = "auth:login:attempt:" + email;
+
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     when(valueOperations.get(key)).thenReturn(null);
 
@@ -105,6 +90,7 @@ class LoginAttemptServiceTest {
     // Given
     String email = "test@test.com";
     String key = "auth:login:attempt:" + email;
+
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     when(valueOperations.get(key)).thenReturn("5");
 
@@ -121,6 +107,7 @@ class LoginAttemptServiceTest {
     // Given
     String email = "test@test.com";
     String key = "auth:login:attempt:" + email;
+
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     when(valueOperations.get(key)).thenReturn("4");
 
@@ -132,8 +119,8 @@ class LoginAttemptServiceTest {
   }
 
   @Test
-  @DisplayName("로그인 성공 시 실패 기록을 삭제한다")
-  void resetsFailureCountAfterSuccessfulLogin() {
+  @DisplayName("로그인 실패 기록을 초기화하면 Redis 기록을 삭제한다")
+  void resetsFailureCount() {
     // Given
     String email = "test@test.com";
     String key = "auth:login:attempt:" + email;

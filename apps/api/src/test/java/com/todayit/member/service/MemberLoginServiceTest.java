@@ -85,10 +85,12 @@ class MemberLoginServiceTest {
         assertThrows(LoginLockedException.class, () -> memberLoginService.login(command));
 
     // Then
-    assertEquals("로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.", exception.getMessage());
+    assertEquals("로그인 시도 횟수를 초과했습니다. 비밀번호를 변경해주세요.", exception.getMessage());
 
     verify(memberRepository, never()).findByEmail(email);
     verify(passwordEncoder, never()).matches(anyString(), anyString());
+    verify(loginAttemptService, never()).recordFailure(email);
+    verify(loginAttemptService, never()).resetFailures(email);
   }
 
   @Test
@@ -177,6 +179,7 @@ class MemberLoginServiceTest {
     when(member.isActive()).thenReturn(true);
     when(member.getPassword()).thenReturn(encodedPassword);
     when(passwordEncoder.matches(password, encodedPassword)).thenReturn(false);
+    when(loginAttemptService.recordFailure(email)).thenReturn(3L);
 
     // When
     LoginFailedException exception =
@@ -184,6 +187,7 @@ class MemberLoginServiceTest {
 
     // Then
     assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", exception.getMessage());
+    assertEquals(3L, exception.getFailureCount());
 
     verify(loginAttemptService).recordFailure(email);
     verify(loginAttemptService, never()).resetFailures(email);
@@ -198,19 +202,20 @@ class MemberLoginServiceTest {
     String encodedPassword = "encoded-password";
     LoginCommand command = new LoginCommand(email, password);
 
-    when(loginAttemptService.isLocked(email)).thenReturn(false).thenReturn(true);
+    when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
     when(member.getProvider()).thenReturn(MemberProvider.LOCAL);
     when(member.isActive()).thenReturn(true);
     when(member.getPassword()).thenReturn(encodedPassword);
     when(passwordEncoder.matches(password, encodedPassword)).thenReturn(false);
+    when(loginAttemptService.recordFailure(email)).thenReturn(5L);
 
     // When
     LoginLockedException exception =
         assertThrows(LoginLockedException.class, () -> memberLoginService.login(command));
 
     // Then
-    assertEquals("로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.", exception.getMessage());
+    assertEquals("로그인 시도 횟수를 초과했습니다. 비밀번호를 변경해주세요.", exception.getMessage());
 
     verify(loginAttemptService).recordFailure(email);
     verify(loginAttemptService, never()).resetFailures(email);

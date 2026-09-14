@@ -1,19 +1,16 @@
 package com.todayit.common.auth.service;
 
-import java.time.Duration;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /** Redis를 이용해 로그인 실패 횟수와 임시 잠금 상태를 관리합니다. */
-// recordFailure()로 실패 횟수 누적 -> 5회 도달 시 1시간 잠금
+// recordFailure()로 실패 횟수 누적 -> 5회 도달 시 로그인 잠금
 // isLocked()로 잠금 확인, 로그인 성공 시 resetFailures()로 실패 기록 초기화
 @Service
 public class LoginAttemptService {
 
   // 로그인 실패 횟수
   private static final int MAX_FAILURE_COUNT = 5;
-  // 잠금 시간 -> 일단 임시로 1시간 설정
-  private static final Duration LOCK_DURATION = Duration.ofHours(1);
   // 로그인 실패 기록용 Redis Key 접두사
   private static final String KEY_PREFIX = "auth:login:attempt:";
   // Redis에 로그인 실패 횟수와 잠금 상태 저장
@@ -29,18 +26,17 @@ public class LoginAttemptService {
   }
 
   /**
-   * 로그인 실패 횟수를 1 증가시킵니다. 실패 횟수가 최대 횟수에 도달하면 잠금 시간을 설정합니다.
+   * 로그인 실패 횟수를 1 증가시킵니다.
    *
    * @param email 로그인에 실패한 회원 이메일
+   * @return 증가된 로그인 실패 횟수
    */
-  public void recordFailure(String email) {
+  public long recordFailure(String email) {
     String key = KEY_PREFIX + email;
 
     Long failureCount = redisTemplate.opsForValue().increment(key);
 
-    if (failureCount != null && failureCount == MAX_FAILURE_COUNT) {
-      redisTemplate.expire(key, LOCK_DURATION);
-    }
+    return failureCount == null ? 0 : failureCount;
   }
 
   /**
