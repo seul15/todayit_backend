@@ -48,7 +48,10 @@ public class LoginFacade {
     // 로그인 상태 유지에 사용할 Refresh Token 발급 -> Redis에 로그인 세션 저장
     String refreshToken = refreshTokenService.create(member.memberId());
 
+    // Access Token 사용 가능 시간 확인
+    long expiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
+
     // 회원 정보와 두 토큰을 최종 로그인 결과로 반환
-    return new LoginResult(member.memberId(), member.role(), accessToken, refreshToken);
+    return new LoginResult(member.memberId(), member.role(), accessToken, refreshToken, expiresIn);
   }
 }

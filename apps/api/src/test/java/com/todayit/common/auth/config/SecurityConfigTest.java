@@ -1,5 +1,7 @@
 package com.todayit.common.auth.config;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.todayit.common.auth.handler.RestAccessDeniedHandler;
 import com.todayit.common.auth.handler.RestAuthenticationEntryPoint;
+import com.todayit.member.service.LoginFacade;
+import com.todayit.member.service.model.LoginResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,14 +23,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 // Spring Security 접근 정책, 인증 인가 실패 응답 테스트
@@ -39,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class SecurityConfigTest {
 
   private final MockMvc mockMvc;
+  @MockitoBean private LoginFacade loginFacade;
 
   @Autowired
   SecurityConfigTest(MockMvc mockMvc) {
@@ -51,8 +57,23 @@ public class SecurityConfigTest {
     // Given
     String url = "/api/v1/auth/login";
 
+    LoginResult loginResult =
+        new LoginResult("member-1", "USER", "access-token", "refresh-token", 1800L);
+
+    when(loginFacade.login(any())).thenReturn(loginResult);
+
     // When
-    ResultActions result = mockMvc.perform(post(url));
+    ResultActions result =
+        mockMvc.perform(
+            post(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "email": "test@test.com",
+                                      "password": "password"
+                                    }
+                                    """));
 
     // Then
     result.andExpect(status().isOk());
@@ -138,12 +159,6 @@ public class SecurityConfigTest {
   // 테스트를 위해서 사용하는 임시 Controller
   @RestController
   static class SecurityTestController {
-
-    @PostMapping("/api/v1/auth/login")
-    ResponseEntity<Void> login() {
-      return ResponseEntity.ok().build();
-    }
-
     // 401 응답 테스트
     @GetMapping("/api/v1/security/protected")
     ResponseEntity<Void> protectedEndpoint() {

@@ -100,4 +100,9 @@ public class JwtTokenProvider {
   private Claims parseClaims(String token) {
     return Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token).getPayload();
   }
+
+  // Access Token의 유효 시간을 초 단위로 반환합니다.
+  public long getAccessTokenExpirationSeconds() {
+    return accessTokenExpiration.toSeconds();
+  }
 }

@@ -42,6 +42,7 @@ class LoginFacadeTest {
     String role = "USER";
     String accessToken = "access-token";
     String refreshToken = "refresh-token";
+    long expiresIn = 1800L;
 
     LoginCommand command = new LoginCommand(email, password);
 
@@ -51,6 +52,8 @@ class LoginFacadeTest {
 
     when(refreshTokenService.create(memberId)).thenReturn(refreshToken);
 
+    when(jwtTokenProvider.getAccessTokenExpirationSeconds()).thenReturn(expiresIn);
+
     // When
     LoginResult result = loginFacade.login(command);
 
@@ -59,9 +62,11 @@ class LoginFacadeTest {
     assertEquals(role, result.role());
     assertEquals(accessToken, result.accessToken());
     assertEquals(refreshToken, result.refreshToken());
+    assertEquals(expiresIn, result.expiresIn());
 
     verify(memberLoginService).login(command);
     verify(jwtTokenProvider).createAccessToken(memberId, role);
     verify(refreshTokenService).create(memberId);
+    verify(jwtTokenProvider).getAccessTokenExpirationSeconds();
   }
 }
