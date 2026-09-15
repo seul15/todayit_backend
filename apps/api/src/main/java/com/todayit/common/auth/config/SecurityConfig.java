@@ -3,7 +3,6 @@ package com.todayit.common.auth.config;
 import com.todayit.common.auth.handler.RestAccessDeniedHandler;
 import com.todayit.common.auth.handler.RestAuthenticationEntryPoint;
 import com.todayit.common.auth.jwt.JwtProperties;
-import com.todayit.common.auth.token.RefreshTokenProperties;
 import java.util.List;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -20,11 +19,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /** Spring Security 공통 설정 SecurityFilterChain -> 인증 방식, 세션 정책, 인증 인가 실패 처리, API 접근 정책 설정됨 */
 @Configuration
-@EnableConfigurationProperties({
-  CorsProperties.class,
-  JwtProperties.class,
-  RefreshTokenProperties.class
-})
+@EnableConfigurationProperties({CorsProperties.class, JwtProperties.class})
 public class SecurityConfig {
 
   private final RestAuthenticationEntryPoint authenticationEntryPoint;

@@ -9,15 +9,18 @@ import static org.mockito.Mockito.when;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 import java.util.Base64;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -28,17 +31,13 @@ class RefreshTokenServiceTest {
 
   @Mock private ValueOperations<String, String> valueOperations;
 
-  private RefreshTokenService refreshTokenService;
+  @Mock private SetOperations<String, String> setOperations;
 
-  private Duration expiration;
+  private RefreshTokenService refreshTokenService;
 
   @BeforeEach
   void setUp() {
-    expiration = Duration.ofDays(30);
-
-    RefreshTokenProperties properties = new RefreshTokenProperties(expiration);
-
-    refreshTokenService = new RefreshTokenService(redisTemplate, properties);
+    refreshTokenService = new RefreshTokenService(redisTemplate);
   }
 
   @Test
@@ -46,7 +45,9 @@ class RefreshTokenServiceTest {
   void createsAndStoresRefreshToken() {
     // Given
     String memberId = "member-1";
+
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    when(redisTemplate.opsForSet()).thenReturn(setOperations);
 
     // When
     String refreshToken = refreshTokenService.create(memberId);
@@ -54,9 +55,12 @@ class RefreshTokenServiceTest {
     // Then
     assertFalse(refreshToken.isBlank());
 
-    String key = "auth:refresh:" + hash(refreshToken);
+    String tokenHash = hash(refreshToken);
+    String tokenKey = "auth:refresh:" + tokenHash;
+    String memberKey = "auth:refresh:member:" + memberId;
 
-    verify(valueOperations).set(key, memberId, expiration);
+    verify(valueOperations).set(tokenKey, memberId);
+    verify(setOperations).add(memberKey, tokenHash);
   }
 
   @Test
@@ -65,10 +69,10 @@ class RefreshTokenServiceTest {
     // Given
     String refreshToken = "refresh-token";
     String memberId = "member-1";
-    String key = "auth:refresh:" + hash(refreshToken);
+    String tokenKey = "auth:refresh:" + hash(refreshToken);
 
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-    when(valueOperations.get(key)).thenReturn(memberId);
+    when(valueOperations.get(tokenKey)).thenReturn(memberId);
 
     // When
     Optional<String> result = refreshTokenService.findMemberId(refreshToken);
@@ -79,17 +83,47 @@ class RefreshTokenServiceTest {
   }
 
   @Test
-  @DisplayName("Refresh Token을 삭제하면 로그인 세션을 종료한다")
-  void deletesRefreshToken() {
+  @DisplayName("Refresh Token을 삭제하면 현재 로그인 세션만 종료한다")
+  void deletesCurrentRefreshToken() {
     // Given
     String refreshToken = "refresh-token";
-    String key = "auth:refresh:" + hash(refreshToken);
+    String memberId = "member-1";
+
+    String tokenHash = hash(refreshToken);
+    String tokenKey = "auth:refresh:" + tokenHash;
+    String memberKey = "auth:refresh:member:" + memberId;
+
+    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    when(redisTemplate.opsForSet()).thenReturn(setOperations);
+    when(valueOperations.get(tokenKey)).thenReturn(memberId);
 
     // When
     refreshTokenService.delete(refreshToken);
 
     // Then
-    verify(redisTemplate).delete(key);
+    verify(redisTemplate).delete(tokenKey);
+    verify(setOperations).remove(memberKey, tokenHash);
+  }
+
+  @Test
+  @DisplayName("회원의 모든 Refresh Token을 삭제하면 모든 로그인 세션을 종료한다")
+  void deletesAllRefreshTokensByMemberId() {
+    // Given
+    String memberId = "member-1";
+    String memberKey = "auth:refresh:member:" + memberId;
+
+    Set<String> tokenHashes = new LinkedHashSet<>(List.of("token-hash-1", "token-hash-2"));
+
+    when(redisTemplate.opsForSet()).thenReturn(setOperations);
+    when(setOperations.members(memberKey)).thenReturn(tokenHashes);
+
+    // When
+    refreshTokenService.deleteAll(memberId);
+
+    // Then
+    verify(redisTemplate).delete(List.of("auth:refresh:token-hash-1", "auth:refresh:token-hash-2"));
+
+    verify(redisTemplate).delete(memberKey);
   }
 
   private String hash(String token) {
