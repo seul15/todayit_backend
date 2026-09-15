@@ -74,9 +74,14 @@ public class MemberLoginService {
       throw new LoginFailedException(failureCount);
     }
 
+    String role =
+        memberRepository
+            .findRoleNameByMemberId(member.getId())
+            .orElseThrow(() -> new IllegalStateException("회원 권한 정보가 없습니다."));
+
     // 로그인 성공 시 실패 횟수 초기화
     loginAttemptService.resetFailures(email);
 
-    return new MemberLoginResult(member.getId());
+    return new MemberLoginResult(member.getId(), role);
   }
 }

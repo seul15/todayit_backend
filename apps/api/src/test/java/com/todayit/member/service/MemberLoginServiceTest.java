@@ -55,6 +55,7 @@ class MemberLoginServiceTest {
 
     when(loginAttemptService.isLocked(email)).thenReturn(false);
     when(memberRepository.findByEmail(email)).thenReturn(Optional.of(member));
+    when(memberRepository.findRoleNameByMemberId(memberId)).thenReturn(Optional.of("USER"));
     when(member.getProvider()).thenReturn(MemberProvider.LOCAL);
     when(member.isActive()).thenReturn(true);
     when(member.getPassword()).thenReturn(encodedPassword);
@@ -66,6 +67,7 @@ class MemberLoginServiceTest {
 
     // Then
     assertEquals(memberId, result.memberId());
+    assertEquals("USER", result.role());
     verify(loginAttemptService).resetFailures(email);
     verify(loginAttemptService, never()).recordFailure(email);
   }
