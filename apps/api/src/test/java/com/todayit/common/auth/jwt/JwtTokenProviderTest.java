@@ -1,0 +1,52 @@
+package com.todayit.common.auth.jwt;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.time.Duration;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+class JwtTokenProviderTest {
+
+  private JwtTokenProvider jwtTokenProvider;
+
+  @BeforeEach
+  void setUp() {
+    JwtProperties properties =
+        new JwtProperties("01234567890123456789012345678901", Duration.ofMinutes(30));
+
+    jwtTokenProvider = new JwtTokenProvider(properties);
+  }
+
+  @Test
+  @DisplayName("회원 식별자와 권한으로 Access Token을 생성한다")
+  void createsAccessToken() {
+    // Given
+    String memberId = "member-1";
+    String role = "USER";
+
+    // When
+    String token = jwtTokenProvider.createAccessToken(memberId, role);
+
+    // Then
+    assertTrue(jwtTokenProvider.validateToken(token));
+    assertEquals(memberId, jwtTokenProvider.getMemberId(token));
+    assertEquals(role, jwtTokenProvider.getRole(token));
+  }
+
+  @Test
+  @DisplayName("올바르지 않은 Access Token은 유효하지 않다")
+  void rejectsInvalidAccessToken() {
+    // Given
+    String invalidToken = "invalid-token";
+
+    // When
+    boolean valid = jwtTokenProvider.validateToken(invalidToken);
+
+    // Then
+    assertFalse(valid);
+  }
+}
