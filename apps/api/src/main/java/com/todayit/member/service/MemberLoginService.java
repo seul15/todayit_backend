@@ -44,26 +44,28 @@ public class MemberLoginService {
    * @throws LoginLockedException 로그인 시도 횟수를 초과해 잠긴 상태일 때
    */
   public MemberLoginResult login(LoginCommand command) {
+    // LoginCommand에서 이메일과 비밀번호 확인
     String email = command.email();
     String password = command.password();
     // 로그인 실패 횟수가 5회 이상이면 로그인 차단
     if (loginAttemptService.isLocked(email)) {
       throw new LoginLockedException();
     }
-
+    // 이메일로 회원 조회 -> 존재하지 않으면 로그인 실패
     Member member = memberRepository.findByEmail(email).orElseThrow(LoginFailedException::new);
 
-    // 로컬 로그인인 경우
+    // 로컬 로그인인지 확인
     if (member.getProvider() != MemberProvider.LOCAL) {
       throw new LoginFailedException();
     }
 
-    // 활성 회원이 아닌 경우
+    // 활성 회원 인지 확인
     if (!member.isActive()) {
       throw new LoginFailedException();
     }
 
-    // 비밀번호가 다른 경우
+    // 비밀번호 확인
+    // 틀릴 경우 실패 횟수+1 -> 5회가 되면 계정 잠금
     if (!passwordEncoder.matches(password, member.getPassword())) {
       long failureCount = loginAttemptService.recordFailure(email);
 
@@ -73,15 +75,16 @@ public class MemberLoginService {
 
       throw new LoginFailedException(failureCount);
     }
-
+    // 로그인 회원 권한 확인
     String role =
         memberRepository
             .findRoleNameByMemberId(member.getId())
             .orElseThrow(() -> new IllegalStateException("회원 권한 정보가 없습니다."));
 
-    // 로그인 성공 시 실패 횟수 초기화
+    // 로그인 성공 시 로그인 실패 횟수 초기화
     loginAttemptService.resetFailures(email);
 
+    // 인증 완료된 회원 정보 리턴
     return new MemberLoginResult(member.getId(), role);
   }
 }

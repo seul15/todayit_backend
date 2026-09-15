@@ -1,0 +1,54 @@
+package com.todayit.member.service;
+
+import com.todayit.common.auth.jwt.JwtTokenProvider;
+import com.todayit.common.auth.token.RefreshTokenService;
+import com.todayit.member.service.command.LoginCommand;
+import com.todayit.member.service.model.LoginResult;
+import com.todayit.member.service.model.MemberLoginResult;
+import org.springframework.stereotype.Service;
+
+/** 회원 인증과 Access Token 발급을 연결합니다. */
+@Service
+public class LoginFacade {
+
+  private final MemberLoginService memberLoginService;
+  private final JwtTokenProvider jwtTokenProvider;
+  private final RefreshTokenService refreshTokenService;
+
+  /**
+   * 로그인 인증 서비스와 토큰 발급 서비스를 받습니다.
+   *
+   * @param memberLoginService 회원 로그인 인증 Service
+   * @param jwtTokenProvider Access Token 발급기
+   * @param refreshTokenService Refresh Token 관리 Service
+   */
+  public LoginFacade(
+      MemberLoginService memberLoginService,
+      JwtTokenProvider jwtTokenProvider,
+      RefreshTokenService refreshTokenService) {
+    this.memberLoginService = memberLoginService;
+    this.jwtTokenProvider = jwtTokenProvider;
+    this.refreshTokenService = refreshTokenService;
+  }
+
+  /**
+   * 회원을 인증하고 로그인에 필요한 토큰을 발급합니다.
+   *
+   * @param command 이메일과 비밀번호
+   * @return 최종 로그인 결과
+   */
+  public LoginResult login(LoginCommand command) {
+
+    // 로그인 가능한 회원인지 인증
+    MemberLoginResult member = memberLoginService.login(command);
+
+    // 인증된 회원 ID와 권한으로 Access Token 발급
+    String accessToken = jwtTokenProvider.createAccessToken(member.memberId(), member.role());
+
+    // 로그인 상태 유지에 사용할 Refresh Token 발급 -> Redis에 로그인 세션 저장
+    String refreshToken = refreshTokenService.create(member.memberId());
+
+    // 회원 정보와 두 토큰을 최종 로그인 결과로 반환
+    return new LoginResult(member.memberId(), member.role(), accessToken, refreshToken);
+  }
+}

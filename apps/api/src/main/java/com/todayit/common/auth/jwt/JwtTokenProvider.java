@@ -15,9 +15,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtTokenProvider {
 
+  // JWT 안에서 회원 권한을 저장할 Key
   private static final String ROLE_CLAIM = "role";
 
+  // JWT 위조 여부를 확인하기 위한 서명 Key
   private final SecretKey signingKey;
+
+  // Access Token 사용 가능 시간
   private final Duration accessTokenExpiration;
 
   /**
@@ -26,7 +30,9 @@ public class JwtTokenProvider {
    * @param properties JWT 설정값
    */
   public JwtTokenProvider(JwtProperties properties) {
+    // JWT_SECRET 문자열 -> 실제 JWT 서명에 사용할 Key로 변환
     this.signingKey = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
+    // Access Token 만료 시간 저장
     this.accessTokenExpiration = properties.accessTokenExpiration();
   }
 
@@ -38,8 +44,10 @@ public class JwtTokenProvider {
    * @return 생성된 Access Token
    */
   public String createAccessToken(String memberId, String role) {
+    // 토큰을 발급하는 현재 시간 확인
     Instant now = Instant.now();
 
+    // 최종 JWT 문자열 생성
     return Jwts.builder()
         .subject(memberId)
         .claim(ROLE_CLAIM, role)
@@ -56,6 +64,7 @@ public class JwtTokenProvider {
    * @return 회원 식별자
    */
   public String getMemberId(String token) {
+    // JWT 내용 확인 -> subject에 저장된 회원 ID 반환
     return parseClaims(token).getSubject();
   }
 
@@ -66,6 +75,7 @@ public class JwtTokenProvider {
    * @return 회원 권한
    */
   public String getRole(String token) {
+    // JWT 내용 확인 -> role에 저장된 회원 권한 반환
     return parseClaims(token).get(ROLE_CLAIM, String.class);
   }
 
@@ -77,13 +87,16 @@ public class JwtTokenProvider {
    */
   public boolean validateToken(String token) {
     try {
+      // 서명과 만료 시간이 정상인지 확인
       parseClaims(token);
       return true;
     } catch (JwtException | IllegalArgumentException exception) {
+      // 위조됐거나, 만료됐거나, JWT 형식이 잘못된 경우
       return false;
     }
   }
 
+  // 서버의 Secret Key로 서명 확인 -> 정상이라면 JWT 안에 저장된 내용 반환
   private Claims parseClaims(String token) {
     return Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token).getPayload();
   }

@@ -9,3 +9,6 @@ todayit:
     jwt:
       secret: ${JWT_SECRET}
       access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:30m}
+
+    refresh-token:
+      expiration: ${REFRESH_TOKEN_EXPIRATION:30d}
