@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.todayit.common.auth.jwt.JwtTokenProvider;
+import com.todayit.common.auth.token.RefreshTokenResult;
 import com.todayit.common.auth.token.RefreshTokenService;
 import com.todayit.member.service.command.LoginCommand;
 import com.todayit.member.service.model.LoginResult;
@@ -33,24 +34,31 @@ class LoginFacadeTest {
   }
 
   @Test
-  @DisplayName("회원 인증에 성공하면 Access Token을 발급한다")
-  void issuesAccessTokenAfterSuccessfulLogin() {
+  @DisplayName("회원 인증에 성공하면 Access Token과 Refresh Token을 발급한다")
+  void issuesTokensAfterSuccessfulLogin() {
     // Given
     String email = "test@test.com";
     String password = "password";
     String memberId = "member-1";
     String role = "USER";
+
     String accessToken = "access-token";
     String refreshToken = "refresh-token";
+    String sessionId = "session-1";
+
     long expiresIn = 1800L;
 
     LoginCommand command = new LoginCommand(email, password);
 
-    when(memberLoginService.login(command)).thenReturn(new MemberLoginResult(memberId, role));
+    MemberLoginResult memberLoginResult = new MemberLoginResult(memberId, role);
 
-    when(jwtTokenProvider.createAccessToken(memberId, role)).thenReturn(accessToken);
+    RefreshTokenResult refreshTokenResult = new RefreshTokenResult(refreshToken, sessionId);
 
-    when(refreshTokenService.create(memberId)).thenReturn(refreshToken);
+    when(memberLoginService.login(command)).thenReturn(memberLoginResult);
+
+    when(refreshTokenService.create(memberId)).thenReturn(refreshTokenResult);
+
+    when(jwtTokenProvider.createAccessToken(memberId, role, sessionId)).thenReturn(accessToken);
 
     when(jwtTokenProvider.getAccessTokenExpirationSeconds()).thenReturn(expiresIn);
 
@@ -65,8 +73,8 @@ class LoginFacadeTest {
     assertEquals(expiresIn, result.expiresIn());
 
     verify(memberLoginService).login(command);
-    verify(jwtTokenProvider).createAccessToken(memberId, role);
     verify(refreshTokenService).create(memberId);
+    verify(jwtTokenProvider).createAccessToken(memberId, role, sessionId);
     verify(jwtTokenProvider).getAccessTokenExpirationSeconds();
   }
 }

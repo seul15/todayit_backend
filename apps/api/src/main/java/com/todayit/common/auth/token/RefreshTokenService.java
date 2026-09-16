@@ -38,12 +38,12 @@ public class RefreshTokenService {
   }
 
   /**
-   * 회원의 Refresh Token을 생성하고 Redis에 저장합니다.
+   * 회원의 Refresh Token과 로그인 세션을 생성하고 Redis에 저장합니다.
    *
    * @param memberId 로그인한 회원 식별자
    * @return 생성된 Refresh Token
    */
-  public String create(String memberId) {
+  public RefreshTokenResult create(String memberId) {
 
     // 예측하기 어려운 랜덤 값으로 Refresh Token 생성
     byte[] tokenBytes = new byte[TOKEN_BYTE_LENGTH];
@@ -51,17 +51,17 @@ public class RefreshTokenService {
 
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
 
-    // Refresh Token 원문은 저장하지 않고 해시값만 사용
-    String tokenHash = hash(token);
+    // Refresh Token 원문은 저장하지 않고 해시값을 세션 ID로 사용
+    String sessionId = hash(token);
 
-    // Refresh Token으로 회원을 찾을 수 있도록 저장 -> 로그아웃할 때까지 유지하므로 만료 시간은 설정하지 않음
-    redisTemplate.opsForValue().set(TOKEN_KEY_PREFIX + tokenHash, memberId);
+    // 세션 ID로 로그인한 회원을 찾을 수 있도록 저장
+    redisTemplate.opsForValue().set(TOKEN_KEY_PREFIX + sessionId, memberId);
 
-    // 회원에게 발급된 Refresh Token 목록에도 추가 -> 비밀번호 변경/탈퇴 시 모든 로그인 세션을 찾기 위해 사용
-    redisTemplate.opsForSet().add(MEMBER_KEY_PREFIX + memberId, tokenHash);
+    // 회원에게 발급된 로그인 세션 목록에도 추가
+    redisTemplate.opsForSet().add(MEMBER_KEY_PREFIX + memberId, sessionId);
 
     // 실제 Refresh Token은 클라이언트에 반환
-    return token;
+    return new RefreshTokenResult(token, sessionId);
   }
 
   /**
@@ -78,25 +78,29 @@ public class RefreshTokenService {
   }
 
   /**
-   * 현재 기기의 Refresh Token을 삭제해 로그인 세션을 종료합니다.
+   * 현재 회원의 Refresh Token을 삭제해 로그인 세션을 종료합니다.
    *
    * @param token 삭제할 Refresh Token
+   * @param memberId 로그인한 회원 식별자
    */
-  public void delete(String token) {
+  public void delete(String token, String memberId) {
 
     String tokenHash = hash(token);
     String tokenKey = TOKEN_KEY_PREFIX + tokenHash;
 
-    // Refresh Token이 어느 회원의 것인지 확인
-    String memberId = redisTemplate.opsForValue().get(tokenKey);
+    // Refresh Token이 어느 회원의 로그인 세션인지 확인
+    String storedMemberId = redisTemplate.opsForValue().get(tokenKey);
+
+    // 현재 로그인한 회원의 Refresh Token이 아니면 삭제하지 않음
+    if (!memberId.equals(storedMemberId)) {
+      return;
+    }
 
     // 현재 기기의 Refresh Token만 삭제
     redisTemplate.delete(tokenKey);
 
-    if (memberId != null) {
-      // 회원별 로그인 세션 목록에서도 현재 Token만 제거
-      redisTemplate.opsForSet().remove(MEMBER_KEY_PREFIX + memberId, tokenHash);
-    }
+    // 회원별 로그인 세션 목록에서도 현재 세션만 제거
+    redisTemplate.opsForSet().remove(MEMBER_KEY_PREFIX + memberId, tokenHash);
   }
 
   /**
@@ -137,5 +141,20 @@ public class RefreshTokenService {
     } catch (NoSuchAlgorithmException exception) {
       throw new IllegalStateException("Refresh Token 해시 생성에 실패했습니다.", exception);
     }
+  }
+
+  /**
+   * 로그인 세션이 현재 유효한지 확인합니다.
+   *
+   * @param sessionId 로그인 세션 식별자
+   * @param memberId 회원 식별자
+   * @return 해당 회원의 로그인 세션이 존재하면 true
+   */
+  public boolean isSessionActive(String sessionId, String memberId) {
+
+    // Redis의 세션이 현재 회원의 세션인지 확인
+    String storedMemberId = redisTemplate.opsForValue().get(TOKEN_KEY_PREFIX + sessionId);
+
+    return memberId.equals(storedMemberId);
   }
 }

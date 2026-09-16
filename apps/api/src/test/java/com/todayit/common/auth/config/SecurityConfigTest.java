@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.todayit.common.auth.handler.RestAccessDeniedHandler;
 import com.todayit.common.auth.handler.RestAuthenticationEntryPoint;
+import com.todayit.common.auth.jwt.JwtTokenProvider;
+import com.todayit.common.auth.token.RefreshTokenService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.model.LoginResult;
 import org.junit.jupiter.api.DisplayName;
@@ -45,6 +47,10 @@ public class SecurityConfigTest {
 
   private final MockMvc mockMvc;
   @MockitoBean private LoginFacade loginFacade;
+
+  @MockitoBean private JwtTokenProvider jwtTokenProvider;
+
+  @MockitoBean private RefreshTokenService refreshTokenService;
 
   @Autowired
   SecurityConfigTest(MockMvc mockMvc) {
@@ -200,5 +206,62 @@ public class SecurityConfigTest {
                       .accessDeniedHandler(accessDeniedHandler))
           .build();
     }
+  }
+
+  @Test
+  @DisplayName("유효한 Access Token과 로그인 세션이 있으면 보호 API에 접근할 수 있다")
+  void allowsAccessWithValidAccessTokenAndActiveSession() throws Exception {
+    // Given
+    String url = "/api/v1/security/protected";
+    String accessToken = "access-token";
+    String memberId = "member-1";
+    String role = "USER";
+    String sessionId = "session-1";
+
+    when(jwtTokenProvider.validateToken(accessToken)).thenReturn(true);
+
+    when(jwtTokenProvider.getMemberId(accessToken)).thenReturn(memberId);
+
+    when(jwtTokenProvider.getSessionId(accessToken)).thenReturn(sessionId);
+
+    when(refreshTokenService.isSessionActive(sessionId, memberId)).thenReturn(true);
+
+    when(jwtTokenProvider.getRole(accessToken)).thenReturn(role);
+
+    // When
+    ResultActions result =
+        mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+
+    // Then
+    result.andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("로그인 세션이 삭제된 Access Token으로 보호 API에 접근하면 401을 반환한다")
+  void returnsUnauthorizedWhenLoginSessionIsDeleted() throws Exception {
+    // Given
+    String url = "/api/v1/security/protected";
+    String accessToken = "access-token";
+    String memberId = "member-1";
+    String sessionId = "session-1";
+
+    when(jwtTokenProvider.validateToken(accessToken)).thenReturn(true);
+
+    when(jwtTokenProvider.getMemberId(accessToken)).thenReturn(memberId);
+
+    when(jwtTokenProvider.getSessionId(accessToken)).thenReturn(sessionId);
+
+    when(refreshTokenService.isSessionActive(sessionId, memberId)).thenReturn(false);
+
+    // When
+    ResultActions result =
+        mockMvc.perform(get(url).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken));
+
+    // Then
+    result
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
+        .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
   }
 }

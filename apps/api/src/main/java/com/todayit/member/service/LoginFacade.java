@@ -1,6 +1,7 @@
 package com.todayit.member.service;
 
 import com.todayit.common.auth.jwt.JwtTokenProvider;
+import com.todayit.common.auth.token.RefreshTokenResult;
 import com.todayit.common.auth.token.RefreshTokenService;
 import com.todayit.member.service.command.LoginCommand;
 import com.todayit.member.service.model.LoginResult;
@@ -42,16 +43,19 @@ public class LoginFacade {
     // 로그인 가능한 회원인지 인증
     MemberLoginResult member = memberLoginService.login(command);
 
-    // 인증된 회원 ID와 권한으로 Access Token 발급
-    String accessToken = jwtTokenProvider.createAccessToken(member.memberId(), member.role());
+    // Refresh Token과 로그인 세션 생성
+    RefreshTokenResult refreshToken = refreshTokenService.create(member.memberId());
 
-    // 로그인 상태 유지에 사용할 Refresh Token 발급 -> Redis에 로그인 세션 저장
-    String refreshToken = refreshTokenService.create(member.memberId());
+    // 로그인 세션 ID를 포함해 Access Token 생성
+    String accessToken =
+        jwtTokenProvider.createAccessToken(
+            member.memberId(), member.role(), refreshToken.sessionId());
 
     // Access Token 사용 가능 시간 확인
     long expiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
 
     // 회원 정보와 두 토큰을 최종 로그인 결과로 반환
-    return new LoginResult(member.memberId(), member.role(), accessToken, refreshToken, expiresIn);
+    return new LoginResult(
+        member.memberId(), member.role(), accessToken, refreshToken.token(), expiresIn);
   }
 }

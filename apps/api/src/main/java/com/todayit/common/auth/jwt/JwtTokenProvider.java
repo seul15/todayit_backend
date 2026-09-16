@@ -24,6 +24,9 @@ public class JwtTokenProvider {
   // Access Token 사용 가능 시간
   private final Duration accessTokenExpiration;
 
+  // JWT 안에서 로그인 세션 식별자를 저장할 Key
+  private static final String SESSION_ID_CLAIM = "sid";
+
   /**
    * JWT 설정값으로 토큰 서명 키와 만료 시간을 준비합니다.
    *
@@ -37,24 +40,37 @@ public class JwtTokenProvider {
   }
 
   /**
-   * 회원 식별자와 권한으로 Access Token을 생성합니다.
+   * 회원 식별자, 권한, 로그인 세션으로 Access Token을 생성합니다.
    *
    * @param memberId 회원 식별자
    * @param role 회원 권한
+   * @param sessionId 로그인 세션 식별자
    * @return 생성된 Access Token
    */
-  public String createAccessToken(String memberId, String role) {
+  public String createAccessToken(String memberId, String role, String sessionId) {
+
     // 토큰을 발급하는 현재 시간 확인
     Instant now = Instant.now();
 
-    // 최종 JWT 문자열 생성
+    // 회원 정보와 로그인 세션을 JWT에 저장
     return Jwts.builder()
         .subject(memberId)
         .claim(ROLE_CLAIM, role)
+        .claim(SESSION_ID_CLAIM, sessionId)
         .issuedAt(Date.from(now))
         .expiration(Date.from(now.plus(accessTokenExpiration)))
         .signWith(signingKey, Jwts.SIG.HS256)
         .compact();
+  }
+
+  /**
+   * Access Token에서 로그인 세션 식별자를 가져옵니다.
+   *
+   * @param token Access Token
+   * @return 로그인 세션 식별자
+   */
+  public String getSessionId(String token) {
+    return parseClaims(token).get(SESSION_ID_CLAIM, String.class);
   }
 
   /**

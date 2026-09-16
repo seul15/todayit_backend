@@ -12,6 +12,7 @@ import com.todayit.member.exception.LoginExceptionHandler;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.service.LoginFacade;
+import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.model.LoginResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -30,12 +32,14 @@ class AuthControllerTest {
 
   @Mock private LoginFacade loginFacade;
 
+  @Mock private LogoutService logoutService;
+
   private MockMvc mockMvc;
   private ObjectMapper objectMapper;
 
   @BeforeEach
   void setUp() {
-    AuthController authController = new AuthController(loginFacade);
+    AuthController authController = new AuthController(loginFacade, logoutService);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(authController)
@@ -121,5 +125,34 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.failureCount").value(5))
         .andExpect(jsonPath("$.maxFailureCount").value(5))
         .andExpect(jsonPath("$.message").value("로그인 시도 횟수를 초과했습니다. 비밀번호를 변경해주세요."));
+  }
+
+  @Test
+  @DisplayName("로그아웃하면 현재 기기의 로그인 세션을 종료한다")
+  void logsOutCurrentSession() throws Exception {
+    // Given
+    String memberId = "member-1";
+    String refreshToken = "refresh-token";
+
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(memberId, null);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/logout")
+                .principal(authentication)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "refreshToken": "refresh-token"
+                                    }
+                                    """));
+
+    // Then
+    response.andExpect(status().isNoContent());
+
+    verify(logoutService).logout(memberId, refreshToken);
   }
 }

@@ -29,12 +29,15 @@ class JwtTokenProviderTest {
     String role = "USER";
 
     // When
-    String token = jwtTokenProvider.createAccessToken(memberId, role);
+    String sessionId = "session-1";
+
+    String token = jwtTokenProvider.createAccessToken(memberId, role, sessionId);
 
     // Then
     assertTrue(jwtTokenProvider.validateToken(token));
     assertEquals(memberId, jwtTokenProvider.getMemberId(token));
     assertEquals(role, jwtTokenProvider.getRole(token));
+    assertEquals(sessionId, jwtTokenProvider.getSessionId(token));
   }
 
   @Test

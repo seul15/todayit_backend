@@ -1,5 +1,6 @@
 package com.todayit.common.auth.config;
 
+import com.todayit.common.auth.filter.JwtAuthenticationFilter;
 import com.todayit.common.auth.handler.RestAccessDeniedHandler;
 import com.todayit.common.auth.handler.RestAuthenticationEntryPoint;
 import com.todayit.common.auth.jwt.JwtProperties;
@@ -13,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -74,12 +76,16 @@ public class SecurityConfig {
    *
    * @param http Spring Security HTTP 설정
    * @param corsConfigurationSource CORS 설정
+   * @param jwtAuthenticationFilter Access Token 인증 필터
    * @return SecurityFilterChain
    * @throws Exception SecurityFilterChain 구성 실패 시
    */
   @Bean
   public SecurityFilterChain securityFilterChain(
-      HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
+      HttpSecurity http,
+      CorsConfigurationSource corsConfigurationSource,
+      JwtAuthenticationFilter jwtAuthenticationFilter)
+      throws Exception {
     return http
         // Cross-Origin 요청 처리
         .cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -110,6 +116,9 @@ public class SecurityConfig {
                 exception
                     .authenticationEntryPoint(authenticationEntryPoint)
                     .accessDeniedHandler(accessDeniedHandler))
+
+        // Controller 전에 JWT 인증 처리
+        .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
         .build();
   }
 

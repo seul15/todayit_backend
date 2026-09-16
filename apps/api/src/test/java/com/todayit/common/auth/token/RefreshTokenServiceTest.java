@@ -3,6 +3,7 @@ package com.todayit.common.auth.token;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,26 +42,33 @@ class RefreshTokenServiceTest {
   }
 
   @Test
-  @DisplayName("Refresh Token을 생성하고 Redis에 회원 정보를 저장한다")
+  @DisplayName("Refresh Token과 로그인 세션을 생성하고 Redis에 저장한다")
   void createsAndStoresRefreshToken() {
     // Given
     String memberId = "member-1";
 
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
     when(redisTemplate.opsForSet()).thenReturn(setOperations);
 
     // When
-    String refreshToken = refreshTokenService.create(memberId);
+    RefreshTokenResult result = refreshTokenService.create(memberId);
 
     // Then
-    assertFalse(refreshToken.isBlank());
+    assertFalse(result.token().isBlank());
+    assertFalse(result.sessionId().isBlank());
 
-    String tokenHash = hash(refreshToken);
-    String tokenKey = "auth:refresh:" + tokenHash;
+    String expectedSessionId = hash(result.token());
+
+    assertEquals(expectedSessionId, result.sessionId());
+
+    String tokenKey = "auth:refresh:" + result.sessionId();
+
     String memberKey = "auth:refresh:member:" + memberId;
 
     verify(valueOperations).set(tokenKey, memberId);
-    verify(setOperations).add(memberKey, tokenHash);
+
+    verify(setOperations).add(memberKey, result.sessionId());
   }
 
   @Test
@@ -69,9 +77,11 @@ class RefreshTokenServiceTest {
     // Given
     String refreshToken = "refresh-token";
     String memberId = "member-1";
+
     String tokenKey = "auth:refresh:" + hash(refreshToken);
 
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
     when(valueOperations.get(tokenKey)).thenReturn(memberId);
 
     // When
@@ -83,26 +93,71 @@ class RefreshTokenServiceTest {
   }
 
   @Test
+  @DisplayName("회원의 로그인 세션이 존재하면 유효한 세션으로 확인한다")
+  void checksActiveLoginSession() {
+    // Given
+    String memberId = "member-1";
+    String sessionId = "session-1";
+
+    String sessionKey = "auth:refresh:" + sessionId;
+
+    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+    when(valueOperations.get(sessionKey)).thenReturn(memberId);
+
+    // When
+    boolean active = refreshTokenService.isSessionActive(sessionId, memberId);
+
+    // Then
+    assertTrue(active);
+  }
+
+  @Test
+  @DisplayName("다른 회원의 로그인 세션이면 유효하지 않은 세션으로 확인한다")
+  void rejectsAnotherMembersLoginSession() {
+    // Given
+    String memberId = "member-1";
+    String anotherMemberId = "member-2";
+    String sessionId = "session-1";
+
+    String sessionKey = "auth:refresh:" + sessionId;
+
+    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+    when(valueOperations.get(sessionKey)).thenReturn(anotherMemberId);
+
+    // When
+    boolean active = refreshTokenService.isSessionActive(sessionId, memberId);
+
+    // Then
+    assertFalse(active);
+  }
+
+  @Test
   @DisplayName("Refresh Token을 삭제하면 현재 로그인 세션만 종료한다")
   void deletesCurrentRefreshToken() {
     // Given
     String refreshToken = "refresh-token";
     String memberId = "member-1";
 
-    String tokenHash = hash(refreshToken);
-    String tokenKey = "auth:refresh:" + tokenHash;
+    String sessionId = hash(refreshToken);
+    String tokenKey = "auth:refresh:" + sessionId;
+
     String memberKey = "auth:refresh:member:" + memberId;
 
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
     when(redisTemplate.opsForSet()).thenReturn(setOperations);
+
     when(valueOperations.get(tokenKey)).thenReturn(memberId);
 
     // When
-    refreshTokenService.delete(refreshToken);
+    refreshTokenService.delete(refreshToken, memberId);
 
     // Then
     verify(redisTemplate).delete(tokenKey);
-    verify(setOperations).remove(memberKey, tokenHash);
+
+    verify(setOperations).remove(memberKey, sessionId);
   }
 
   @Test
@@ -112,18 +167,41 @@ class RefreshTokenServiceTest {
     String memberId = "member-1";
     String memberKey = "auth:refresh:member:" + memberId;
 
-    Set<String> tokenHashes = new LinkedHashSet<>(List.of("token-hash-1", "token-hash-2"));
+    Set<String> sessionIds = new LinkedHashSet<>(List.of("session-1", "session-2"));
 
     when(redisTemplate.opsForSet()).thenReturn(setOperations);
-    when(setOperations.members(memberKey)).thenReturn(tokenHashes);
+
+    when(setOperations.members(memberKey)).thenReturn(sessionIds);
 
     // When
     refreshTokenService.deleteAll(memberId);
 
     // Then
-    verify(redisTemplate).delete(List.of("auth:refresh:token-hash-1", "auth:refresh:token-hash-2"));
+    verify(redisTemplate).delete(List.of("auth:refresh:session-1", "auth:refresh:session-2"));
 
     verify(redisTemplate).delete(memberKey);
+  }
+
+  @Test
+  @DisplayName("다른 회원의 Refresh Token은 삭제하지 않는다")
+  void doesNotDeleteAnotherMembersRefreshToken() {
+    // Given
+    String refreshToken = "refresh-token";
+    String memberId = "member-1";
+    String anotherMemberId = "member-2";
+
+    String tokenHash = hash(refreshToken);
+    String tokenKey = "auth:refresh:" + tokenHash;
+
+    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+    when(valueOperations.get(tokenKey)).thenReturn(anotherMemberId);
+
+    // When
+    refreshTokenService.delete(refreshToken, memberId);
+
+    // Then
+    verify(redisTemplate, never()).delete(tokenKey);
   }
 
   private String hash(String token) {
