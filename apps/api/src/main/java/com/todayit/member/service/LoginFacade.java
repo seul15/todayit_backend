@@ -49,13 +49,13 @@ public class LoginFacade {
     // 로그인 세션 ID를 포함해 Access Token 생성
     String accessToken =
         jwtTokenProvider.createAccessToken(
-            member.memberId(), member.role(), refreshToken.sessionId());
+            member.memberId(), member.roles(), refreshToken.sessionId());
 
     // Access Token 사용 가능 시간 확인
     long expiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
 
     // 회원 정보와 두 토큰을 최종 로그인 결과로 반환
     return new LoginResult(
-        member.memberId(), member.role(), accessToken, refreshToken.token(), expiresIn);
+        member.memberId(), member.roles(), accessToken, refreshToken.token(), expiresIn);
   }
 }

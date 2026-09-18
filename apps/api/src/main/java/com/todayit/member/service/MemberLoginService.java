@@ -8,6 +8,7 @@ import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.service.command.LoginCommand;
 import com.todayit.member.service.model.MemberLoginResult;
+import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -42,26 +43,27 @@ public class MemberLoginService {
    * @return 인증에 성공한 회원 정보
    * @throws LoginFailedException 로그인 정보가 올바르지 않을 때
    * @throws LoginLockedException 로그인 시도 횟수를 초과해 잠긴 상태일 때
+   * @throws IllegalStateException 회원에게 유효한 권한이 없을 때
    */
   public MemberLoginResult login(LoginCommand command) {
     // LoginCommand에서 이메일과 비밀번호 확인
     String email = command.email();
     String password = command.password();
+
+    // 같은 이메일의 소셜 계정과 구분하여 LOCAL 회원만 조회
+    Member member =
+        memberRepository
+            .findByEmailAndProvider(email, MemberProvider.LOCAL)
+            .orElseThrow(LoginFailedException::new);
+
+    // 탈퇴 등으로 비활성화된 회원은 로그인 실패
+    if (!member.isActive()) {
+      throw new LoginFailedException();
+    }
+
     // 로그인 실패 횟수가 5회 이상이면 로그인 차단
     if (loginAttemptService.isLocked(email)) {
       throw new LoginLockedException();
-    }
-    // 이메일로 회원 조회 -> 존재하지 않으면 로그인 실패
-    Member member = memberRepository.findByEmail(email).orElseThrow(LoginFailedException::new);
-
-    // 로컬 로그인인지 확인
-    if (member.getProvider() != MemberProvider.LOCAL) {
-      throw new LoginFailedException();
-    }
-
-    // 활성 회원 인지 확인
-    if (!member.isActive()) {
-      throw new LoginFailedException();
     }
 
     // 비밀번호 확인
@@ -75,16 +77,17 @@ public class MemberLoginService {
 
       throw new LoginFailedException(failureCount);
     }
-    // 로그인 회원 권한 확인
-    String role =
-        memberRepository
-            .findRoleNameByMemberId(member.getId())
-            .orElseThrow(() -> new IllegalStateException("회원 권한 정보가 없습니다."));
+    // 로그인 회원의 권한 확인
+    List<String> roles = memberRepository.findRoleNamesByMemberId(member.getId());
+
+    if (roles.isEmpty()) {
+      throw new IllegalStateException("회원 권한 정보가 없습니다.");
+    }
 
     // 로그인 성공 시 로그인 실패 횟수 초기화
     loginAttemptService.resetFailures(email);
 
     // 인증 완료된 회원 정보 리턴
-    return new MemberLoginResult(member.getId(), role);
+    return new MemberLoginResult(member.getId(), roles);
   }
 }

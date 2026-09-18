@@ -15,6 +15,7 @@ import com.todayit.common.auth.jwt.JwtTokenProvider;
 import com.todayit.common.auth.token.RefreshTokenService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.model.LoginResult;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,7 +65,7 @@ public class SecurityConfigTest {
     String url = "/api/v1/auth/login";
 
     LoginResult loginResult =
-        new LoginResult("member-1", "USER", "access-token", "refresh-token", 1800L);
+        new LoginResult("member-1", List.of("USER"), "access-token", "refresh-token", 1800L);
 
     when(loginFacade.login(any())).thenReturn(loginResult);
 
@@ -215,7 +216,7 @@ public class SecurityConfigTest {
     String url = "/api/v1/security/protected";
     String accessToken = "access-token";
     String memberId = "member-1";
-    String role = "USER";
+    List<String> roles = List.of("USER");
     String sessionId = "session-1";
 
     when(jwtTokenProvider.validateToken(accessToken)).thenReturn(true);
@@ -226,7 +227,7 @@ public class SecurityConfigTest {
 
     when(refreshTokenService.isSessionActive(sessionId, memberId)).thenReturn(true);
 
-    when(jwtTokenProvider.getRole(accessToken)).thenReturn(role);
+    when(jwtTokenProvider.getRoles(accessToken)).thenReturn(roles);
 
     // When
     ResultActions result =

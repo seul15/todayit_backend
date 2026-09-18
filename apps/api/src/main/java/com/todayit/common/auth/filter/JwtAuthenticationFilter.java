@@ -76,18 +76,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
 
-    // 회원 권한 확인
-    String role = jwtTokenProvider.getRole(accessToken);
+    // 회원 권한 목록 확인
+    List<String> roles = jwtTokenProvider.getRoles(accessToken);
 
-    if (role == null) {
+    if (roles.isEmpty()) {
       filterChain.doFilter(request, response);
       return;
     }
 
+    // 각 권한을 Spring Security 권한으로 변환
+    List<SimpleGrantedAuthority> authorities =
+        roles.stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList();
+
     // Spring Security가 사용할 인증 정보 생성
     UsernamePasswordAuthenticationToken authentication =
-        new UsernamePasswordAuthenticationToken(
-            memberId, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+        new UsernamePasswordAuthenticationToken(memberId, null, authorities);
 
     // 현재 요청을 로그인한 사용자의 요청으로 등록
     SecurityContextHolder.getContext().setAuthentication(authentication);

@@ -14,6 +14,7 @@ import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.model.LoginResult;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,7 +56,7 @@ class AuthControllerTest {
     LoginRequest request = new LoginRequest("test@test.com", "password");
 
     LoginResult result =
-        new LoginResult("member-1", "USER", "access-token", "refresh-token", 1800L);
+        new LoginResult("member-1", List.of("DEV", "USER"), "access-token", "refresh-token", 1800L);
 
     when(loginFacade.login(any())).thenReturn(result);
 
@@ -73,7 +74,8 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
         .andExpect(jsonPath("$.expiresIn").value(1800))
         .andExpect(jsonPath("$.memberId").value("member-1"))
-        .andExpect(jsonPath("$.role").value("USER"));
+        .andExpect(jsonPath("$.roles[0]").value("DEV"))
+        .andExpect(jsonPath("$.roles[1]").value("USER"));
 
     verify(loginFacade).login(any());
   }

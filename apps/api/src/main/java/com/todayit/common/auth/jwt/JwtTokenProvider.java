@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
 
@@ -15,8 +16,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtTokenProvider {
 
-  // JWT 안에서 회원 권한을 저장할 Key
-  private static final String ROLE_CLAIM = "role";
+  // JWT 안에서 회원 권한 목록을 저장할 Key
+  private static final String ROLES_CLAIM = "roles";
+  ;
 
   // JWT 위조 여부를 확인하기 위한 서명 Key
   private final SecretKey signingKey;
@@ -40,14 +42,14 @@ public class JwtTokenProvider {
   }
 
   /**
-   * 회원 식별자, 권한, 로그인 세션으로 Access Token을 생성합니다.
+   * 회원 식별자, 권한 목록, 로그인 세션으로 Access Token을 생성합니다.
    *
    * @param memberId 회원 식별자
-   * @param role 회원 권한
+   * @param roles 회원 권한 목록
    * @param sessionId 로그인 세션 식별자
    * @return 생성된 Access Token
    */
-  public String createAccessToken(String memberId, String role, String sessionId) {
+  public String createAccessToken(String memberId, List<String> roles, String sessionId) {
 
     // 토큰을 발급하는 현재 시간 확인
     Instant now = Instant.now();
@@ -55,7 +57,7 @@ public class JwtTokenProvider {
     // 회원 정보와 로그인 세션을 JWT에 저장
     return Jwts.builder()
         .subject(memberId)
-        .claim(ROLE_CLAIM, role)
+        .claim(ROLES_CLAIM, roles)
         .claim(SESSION_ID_CLAIM, sessionId)
         .issuedAt(Date.from(now))
         .expiration(Date.from(now.plus(accessTokenExpiration)))
@@ -85,14 +87,19 @@ public class JwtTokenProvider {
   }
 
   /**
-   * Access Token에서 회원 권한을 가져옵니다.
+   * Access Token에서 회원 권한 목록을 가져옵니다.
    *
    * @param token Access Token
-   * @return 회원 권한
+   * @return 회원 권한 목록
    */
-  public String getRole(String token) {
-    // JWT 내용 확인 -> role에 저장된 회원 권한 반환
-    return parseClaims(token).get(ROLE_CLAIM, String.class);
+  public List<String> getRoles(String token) {
+    Object rolesClaim = parseClaims(token).get(ROLES_CLAIM);
+
+    if (!(rolesClaim instanceof List<?> roles)) {
+      return List.of();
+    }
+
+    return roles.stream().filter(String.class::isInstance).map(String.class::cast).toList();
   }
 
   /**
@@ -112,13 +119,17 @@ public class JwtTokenProvider {
     }
   }
 
+  /**
+   * Access Token의 유효 시간을 초 단위로 반환합니다.
+   *
+   * @return Access Token 유효 시간
+   */
+  public long getAccessTokenExpirationSeconds() {
+    return accessTokenExpiration.toSeconds();
+  }
+
   // 서버의 Secret Key로 서명 확인 -> 정상이라면 JWT 안에 저장된 내용 반환
   private Claims parseClaims(String token) {
     return Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token).getPayload();
-  }
-
-  // Access Token의 유효 시간을 초 단위로 반환합니다.
-  public long getAccessTokenExpirationSeconds() {
-    return accessTokenExpiration.toSeconds();
   }
 }

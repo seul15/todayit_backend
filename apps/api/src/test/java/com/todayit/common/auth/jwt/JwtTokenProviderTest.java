@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,21 +23,20 @@ class JwtTokenProviderTest {
   }
 
   @Test
-  @DisplayName("회원 식별자와 권한으로 Access Token을 생성한다")
+  @DisplayName("회원 식별자와 여러 권한으로 Access Token을 생성한다")
   void createsAccessToken() {
     // Given
     String memberId = "member-1";
-    String role = "USER";
-
-    // When
+    List<String> roles = List.of("DEV", "USER");
     String sessionId = "session-1";
 
-    String token = jwtTokenProvider.createAccessToken(memberId, role, sessionId);
+    // When
+    String token = jwtTokenProvider.createAccessToken(memberId, roles, sessionId);
 
     // Then
     assertTrue(jwtTokenProvider.validateToken(token));
     assertEquals(memberId, jwtTokenProvider.getMemberId(token));
-    assertEquals(role, jwtTokenProvider.getRole(token));
+    assertEquals(roles, jwtTokenProvider.getRoles(token));
     assertEquals(sessionId, jwtTokenProvider.getSessionId(token));
   }
 

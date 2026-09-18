@@ -1,6 +1,8 @@
 package com.todayit.member.repository;
 
 import com.todayit.member.entity.Member;
+import com.todayit.member.entity.MemberProvider;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -10,18 +12,19 @@ import org.springframework.data.repository.query.Param;
 public interface MemberRepository extends JpaRepository<Member, String> {
 
   /**
-   * 이메일로 회원을 조회합니다.
+   * 이메일과 가입 방식으로 회원을 조회합니다.
    *
    * @param email 조회할 이메일
+   * @param provider 가입 방식
    * @return 해당 이메일의 회원, 없으면 empty
    */
-  Optional<Member> findByEmail(String email);
+  Optional<Member> findByEmailAndProvider(String email, MemberProvider provider);
 
   /**
-   * 회원의 권한 이름을 조회합니다.
+   * 회원의 권한 목록을 조회합니다.
    *
    * @param memberId 회원 식별자
-   * @return 회원 권한 이름
+   * @return 회원 권한 목록
    */
   @Query(
       value =
@@ -31,7 +34,8 @@ public interface MemberRepository extends JpaRepository<Member, String> {
                   JOIN roles r ON r.roles_id = mr.roles_id
                   WHERE mr.member_id = :memberId
                     AND r.deleted_at IS NULL
+                  ORDER BY r.name
                   """,
       nativeQuery = true)
-  Optional<String> findRoleNameByMemberId(@Param("memberId") String memberId);
+  List<String> findRoleNamesByMemberId(@Param("memberId") String memberId);
 }

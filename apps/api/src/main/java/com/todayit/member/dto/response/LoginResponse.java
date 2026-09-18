@@ -1,6 +1,7 @@
 package com.todayit.member.dto.response;
 
 import com.todayit.member.service.model.LoginResult;
+import java.util.List;
 
 /**
  * 로그인 성공 응답입니다.
@@ -9,10 +10,10 @@ import com.todayit.member.service.model.LoginResult;
  * @param refreshToken Access Token 재발급에 사용할 Refresh Token
  * @param expiresIn Access Token 유효 시간(초)
  * @param memberId 로그인한 회원 식별자
- * @param role 로그인한 회원 권한
+ * @param roles 로그인한 회원 권한 목록
  */
 public record LoginResponse(
-    String accessToken, String refreshToken, long expiresIn, String memberId, String role) {
+    String accessToken, String refreshToken, long expiresIn, String memberId, List<String> roles) {
   /**
    * 로그인 처리 결과를 API 응답으로 변환합니다.
    *
@@ -25,6 +26,6 @@ public record LoginResponse(
         result.refreshToken(),
         result.expiresIn(),
         result.memberId(),
-        result.role());
+        result.roles());
   }
 }
