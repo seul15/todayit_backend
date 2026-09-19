@@ -3,6 +3,7 @@ package com.todayit.member.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -120,7 +121,7 @@ class MemberLoginServiceTest {
     verify(loginAttemptService, never()).isLocked(email);
     verify(loginAttemptService, never()).recordFailure(email);
     verify(loginAttemptService, never()).resetFailures(email);
-    verify(passwordEncoder, never()).matches(anyString(), anyString());
+    verify(passwordEncoder).matches(eq(password), anyString());
   }
 
   @Test
@@ -144,6 +145,7 @@ class MemberLoginServiceTest {
     verify(loginAttemptService, never()).isLocked(email);
     verify(loginAttemptService, never()).recordFailure(email);
     verify(loginAttemptService, never()).resetFailures(email);
+    verify(passwordEncoder).matches(eq(password), anyString());
   }
 
   @Test
@@ -168,7 +170,7 @@ class MemberLoginServiceTest {
     verify(loginAttemptService, never()).isLocked(email);
     verify(loginAttemptService, never()).recordFailure(email);
     verify(loginAttemptService, never()).resetFailures(email);
-    verify(passwordEncoder, never()).matches(anyString(), anyString());
+    verify(passwordEncoder).matches(eq(password), anyString());
   }
 
   @Test

@@ -1,14 +1,15 @@
 package com.todayit.member.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.todayit.common.exception.GlobalExceptionHandler;
 import com.todayit.member.dto.request.LoginRequest;
-import com.todayit.member.exception.LoginExceptionHandler;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.service.LoginFacade;
@@ -44,7 +45,7 @@ class AuthControllerTest {
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(authController)
-            .setControllerAdvice(new LoginExceptionHandler())
+            .setControllerAdvice(new GlobalExceptionHandler())
             .build();
     objectMapper = new ObjectMapper();
   }
@@ -156,5 +157,60 @@ class AuthControllerTest {
     response.andExpect(status().isNoContent());
 
     verify(logoutService).logout(memberId, refreshToken);
+  }
+
+  @Test
+  @DisplayName("로그인 이메일이 비어 있으면 400 응답을 반환한다")
+  void returnsBadRequestWhenLoginEmailIsBlank() throws Exception {
+    // Given
+    LoginRequest request = new LoginRequest("", "password");
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("이메일은 필수입니다."));
+
+    verify(loginFacade, never()).login(any());
+  }
+
+  @Test
+  @DisplayName("로그아웃 Refresh Token이 비어 있으면 400 응답을 반환한다")
+  void returnsBadRequestWhenRefreshTokenIsBlank() throws Exception {
+    // Given
+    String memberId = "member-1";
+
+    UsernamePasswordAuthenticationToken authentication =
+        new UsernamePasswordAuthenticationToken(memberId, null);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/logout")
+                .principal(authentication)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "refreshToken": ""
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("Refresh Token은 필수입니다."));
+
+    verify(logoutService, never()).logout(any(), any());
   }
 }

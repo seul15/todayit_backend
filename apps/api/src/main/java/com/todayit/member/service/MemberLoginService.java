@@ -20,6 +20,9 @@ public class MemberLoginService {
   private final PasswordEncoder passwordEncoder;
   private final LoginAttemptService loginAttemptService;
 
+  private static final String DUMMY_PASSWORD_HASH =
+      "$2a$10$6nCpOmOInixYvfnvy.pM7OZaJ4enUex4OpI4Z19SIcrSNxXJehyfm";
+
   /**
    * 로그인에 필요한 회원 저장소, 비밀번호 검증기, 로그인 시도 관리 서비스를 받습니다.
    *
@@ -52,12 +55,18 @@ public class MemberLoginService {
 
     // 같은 이메일의 소셜 계정과 구분하여 LOCAL 회원만 조회
     Member member =
-        memberRepository
-            .findByEmailAndProvider(email, MemberProvider.LOCAL)
-            .orElseThrow(LoginFailedException::new);
+        memberRepository.findByEmailAndProvider(email, MemberProvider.LOCAL).orElse(null);
+
+    if (member == null) {
+      // 회원이 없어도 BCrypt 검증을 수행해 로그인 응답 시간 차이를 줄임
+      performDummyPasswordCheck(password);
+      throw new LoginFailedException();
+    }
 
     // 탈퇴 등으로 비활성화된 회원은 로그인 실패
     if (!member.isActive()) {
+      // 비활성 회원도 BCrypt 검증을 수행해 계정 상태에 따른 응답 시간 차이를 줄임
+      performDummyPasswordCheck(password);
       throw new LoginFailedException();
     }
 
@@ -89,5 +98,9 @@ public class MemberLoginService {
 
     // 인증 완료된 회원 정보 리턴
     return new MemberLoginResult(member.getId(), roles);
+  }
+
+  private void performDummyPasswordCheck(String password) {
+    passwordEncoder.matches(password, DUMMY_PASSWORD_HASH);
   }
 }

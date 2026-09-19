@@ -1,5 +1,6 @@
 package com.todayit.member.dto.request;
 
+import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.service.command.LoginCommand;
 
 /**
@@ -22,15 +23,15 @@ public record LoginRequest(String email, String password) {
   /**
    * 로그인에 필요한 필수 입력을 확인합니다.
    *
-   * @throws IllegalArgumentException 이메일 또는 비밀번호가 없거나 공백일 때
+   * @throws InvalidRequestException 이메일 또는 비밀번호가 없거나 공백일 때
    */
   public void validate() {
     if (email == null || email.isBlank()) {
-      throw new IllegalArgumentException("이메일은 필수입니다.");
+      throw new InvalidRequestException("이메일은 필수입니다.");
     }
 
     if (password == null || password.isBlank()) {
-      throw new IllegalArgumentException("비밀번호는 필수입니다.");
+      throw new InvalidRequestException("비밀번호는 필수입니다.");
     }
   }
 }

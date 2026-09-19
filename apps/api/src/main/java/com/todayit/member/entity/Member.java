@@ -26,9 +26,6 @@ public class Member {
   @Column(name = "provider", nullable = false, length = 20)
   private MemberProvider provider;
 
-  @Column(name = "provider_user_id", length = 255)
-  private String providerUserId;
-
   @Column(name = "is_active", nullable = false)
   private boolean active;
 
@@ -38,20 +35,8 @@ public class Member {
     return id;
   }
 
-  public String getEmail() {
-    return email;
-  }
-
   public String getPassword() {
     return password;
-  }
-
-  public MemberProvider getProvider() {
-    return provider;
-  }
-
-  public String getProviderUserId() {
-    return providerUserId;
   }
 
   public boolean isActive() {

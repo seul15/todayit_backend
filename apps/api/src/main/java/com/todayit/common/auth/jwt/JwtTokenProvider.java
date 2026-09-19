@@ -18,7 +18,6 @@ public class JwtTokenProvider {
 
   // JWT 안에서 회원 권한 목록을 저장할 Key
   private static final String ROLES_CLAIM = "roles";
-  ;
 
   // JWT 위조 여부를 확인하기 위한 서명 Key
   private final SecretKey signingKey;
