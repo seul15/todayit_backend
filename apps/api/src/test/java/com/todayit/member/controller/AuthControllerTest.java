@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,6 +15,7 @@ import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
+import com.todayit.member.service.SignupService;
 import com.todayit.member.service.model.LoginResult;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,12 +38,14 @@ class AuthControllerTest {
 
   @Mock private LogoutService logoutService;
 
+  @Mock private SignupService signupService;
+
   private MockMvc mockMvc;
   private ObjectMapper objectMapper;
 
   @BeforeEach
   void setUp() {
-    AuthController authController = new AuthController(loginFacade, logoutService);
+    AuthController authController = new AuthController(loginFacade, logoutService, signupService);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(authController)
@@ -212,5 +216,79 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("Refresh Token은 필수입니다."));
 
     verify(logoutService, never()).logout(any(), any());
+  }
+
+  @Test
+  @DisplayName("사용 가능한 이메일이면 available true를 반환한다")
+  void returnsAvailableTrueWhenEmailIsAvailable() throws Exception {
+    // Given
+    String email = "new@test.com";
+
+    when(signupService.isEmailAvailable(email)).thenReturn(true);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(get("/api/v1/auth/emails/check").param("email", email));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value(email))
+        .andExpect(jsonPath("$.available").value(true));
+
+    verify(signupService).isEmailAvailable(email);
+  }
+
+  @Test
+  @DisplayName("이미 사용 중인 이메일이면 available false를 반환한다")
+  void returnsAvailableFalseWhenEmailAlreadyExists() throws Exception {
+    // Given
+    String email = "exists@test.com";
+
+    when(signupService.isEmailAvailable(email)).thenReturn(false);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(get("/api/v1/auth/emails/check").param("email", email));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.email").value(email))
+        .andExpect(jsonPath("$.available").value(false));
+
+    verify(signupService).isEmailAvailable(email);
+  }
+
+  @Test
+  @DisplayName("이메일이 비어 있으면 400 응답을 반환한다")
+  void returnsBadRequestWhenEmailIsBlank() throws Exception {
+    // When
+    ResultActions response = mockMvc.perform(get("/api/v1/auth/emails/check").param("email", ""));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("이메일은 필수입니다."));
+
+    verify(signupService, never()).isEmailAvailable(any());
+  }
+
+  @Test
+  @DisplayName("이메일 파라미터가 없으면 400 응답을 반환한다")
+  void returnsBadRequestWhenEmailIsMissing() throws Exception {
+    // When
+    ResultActions response = mockMvc.perform(get("/api/v1/auth/emails/check"));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("이메일은 필수입니다."));
+
+    verify(signupService, never()).isEmailAvailable(any());
   }
 }

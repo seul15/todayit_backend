@@ -21,6 +21,15 @@ public interface MemberRepository extends JpaRepository<Member, String> {
   Optional<Member> findByEmailAndProvider(String email, MemberProvider provider);
 
   /**
+   * 이메일과 가입 방식에 해당하는 회원이 존재하는지 확인합니다.
+   *
+   * @param email 확인할 이메일
+   * @param provider 가입 방식
+   * @return 회원이 존재하면 true
+   */
+  boolean existsByEmailAndProvider(String email, MemberProvider provider);
+
+  /**
    * 회원의 권한 목록을 조회합니다.
    *
    * @param memberId 회원 식별자

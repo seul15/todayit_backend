@@ -106,6 +106,10 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/signup")
                     .permitAll()
 
+                    // 회원가입 전 이메일 중복 확인해야함
+                    .requestMatchers(HttpMethod.GET, "/api/v1/auth/emails/check")
+                    .permitAll()
+
                     // 위에를 제외한 모든 요청은 인증된 사용자만 접근 가능하도록 설정
                     .anyRequest()
                     .authenticated())
