@@ -9,6 +9,12 @@ public enum MemberErrorCode implements ErrorCode {
 
   LOGIN_LOCKED("LOGIN_LOCKED", "로그인 시도 횟수를 초과했습니다. 비밀번호를 변경해주세요.", ErrorStatus.UNAUTHORIZED),
 
+  EMAIL_VERIFICATION_CODE_EXPIRED(
+      "EMAIL_VERIFICATION_CODE_EXPIRED", "인증번호가 만료되었거나 존재하지 않습니다.", ErrorStatus.BAD_REQUEST),
+
+  EMAIL_VERIFICATION_CODE_INVALID(
+      "EMAIL_VERIFICATION_CODE_INVALID", "인증번호가 올바르지 않습니다.", ErrorStatus.BAD_REQUEST),
+
   EMAIL_VERIFICATION_RESEND_TOO_SOON(
       "EMAIL_VERIFICATION_RESEND_TOO_SOON", "인증번호는 1분 후 다시 요청할 수 있습니다.", ErrorStatus.BAD_REQUEST);
 
