@@ -16,7 +16,10 @@ public enum MemberErrorCode implements ErrorCode {
       "EMAIL_VERIFICATION_CODE_INVALID", "인증번호가 올바르지 않습니다.", ErrorStatus.BAD_REQUEST),
 
   EMAIL_VERIFICATION_RESEND_TOO_SOON(
-      "EMAIL_VERIFICATION_RESEND_TOO_SOON", "인증번호는 1분 후 다시 요청할 수 있습니다.", ErrorStatus.BAD_REQUEST);
+      "EMAIL_VERIFICATION_RESEND_TOO_SOON", "인증번호는 1분 후 다시 요청할 수 있습니다.", ErrorStatus.BAD_REQUEST),
+
+  EMAIL_VERIFICATION_TOKEN_INVALID(
+      "EMAIL_VERIFICATION_TOKEN_INVALID", "이메일 인증 정보가 유효하지 않습니다.", ErrorStatus.BAD_REQUEST);
 
   private final String code;
   private final String message;

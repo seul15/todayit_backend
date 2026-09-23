@@ -4,6 +4,7 @@ import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.exception.EmailVerificationCodeExpiredException;
 import com.todayit.member.exception.EmailVerificationResendTooSoonException;
 import com.todayit.member.exception.InvalidEmailVerificationCodeException;
+import com.todayit.member.exception.InvalidEmailVerificationTokenException;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -112,6 +113,29 @@ public class EmailVerificationService {
     }
 
     return handleVerificationFailure(keySuffix);
+  }
+
+  /**
+   * 이메일 인증 완료 토큰의 이메일과 인증 목적을 검증합니다.
+   *
+   * @param email 검증할 이메일
+   * @param purpose 인증 목적
+   * @param verificationToken 이메일 인증 완료 토큰
+   * @throws InvalidEmailVerificationTokenException 토큰이 없거나 인증 정보가 일치하지 않는 경우
+   */
+  public void validateVerificationToken(
+      String email, EmailVerificationPurpose purpose, String verificationToken) {
+
+    String tokenKey = TOKEN_KEY_PREFIX + verificationToken;
+
+    String storedVerification = redisTemplate.opsForValue().get(tokenKey);
+
+    String expectedVerification = createKeySuffix(email, purpose);
+
+    // Redis Key가 만료됐거나 토큰에 저장된 이메일·목적이 다르면 사용할 수 없다.
+    if (!expectedVerification.equals(storedVerification)) {
+      throw new InvalidEmailVerificationTokenException();
+    }
   }
 
   private EmailVerificationConfirmResult handleVerificationFailure(String keySuffix) {

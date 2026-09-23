@@ -16,6 +16,7 @@ import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.exception.EmailVerificationCodeExpiredException;
 import com.todayit.member.exception.EmailVerificationResendTooSoonException;
 import com.todayit.member.exception.InvalidEmailVerificationCodeException;
+import com.todayit.member.exception.InvalidEmailVerificationTokenException;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import java.time.Duration;
@@ -218,5 +219,72 @@ public class EmailVerificationServiceTest {
     verify(redisTemplate).delete(attemptKey);
 
     verify(valueOperations).set(resendKey, "1", Duration.ofMinutes(1));
+  }
+
+  @Test
+  @DisplayName("이메일과 인증 목적이 일치하는 인증 토큰은 검증에 성공한다")
+  void validatesVerificationToken() {
+    // Given
+    String email = "test@test.com";
+    EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
+    String verificationToken = "verification-token";
+
+    String tokenKey = "auth:email-verification:token:" + verificationToken;
+
+    when(valueOperations.get(tokenKey)).thenReturn("SIGNUP:test@test.com");
+
+    // When
+    emailVerificationService.validateVerificationToken(email, purpose, verificationToken);
+
+    // Then
+    verify(valueOperations).get(tokenKey);
+  }
+
+  @Test
+  @DisplayName("존재하지 않거나 만료된 인증 토큰은 검증에 실패한다")
+  void rejectsExpiredVerificationToken() {
+    // Given
+    String email = "test@test.com";
+    EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
+    String verificationToken = "expired-token";
+
+    String tokenKey = "auth:email-verification:token:" + verificationToken;
+
+    when(valueOperations.get(tokenKey)).thenReturn(null);
+
+    // When
+    InvalidEmailVerificationTokenException exception =
+        assertThrows(
+            InvalidEmailVerificationTokenException.class,
+            () ->
+                emailVerificationService.validateVerificationToken(
+                    email, purpose, verificationToken));
+
+    // Then
+    assertEquals(MemberErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID, exception.getErrorCode());
+  }
+
+  @Test
+  @DisplayName("다른 이메일로 발급된 인증 토큰은 검증에 실패한다")
+  void rejectsVerificationTokenForDifferentEmail() {
+    // Given
+    String email = "other@test.com";
+    EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
+    String verificationToken = "verification-token";
+
+    String tokenKey = "auth:email-verification:token:" + verificationToken;
+
+    when(valueOperations.get(tokenKey)).thenReturn("SIGNUP:test@test.com");
+
+    // When
+    InvalidEmailVerificationTokenException exception =
+        assertThrows(
+            InvalidEmailVerificationTokenException.class,
+            () ->
+                emailVerificationService.validateVerificationToken(
+                    email, purpose, verificationToken));
+
+    // Then
+    assertEquals(MemberErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID, exception.getErrorCode());
   }
 }
