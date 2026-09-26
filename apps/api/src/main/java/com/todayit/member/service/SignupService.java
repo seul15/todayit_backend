@@ -3,7 +3,10 @@ package com.todayit.member.service;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
+import com.todayit.member.entity.MemberRole;
+import com.todayit.member.exception.InvalidEmailVerificationTokenException;
 import com.todayit.member.repository.MemberRepository;
+import com.todayit.member.repository.MemberRoleRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class SignupService {
 
   private final MemberRepository memberRepository;
-
   private final PasswordEncoder passwordEncoder;
   private final EmailVerificationService emailVerificationService;
+  private final MemberRoleRepository memberRoleRepository;
+
+  private static final String DEFAULT_ROLE_NAME = "USER";
 
   /**
    * 회원가입에 필요한 회원 저장소를 받습니다.
@@ -23,14 +28,17 @@ public class SignupService {
    * @param memberRepository 회원 Repository
    * @param passwordEncoder 비밀번호 암호화
    * @param emailVerificationService 이메일 인증 Service
+   * @param memberRoleRepository 회원 권한 Repository
    */
   public SignupService(
       MemberRepository memberRepository,
       PasswordEncoder passwordEncoder,
-      EmailVerificationService emailVerificationService) {
+      EmailVerificationService emailVerificationService,
+      MemberRoleRepository memberRoleRepository) {
     this.memberRepository = memberRepository;
     this.passwordEncoder = passwordEncoder;
     this.emailVerificationService = emailVerificationService;
+    this.memberRoleRepository = memberRoleRepository;
   }
 
   /**
@@ -64,6 +72,18 @@ public class SignupService {
 
     Member member = Member.createLocal(email, encodedPassword, nickname);
 
-    return memberRepository.save(member);
+    // 생성된 회원 정보를 DB에 저장
+    Member savedMember = memberRepository.save(member);
+
+    // 신규 회원에게 부여할 기본 USER 권한 식별자 조회
+    Integer userRoleId =
+        memberRoleRepository
+            .findRoleIdByName(DEFAULT_ROLE_NAME)
+            .orElseThrow(() -> new IllegalStateException("USER 권한 정보가 없습니다."));
+
+    // 회원과 USER 권한 연결 정보 저장
+    memberRoleRepository.save(MemberRole.create(savedMember.getId(), userRoleId));
+
+    return savedMember;
   }
 }
