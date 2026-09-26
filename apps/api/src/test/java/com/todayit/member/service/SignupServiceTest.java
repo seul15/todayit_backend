@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
 import com.todayit.member.repository.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,11 +24,13 @@ class SignupServiceTest {
 
   @Mock private PasswordEncoder passwordEncoder;
 
+  @Mock private EmailVerificationService emailVerificationService;
+
   private SignupService signupService;
 
   @BeforeEach
   void setUp() {
-    signupService = new SignupService(memberRepository, passwordEncoder);
+    signupService = new SignupService(memberRepository, passwordEncoder, emailVerificationService);
   }
 
   @Test
@@ -37,6 +40,7 @@ class SignupServiceTest {
     String email = "test@test.com";
     String password = "password123!";
     String encodedPassword = "encoded-password";
+    String verificationToken = "verification-token";
     String nickname = "테스트";
 
     when(passwordEncoder.encode(password)).thenReturn(encodedPassword);
@@ -44,9 +48,13 @@ class SignupServiceTest {
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     // When
-    Member savedMember = signupService.createLocalMember(email, password, nickname);
+    Member savedMember =
+        signupService.createLocalMember(email, verificationToken, password, nickname);
 
     // Then
+    verify(emailVerificationService)
+        .validateVerificationToken(email, EmailVerificationPurpose.SIGNUP, verificationToken);
+
     ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
     verify(memberRepository).save(memberCaptor.capture());
 
