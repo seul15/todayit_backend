@@ -1,5 +1,6 @@
 package com.todayit.member.controller;
 
+import com.todayit.common.dto.response.ApiResponse;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.LogoutRequest;
@@ -47,7 +48,7 @@ public class AuthController {
    * @return 로그인 성공 정보와 토큰
    */
   @PostMapping("/login")
-  public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+  public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
     // 이메일, 비밀번호 입력됐는지 확인
     request.validate();
 
@@ -55,7 +56,7 @@ public class AuthController {
     LoginResult result = loginFacade.login(request.toCommand());
 
     // 로그인 결과를 API 응답으로 리턴
-    return ResponseEntity.ok(LoginResponse.from(result));
+    return ResponseEntity.ok(ApiResponse.success(LoginResponse.from(result)));
   }
 
   /**
@@ -90,7 +91,7 @@ public class AuthController {
    * @throws InvalidRequestException 이메일이 없거나 공백일 때
    */
   @GetMapping("/emails/check")
-  public ResponseEntity<EmailAvailabilityResponse> checkEmail(
+  public ResponseEntity<ApiResponse<EmailAvailabilityResponse>> checkEmail(
       @RequestParam(required = false) String email) {
 
     if (email == null || email.isBlank()) {
@@ -99,6 +100,6 @@ public class AuthController {
 
     boolean available = signupService.isEmailAvailable(email);
 
-    return ResponseEntity.ok(new EmailAvailabilityResponse(email, available));
+    return ResponseEntity.ok(ApiResponse.success(new EmailAvailabilityResponse(email, available)));
   }
 }

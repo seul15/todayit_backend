@@ -75,12 +75,13 @@ class AuthControllerTest {
     // Then
     response
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.accessToken").value("access-token"))
-        .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
-        .andExpect(jsonPath("$.expiresIn").value(1800))
-        .andExpect(jsonPath("$.memberId").value("member-1"))
-        .andExpect(jsonPath("$.roles[0]").value("DEV"))
-        .andExpect(jsonPath("$.roles[1]").value("USER"));
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+        .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
+        .andExpect(jsonPath("$.data.expiresIn").value(1800))
+        .andExpect(jsonPath("$.data.memberId").value("member-1"))
+        .andExpect(jsonPath("$.data.roles[0]").value("DEV"))
+        .andExpect(jsonPath("$.data.roles[1]").value("USER"));
 
     verify(loginFacade).login(any());
   }
@@ -233,8 +234,9 @@ class AuthControllerTest {
     // Then
     response
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.email").value(email))
-        .andExpect(jsonPath("$.available").value(true));
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.email").value(email))
+        .andExpect(jsonPath("$.data.available").value(true));
 
     verify(signupService).isEmailAvailable(email);
   }
@@ -254,8 +256,9 @@ class AuthControllerTest {
     // Then
     response
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.email").value(email))
-        .andExpect(jsonPath("$.available").value(false));
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.email").value(email))
+        .andExpect(jsonPath("$.data.available").value(false));
 
     verify(signupService).isEmailAvailable(email);
   }
