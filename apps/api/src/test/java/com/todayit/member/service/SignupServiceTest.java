@@ -91,6 +91,7 @@ class SignupServiceTest {
 
     assertThat(member.getPassword()).isEqualTo(encodedPassword);
     assertThat(savedMember).isSameAs(member);
+    assertThat(savedMember.getCreatedAt()).isNotNull();
 
     verify(memberRoleRepository).findRoleIdByName("USER");
     verify(memberRoleRepository).save(any(MemberRole.class));

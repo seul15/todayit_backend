@@ -4,12 +4,16 @@ import com.todayit.common.dto.response.ApiResponse;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.LogoutRequest;
+import com.todayit.member.dto.request.SignupRequest;
 import com.todayit.member.dto.response.EmailAvailabilityResponse;
 import com.todayit.member.dto.response.LoginResponse;
+import com.todayit.member.dto.response.SignupResponse;
+import com.todayit.member.entity.Member;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
 import com.todayit.member.service.model.LoginResult;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -101,5 +105,25 @@ public class AuthController {
     boolean available = signupService.isEmailAvailable(email);
 
     return ResponseEntity.ok(ApiResponse.success(new EmailAvailabilityResponse(email, available)));
+  }
+
+  /**
+   * 이메일 인증을 완료한 사용자를 로컬 회원으로 가입시킵니다.
+   *
+   * @param request 회원가입 요청
+   * @return 생성된 회원 정보
+   */
+  @PostMapping("/signup")
+  public ResponseEntity<ApiResponse<SignupResponse>> signup(@RequestBody SignupRequest request) {
+
+    // 회원가입 필수 입력값 확인
+    request.validate();
+
+    // 회원 생성과 기본 권한 및 약관 동의 정보 저장
+    Member member = signupService.createLocalMember(request.toCommand());
+
+    // 회원가입 성공 응답 반환
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(ApiResponse.success(SignupResponse.from(member)));
   }
 }

@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /** 로그인에 필요한 회원 정보를 나타냅니다. */
@@ -33,6 +34,9 @@ public class Member {
   @Column(name = "is_active", nullable = false)
   private boolean active;
 
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private OffsetDateTime createdAt;
+
   protected Member() {}
 
   private Member(
@@ -41,13 +45,15 @@ public class Member {
       String password,
       MemberProvider provider,
       String nickname,
-      boolean active) {
+      boolean active,
+      OffsetDateTime createdAt) {
     this.id = id;
     this.email = email;
     this.password = password;
     this.provider = provider;
     this.nickname = nickname;
     this.active = active;
+    this.createdAt = createdAt;
   }
 
   /**
@@ -60,7 +66,13 @@ public class Member {
    */
   public static Member createLocal(String email, String encodedPassword, String nickname) {
     return new Member(
-        UUID.randomUUID().toString(), email, encodedPassword, MemberProvider.LOCAL, nickname, true);
+        UUID.randomUUID().toString(),
+        email,
+        encodedPassword,
+        MemberProvider.LOCAL,
+        nickname,
+        true,
+        OffsetDateTime.now());
   }
 
   public String getId() {
@@ -69,6 +81,18 @@ public class Member {
 
   public String getPassword() {
     return password;
+  }
+
+  public String getEmail() {
+    return email;
+  }
+
+  public String getNickname() {
+    return nickname;
+  }
+
+  public OffsetDateTime getCreatedAt() {
+    return createdAt;
   }
 
   public boolean isActive() {

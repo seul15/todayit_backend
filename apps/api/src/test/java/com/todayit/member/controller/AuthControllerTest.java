@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.todayit.common.exception.GlobalExceptionHandler;
 import com.todayit.member.dto.request.LoginRequest;
+import com.todayit.member.dto.request.SignupRequest;
+import com.todayit.member.entity.Member;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.service.LoginFacade;
@@ -18,6 +20,7 @@ import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
 import com.todayit.member.service.model.LoginResult;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -293,5 +296,78 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("이메일은 필수입니다."));
 
     verify(signupService, never()).isEmailAvailable(any());
+  }
+
+  @Test
+  @DisplayName("회원가입에 성공하면 생성된 회원 정보를 201 응답으로 반환한다")
+  void returnsCreatedMemberAfterSignup() throws Exception {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            "test@test.com",
+            "verification-token",
+            "password123!",
+            "테스트",
+            Map.of(
+                1, true,
+                2, true,
+                3, false,
+                4, false));
+
+    Member member = Member.createLocal("test@test.com", "encoded-password", "테스트");
+
+    when(signupService.createLocalMember(any())).thenReturn(member);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.memberId").value(member.getId()))
+        .andExpect(jsonPath("$.data.email").value("test@test.com"))
+        .andExpect(jsonPath("$.data.nickname").value("테스트"))
+        .andExpect(jsonPath("$.data.coupleConnected").value(false))
+        .andExpect(jsonPath("$.data.createdAt").exists());
+
+    verify(signupService).createLocalMember(any());
+  }
+
+  @Test
+  @DisplayName("회원가입 이메일 인증 토큰이 비어 있으면 400 응답을 반환한다")
+  void returnsBadRequestWhenSignupVerificationTokenIsBlank() throws Exception {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            "test@test.com",
+            "",
+            "password123!",
+            "테스트",
+            Map.of(
+                1, true,
+                2, true,
+                3, false,
+                4, false));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("이메일 인증 토큰은 필수입니다."));
+
+    verify(signupService, never()).createLocalMember(any());
   }
 }
