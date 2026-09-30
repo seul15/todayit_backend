@@ -2,11 +2,14 @@ package com.todayit.member.service;
 
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
+import com.todayit.member.entity.MemberAgreement;
 import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.entity.MemberRole;
 import com.todayit.member.exception.InvalidEmailVerificationTokenException;
+import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.repository.MemberRoleRepository;
+import com.todayit.member.service.command.SignupCommand;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,7 @@ public class SignupService {
   private final PasswordEncoder passwordEncoder;
   private final EmailVerificationService emailVerificationService;
   private final MemberRoleRepository memberRoleRepository;
+  private final MemberAgreementRepository memberAgreementRepository;
 
   private static final String DEFAULT_ROLE_NAME = "USER";
 
@@ -29,16 +33,19 @@ public class SignupService {
    * @param passwordEncoder 비밀번호 암호화
    * @param emailVerificationService 이메일 인증 Service
    * @param memberRoleRepository 회원 권한 Repository
+   * @param memberAgreementRepository 회원 약관 동의 Repository
    */
   public SignupService(
       MemberRepository memberRepository,
       PasswordEncoder passwordEncoder,
       EmailVerificationService emailVerificationService,
-      MemberRoleRepository memberRoleRepository) {
+      MemberRoleRepository memberRoleRepository,
+      MemberAgreementRepository memberAgreementRepository) {
     this.memberRepository = memberRepository;
     this.passwordEncoder = passwordEncoder;
     this.emailVerificationService = emailVerificationService;
     this.memberRoleRepository = memberRoleRepository;
+    this.memberAgreementRepository = memberAgreementRepository;
   }
 
   /**
@@ -53,24 +60,21 @@ public class SignupService {
   }
 
   /**
-   * 로컬 회원을 생성하고 저장합니다.
+   * 이메일 인증을 확인한 뒤 로컬 회원을 생성하고 기본 권한과 약관 동의 정보를 저장합니다.
    *
-   * @param email 회원 이메일
-   * @param verificationToken 이메일 인증 완료 토큰
-   * @param password 평문 비밀번호
-   * @param nickname 회원 닉네임
+   * @param command 회원가입에 필요한 정보
    * @return 저장된 회원
    * @throws InvalidEmailVerificationTokenException 이메일 인증 정보가 유효하지 않은 경우
+   * @throws IllegalStateException 기본 USER 권한 정보가 존재하지 않는 경우
    */
   @Transactional
-  public Member createLocalMember(
-      String email, String verificationToken, String password, String nickname) {
+  public Member createLocalMember(SignupCommand command) {
     emailVerificationService.validateVerificationToken(
-        email, EmailVerificationPurpose.SIGNUP, verificationToken);
+        command.email(), EmailVerificationPurpose.SIGNUP, command.emailVerificationToken());
 
-    String encodedPassword = passwordEncoder.encode(password);
+    String encodedPassword = passwordEncoder.encode(command.password());
 
-    Member member = Member.createLocal(email, encodedPassword, nickname);
+    Member member = Member.createLocal(command.email(), encodedPassword, command.nickname());
 
     // 생성된 회원 정보를 DB에 저장
     Member savedMember = memberRepository.save(member);
@@ -83,6 +87,14 @@ public class SignupService {
 
     // 회원과 USER 권한 연결 정보 저장
     memberRoleRepository.save(MemberRole.create(savedMember.getId(), userRoleId));
+
+    // 요청으로 전달받은 약관별 동의 여부 저장
+    command
+        .agreements()
+        .forEach(
+            (agreementId, agreed) ->
+                memberAgreementRepository.save(
+                    MemberAgreement.create(agreementId, savedMember.getId(), agreed)));
 
     return savedMember;
   }

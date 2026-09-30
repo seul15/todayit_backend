@@ -2,14 +2,19 @@ package com.todayit.member.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
+import com.todayit.member.entity.MemberAgreement;
 import com.todayit.member.entity.MemberRole;
+import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.repository.MemberRoleRepository;
+import com.todayit.member.service.command.SignupCommand;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,17 +36,23 @@ class SignupServiceTest {
 
   @Mock private MemberRoleRepository memberRoleRepository;
 
+  @Mock private MemberAgreementRepository memberAgreementRepository;
+
   private SignupService signupService;
 
   @BeforeEach
   void setUp() {
     signupService =
         new SignupService(
-            memberRepository, passwordEncoder, emailVerificationService, memberRoleRepository);
+            memberRepository,
+            passwordEncoder,
+            emailVerificationService,
+            memberRoleRepository,
+            memberAgreementRepository);
   }
 
   @Test
-  @DisplayName("로컬 회원가입 시 비밀번호를 암호화하여 회원을 저장한다")
+  @DisplayName("로컬 회원가입 시 회원과 USER 권한 및 약관 동의 정보를 저장한다")
   void createsLocalMemberWithEncodedPassword() {
     // Given
     String email = "test@test.com";
@@ -51,14 +62,23 @@ class SignupServiceTest {
     String nickname = "테스트";
     Integer userRoleId = 1;
 
+    Map<Integer, Boolean> agreements =
+        Map.of(
+            1, true,
+            2, true,
+            3, false,
+            4, false);
+
+    SignupCommand command =
+        new SignupCommand(email, verificationToken, password, nickname, agreements);
+
     when(passwordEncoder.encode(password)).thenReturn(encodedPassword);
     when(memberRepository.save(any(Member.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
     when(memberRoleRepository.findRoleIdByName("USER")).thenReturn(Optional.of(userRoleId));
 
     // When
-    Member savedMember =
-        signupService.createLocalMember(email, verificationToken, password, nickname);
+    Member savedMember = signupService.createLocalMember(command);
 
     // Then
     verify(emailVerificationService)
@@ -74,5 +94,6 @@ class SignupServiceTest {
 
     verify(memberRoleRepository).findRoleIdByName("USER");
     verify(memberRoleRepository).save(any(MemberRole.class));
+    verify(memberAgreementRepository, times(agreements.size())).save(any(MemberAgreement.class));
   }
 }
