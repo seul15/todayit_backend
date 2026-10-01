@@ -138,6 +138,15 @@ public class EmailVerificationService {
     }
   }
 
+  /**
+   * 사용이 완료된 이메일 인증 토큰을 무효화합니다.
+   *
+   * @param verificationToken 무효화할 이메일 인증 완료 토큰
+   */
+  public void invalidateVerificationToken(String verificationToken) {
+    redisTemplate.delete(TOKEN_KEY_PREFIX + verificationToken);
+  }
+
   private EmailVerificationConfirmResult handleVerificationFailure(String keySuffix) {
 
     String attemptKey = ATTEMPT_KEY_PREFIX + keySuffix;

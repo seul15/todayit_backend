@@ -19,7 +19,9 @@ public enum MemberErrorCode implements ErrorCode {
       "EMAIL_VERIFICATION_RESEND_TOO_SOON", "인증번호는 1분 후 다시 요청할 수 있습니다.", ErrorStatus.BAD_REQUEST),
 
   EMAIL_VERIFICATION_TOKEN_INVALID(
-      "EMAIL_VERIFICATION_TOKEN_INVALID", "이메일 인증 정보가 유효하지 않습니다.", ErrorStatus.BAD_REQUEST);
+      "EMAIL_VERIFICATION_TOKEN_INVALID", "이메일 인증 정보가 유효하지 않습니다.", ErrorStatus.BAD_REQUEST),
+
+  EMAIL_ALREADY_EXISTS("EMAIL_ALREADY_EXISTS", "이미 사용 중인 이메일입니다.", ErrorStatus.CONFLICT);
 
   private final String code;
   private final String message;

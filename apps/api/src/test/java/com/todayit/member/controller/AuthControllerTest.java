@@ -19,6 +19,7 @@ import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
 import com.todayit.member.service.model.LoginResult;
+import com.todayit.member.service.model.MemberLoginResult;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,8 +64,10 @@ class AuthControllerTest {
     // Given
     LoginRequest request = new LoginRequest("test@test.com", "password");
 
-    LoginResult result =
-        new LoginResult("member-1", List.of("DEV", "USER"), "access-token", "refresh-token", 1800L);
+    MemberLoginResult member =
+        new MemberLoginResult("member-1", "테스트", false, List.of("DEV", "USER"));
+
+    LoginResult result = new LoginResult(member, "access-token", "refresh-token", 1800L);
 
     when(loginFacade.login(any())).thenReturn(result);
 
@@ -82,9 +85,11 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.data.accessToken").value("access-token"))
         .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
         .andExpect(jsonPath("$.data.expiresIn").value(1800))
-        .andExpect(jsonPath("$.data.memberId").value("member-1"))
-        .andExpect(jsonPath("$.data.roles[0]").value("DEV"))
-        .andExpect(jsonPath("$.data.roles[1]").value("USER"));
+        .andExpect(jsonPath("$.data.member.memberId").value("member-1"))
+        .andExpect(jsonPath("$.data.member.nickname").value("테스트"))
+        .andExpect(jsonPath("$.data.member.coupleConnected").value(false))
+        .andExpect(jsonPath("$.data.member.roles[0]").value("DEV"))
+        .andExpect(jsonPath("$.data.member.roles[1]").value("USER"));
 
     verify(loginFacade).login(any());
   }

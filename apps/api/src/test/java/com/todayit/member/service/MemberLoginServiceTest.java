@@ -53,6 +53,7 @@ class MemberLoginServiceTest {
     String password = "password1234";
     String encodedPassword = "encoded-password";
     String memberId = "member-1";
+    String nickname = "테스트";
     List<String> roles = List.of("DEV", "USER");
     LoginCommand command = new LoginCommand(email, password);
 
@@ -63,6 +64,7 @@ class MemberLoginServiceTest {
     when(member.getPassword()).thenReturn(encodedPassword);
     when(passwordEncoder.matches(password, encodedPassword)).thenReturn(true);
     when(member.getId()).thenReturn(memberId);
+    when(member.getNickname()).thenReturn(nickname);
     when(memberRepository.findRoleNamesByMemberId(memberId)).thenReturn(roles);
 
     // When
@@ -70,7 +72,10 @@ class MemberLoginServiceTest {
 
     // Then
     assertEquals(memberId, result.memberId());
+    assertEquals(nickname, result.nickname());
+    assertEquals(false, result.coupleConnected());
     assertEquals(roles, result.roles());
+
     verify(loginAttemptService).resetFailures(email);
     verify(loginAttemptService, never()).recordFailure(email);
   }

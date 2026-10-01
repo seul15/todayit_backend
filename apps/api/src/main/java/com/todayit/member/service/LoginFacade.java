@@ -55,7 +55,6 @@ public class LoginFacade {
     long expiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
 
     // 회원 정보와 두 토큰을 최종 로그인 결과로 반환
-    return new LoginResult(
-        member.memberId(), member.roles(), accessToken, refreshToken.token(), expiresIn);
+    return new LoginResult(member, accessToken, refreshToken.token(), expiresIn);
   }
 }

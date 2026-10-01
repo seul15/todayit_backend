@@ -15,6 +15,7 @@ import com.todayit.common.auth.jwt.JwtTokenProvider;
 import com.todayit.common.auth.token.RefreshTokenService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.model.LoginResult;
+import com.todayit.member.service.model.MemberLoginResult;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,8 +65,9 @@ public class SecurityConfigTest {
     // Given
     String url = "/api/v1/auth/login";
 
-    LoginResult loginResult =
-        new LoginResult("member-1", List.of("USER"), "access-token", "refresh-token", 1800L);
+    MemberLoginResult member = new MemberLoginResult("member-1", "테스트", false, List.of("USER"));
+
+    LoginResult loginResult = new LoginResult(member, "access-token", "refresh-token", 1800L);
 
     when(loginFacade.login(any())).thenReturn(loginResult);
 

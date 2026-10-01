@@ -97,7 +97,7 @@ public class MemberLoginService {
     loginAttemptService.resetFailures(email);
 
     // 인증 완료된 회원 정보 리턴
-    return new MemberLoginResult(member.getId(), roles);
+    return new MemberLoginResult(member.getId(), member.getNickname(), false, roles);
   }
 
   private void performDummyPasswordCheck(String password) {

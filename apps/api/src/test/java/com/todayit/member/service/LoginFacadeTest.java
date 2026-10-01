@@ -41,6 +41,7 @@ class LoginFacadeTest {
     String email = "test@test.com";
     String password = "password";
     String memberId = "member-1";
+    String nickname = "테스트";
     List<String> roles = List.of("DEV", "USER");
     String accessToken = "access-token";
     String refreshToken = "refresh-token";
@@ -48,7 +49,9 @@ class LoginFacadeTest {
     long expiresIn = 1800L;
 
     LoginCommand command = new LoginCommand(email, password);
-    MemberLoginResult memberLoginResult = new MemberLoginResult(memberId, roles);
+
+    MemberLoginResult memberLoginResult = new MemberLoginResult(memberId, nickname, false, roles);
+
     RefreshTokenResult refreshTokenResult = new RefreshTokenResult(refreshToken, sessionId);
 
     when(memberLoginService.login(command)).thenReturn(memberLoginResult);
@@ -60,8 +63,11 @@ class LoginFacadeTest {
     LoginResult result = loginFacade.login(command);
 
     // Then
-    assertEquals(memberId, result.memberId());
-    assertEquals(roles, result.roles());
+    assertEquals(memberId, result.member().memberId());
+    assertEquals(nickname, result.member().nickname());
+    assertEquals(false, result.member().coupleConnected());
+    assertEquals(roles, result.member().roles());
+
     assertEquals(accessToken, result.accessToken());
     assertEquals(refreshToken, result.refreshToken());
     assertEquals(expiresIn, result.expiresIn());
