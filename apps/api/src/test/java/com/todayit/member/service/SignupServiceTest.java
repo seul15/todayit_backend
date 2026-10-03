@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberAgreement;
@@ -18,6 +19,8 @@ import com.todayit.member.entity.MemberRole;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.repository.MemberRoleRepository;
+import com.todayit.member.repository.NicknameBlocklistRepository;
+import com.todayit.member.repository.PasswordBlocklistRepository;
 import com.todayit.member.service.command.SignupCommand;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +47,10 @@ class SignupServiceTest {
 
   @Mock private MemberAgreementRepository memberAgreementRepository;
 
+  @Mock private PasswordBlocklistRepository passwordBlocklistRepository;
+
+  @Mock private NicknameBlocklistRepository nicknameBlocklistRepository;
+
   private SignupService signupService;
 
   @BeforeEach
@@ -54,7 +61,9 @@ class SignupServiceTest {
             passwordEncoder,
             emailVerificationService,
             memberRoleRepository,
-            memberAgreementRepository);
+            memberAgreementRepository,
+            passwordBlocklistRepository,
+            nicknameBlocklistRepository);
   }
 
   @Test
@@ -188,6 +197,72 @@ class SignupServiceTest {
 
     verify(emailVerificationService, never()).validateVerificationToken(any(), any(), any());
 
+    verify(memberRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("금칙어에 등록된 비밀번호이면 회원가입을 거부한다")
+  void rejectsSignupWhenPasswordIsBlocked() {
+    // Given
+    String email = "test@test.com";
+    String password = "password123!";
+
+    SignupCommand command =
+        new SignupCommand(
+            email,
+            "verification-token",
+            password,
+            "테스트",
+            Map.of(
+                1, true,
+                2, true));
+
+    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
+    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of(1, 2));
+    when(passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
+            password, BlocklistMatchType.EXACT))
+        .thenReturn(true);
+
+    // When & Then
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.");
+
+    verify(passwordEncoder, never()).encode(any());
+    verify(memberRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("금칙어에 해당하는 닉네임이면 회원가입을 거부한다")
+  void rejectsSignupWhenNicknameIsBlocked() {
+    // Given
+    String email = "test@test.com";
+    String password = "safePassword123!";
+    String nickname = "관리자";
+
+    SignupCommand command =
+        new SignupCommand(
+            email,
+            "verification-token",
+            password,
+            nickname,
+            Map.of(
+                1, true,
+                2, true));
+
+    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
+    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of(1, 2));
+    when(passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
+            password, BlocklistMatchType.EXACT))
+        .thenReturn(false);
+    when(nicknameBlocklistRepository.existsBlockedNickname(nickname)).thenReturn(true);
+
+    // When & Then
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("사용할 수 없는 닉네임입니다.");
+
+    verify(passwordEncoder, never()).encode(any());
     verify(memberRepository, never()).save(any());
   }
 }

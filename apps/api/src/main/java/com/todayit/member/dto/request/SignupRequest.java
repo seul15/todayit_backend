@@ -47,12 +47,21 @@ public record SignupRequest(
       throw new InvalidRequestException("비밀번호는 필수입니다.");
     }
 
+    int passwordLength = password.codePointCount(0, password.length());
+    if (passwordLength < 10 || passwordLength > 72) {
+      throw new InvalidRequestException("비밀번호는 10자 이상 72자 이하로 입력해 주세요.");
+    }
+
     if (nickname == null || nickname.isBlank()) {
       throw new InvalidRequestException("닉네임은 필수입니다.");
     }
 
     if (nickname.length() < 2 || nickname.length() > 8) {
       throw new InvalidRequestException("닉네임은 2자 이상 8자 이하이어야 합니다.");
+    }
+
+    if (!nickname.matches("[가-힣A-Za-z0-9]+")) {
+      throw new InvalidRequestException("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.");
     }
 
     if (agreements == null || agreements.isEmpty()) {

@@ -2,6 +2,7 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberAgreement;
@@ -12,6 +13,8 @@ import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.repository.MemberRoleRepository;
+import com.todayit.member.repository.NicknameBlocklistRepository;
+import com.todayit.member.repository.PasswordBlocklistRepository;
 import com.todayit.member.service.command.SignupCommand;
 import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +30,8 @@ public class SignupService {
   private final EmailVerificationService emailVerificationService;
   private final MemberRoleRepository memberRoleRepository;
   private final MemberAgreementRepository memberAgreementRepository;
+  private final PasswordBlocklistRepository passwordBlocklistRepository;
+  private final NicknameBlocklistRepository nicknameBlocklistRepository;
 
   private static final String DEFAULT_ROLE_NAME = "USER";
 
@@ -38,18 +43,24 @@ public class SignupService {
    * @param emailVerificationService 이메일 인증 Service
    * @param memberRoleRepository 회원 권한 Repository
    * @param memberAgreementRepository 회원 약관 동의 Repository
+   * @param passwordBlocklistRepository 비밀번호 금칙어 Repository
+   * @param nicknameBlocklistRepository 닉네임 금칙어 Repository
    */
   public SignupService(
       MemberRepository memberRepository,
       PasswordEncoder passwordEncoder,
       EmailVerificationService emailVerificationService,
       MemberRoleRepository memberRoleRepository,
-      MemberAgreementRepository memberAgreementRepository) {
+      MemberAgreementRepository memberAgreementRepository,
+      PasswordBlocklistRepository passwordBlocklistRepository,
+      NicknameBlocklistRepository nicknameBlocklistRepository) {
     this.memberRepository = memberRepository;
     this.passwordEncoder = passwordEncoder;
     this.emailVerificationService = emailVerificationService;
     this.memberRoleRepository = memberRoleRepository;
     this.memberAgreementRepository = memberAgreementRepository;
+    this.passwordBlocklistRepository = passwordBlocklistRepository;
+    this.nicknameBlocklistRepository = nicknameBlocklistRepository;
   }
 
   /**
@@ -99,6 +110,15 @@ public class SignupService {
 
     emailVerificationService.validateVerificationToken(
         command.email(), EmailVerificationPurpose.SIGNUP, command.emailVerificationToken());
+
+    if (passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
+        command.password(), BlocklistMatchType.EXACT)) {
+      throw new InvalidRequestException("쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.");
+    }
+
+    if (nicknameBlocklistRepository.existsBlockedNickname(command.nickname())) {
+      throw new InvalidRequestException("사용할 수 없는 닉네임입니다.");
+    }
 
     String encodedPassword = passwordEncoder.encode(command.password());
 
