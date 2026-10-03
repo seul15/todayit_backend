@@ -4,6 +4,7 @@ package com.todayit.common.exception;
 public enum ErrorStatus {
   BAD_REQUEST,
   UNAUTHORIZED,
+  NOT_FOUND,
   CONFLICT,
   INTERNAL_SERVER_ERROR
 }

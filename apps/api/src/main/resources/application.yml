@@ -14,3 +14,9 @@ todayit:
     resend:
       api-key: ${RESEND_API_KEY:}
       from: ${RESEND_FROM:}
+
+springdoc:
+  api-docs:
+    enabled: ${OPENAPI_ENABLED:false}
+scalar:
+  enabled: ${OPENAPI_ENABLED:false}

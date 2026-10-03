@@ -1,12 +1,12 @@
-package com.todayit.common.exception;
+package com.todayit.place.exception;
 
-/** 여러 기능에서 공통으로 사용하는 오류 코드입니다. */
-public enum CommonErrorCode implements ErrorCode {
-  /** 일반적인 요청값이 올바르지 않은 경우입니다. */
-  INVALID_REQUEST("INVALID_REQUEST", "요청값이 올바르지 않습니다.", ErrorStatus.BAD_REQUEST),
+import com.todayit.common.exception.ErrorCode;
+import com.todayit.common.exception.ErrorStatus;
 
-  /** 페이지 번호 또는 크기가 올바르지 않은 경우입니다. */
-  INVALID_PAGINATION("INVALID_PAGINATION", "페이지 요청값이 올바르지 않습니다.", ErrorStatus.BAD_REQUEST);
+/** 장소 기능에서 사용하는 오류 코드입니다. */
+public enum PlaceErrorCode implements ErrorCode {
+  /** 요청한 장소가 존재하지 않는 경우입니다. */
+  NOT_FOUND("PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.", ErrorStatus.NOT_FOUND);
 
   /** 클라이언트에 전달할 오류 코드입니다. */
   private final String code;
@@ -18,13 +18,13 @@ public enum CommonErrorCode implements ErrorCode {
   private final ErrorStatus status;
 
   /**
-   * 공통 오류 코드를 생성합니다.
+   * 장소 오류 코드를 생성합니다.
    *
    * @param code 클라이언트에 전달할 오류 코드
    * @param message 클라이언트에 전달할 오류 메시지
    * @param status 오류를 변환할 HTTP 상태
    */
-  CommonErrorCode(String code, String message, ErrorStatus status) {
+  PlaceErrorCode(String code, String message, ErrorStatus status) {
     this.code = code;
     this.message = message;
     this.status = status;
