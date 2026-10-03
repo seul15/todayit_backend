@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.todayit.member.client.external.ResendEmailClient;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.exception.EmailVerificationCodeExpiredException;
 import com.todayit.member.exception.EmailVerificationResendTooSoonException;
@@ -34,12 +35,13 @@ public class EmailVerificationServiceTest {
 
   @Mock private StringRedisTemplate redisTemplate;
   @Mock private ValueOperations<String, String> valueOperations;
+  @Mock private ResendEmailClient resendEmailClient;
   private EmailVerificationService emailVerificationService;
 
   @BeforeEach
   void setUp() {
     when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-    emailVerificationService = new EmailVerificationService(redisTemplate);
+    emailVerificationService = new EmailVerificationService(redisTemplate, resendEmailClient);
   }
 
   @Test
@@ -69,6 +71,8 @@ public class EmailVerificationServiceTest {
     verify(valueOperations).set(codeKey, verificationCode, Duration.ofMinutes(30));
 
     verify(redisTemplate).delete(attemptKey);
+
+    verify(resendEmailClient).sendVerificationCode(email, verificationCode);
   }
 
   @Test
@@ -92,6 +96,8 @@ public class EmailVerificationServiceTest {
     assertEquals(MemberErrorCode.EMAIL_VERIFICATION_RESEND_TOO_SOON, exception.getErrorCode());
 
     verify(valueOperations, never()).set(anyString(), anyString(), eq(Duration.ofMinutes(30)));
+
+    verify(resendEmailClient, never()).sendVerificationCode(anyString(), anyString());
   }
 
   @Test
@@ -219,6 +225,8 @@ public class EmailVerificationServiceTest {
     verify(redisTemplate).delete(attemptKey);
 
     verify(valueOperations).set(resendKey, "1", Duration.ofMinutes(1));
+
+    verify(resendEmailClient).sendVerificationCode(email, result.reissuedVerificationCode());
   }
 
   @Test

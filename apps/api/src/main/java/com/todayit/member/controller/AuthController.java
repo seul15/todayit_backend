@@ -2,16 +2,23 @@ package com.todayit.member.controller;
 
 import com.todayit.common.dto.response.ApiResponse;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.dto.request.EmailVerificationConfirmRequest;
+import com.todayit.member.dto.request.EmailVerificationRequest;
 import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.LogoutRequest;
 import com.todayit.member.dto.request.SignupRequest;
 import com.todayit.member.dto.response.EmailAvailabilityResponse;
+import com.todayit.member.dto.response.EmailVerificationConfirmResponse;
+import com.todayit.member.dto.response.EmailVerificationResponse;
 import com.todayit.member.dto.response.LoginResponse;
 import com.todayit.member.dto.response.SignupResponse;
 import com.todayit.member.entity.Member;
+import com.todayit.member.exception.InvalidEmailVerificationCodeException;
+import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import com.todayit.member.service.model.LoginResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +37,7 @@ public class AuthController {
   private final LoginFacade loginFacade;
   private final LogoutService logoutService;
   private final SignupService signupService;
+  private final EmailVerificationService emailVerificationService;
 
   /**
    * 인증과 회원가입 처리에 필요한 서비스를 받습니다.
@@ -37,12 +45,17 @@ public class AuthController {
    * @param loginFacade 로그인 처리 Facade
    * @param logoutService 로그아웃 처리 Service
    * @param signupService 회원가입 처리 Service
+   * @param emailVerificationService 이메일 인증 처리 Service
    */
   public AuthController(
-      LoginFacade loginFacade, LogoutService logoutService, SignupService signupService) {
+      LoginFacade loginFacade,
+      LogoutService logoutService,
+      SignupService signupService,
+      EmailVerificationService emailVerificationService) {
     this.loginFacade = loginFacade;
     this.logoutService = logoutService;
     this.signupService = signupService;
+    this.emailVerificationService = emailVerificationService;
   }
 
   /**
@@ -125,5 +138,61 @@ public class AuthController {
     // 회원가입 성공 응답 반환
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(ApiResponse.success(SignupResponse.from(member)));
+  }
+
+  /**
+   * 이메일 인증번호를 발급합니다.
+   *
+   * @param request 이메일 인증번호 발급 요청
+   * @return 이메일 인증번호 유효 시간과 재발급 대기 시간
+   */
+  @PostMapping("/email-verifications")
+  public ResponseEntity<ApiResponse<EmailVerificationResponse>> issueEmailVerification(
+      @RequestBody EmailVerificationRequest request) {
+
+    // 이메일과 인증 목적 입력값 확인
+    request.validate();
+
+    // 인증번호 생성 및 Redis 저장
+    emailVerificationService.issueCode(request.email(), request.purpose());
+
+    EmailVerificationResponse response =
+        new EmailVerificationResponse(
+            request.email(),
+            request.purpose(),
+            emailVerificationService.getCodeExpirationSeconds(),
+            emailVerificationService.getResendCooldownSeconds());
+
+    return ResponseEntity.ok(ApiResponse.success(response));
+  }
+
+  /**
+   * 이메일 인증번호를 확인하고 인증 완료 토큰을 발급합니다.
+   *
+   * @param request 이메일 인증번호 확인 요청
+   * @return 이메일 인증 완료 토큰과 유효 시간
+   * @throws InvalidEmailVerificationCodeException 인증번호 확인에 실패한 경우
+   */
+  @PostMapping("/email-verifications/confirm")
+  public ResponseEntity<ApiResponse<EmailVerificationConfirmResponse>> confirmEmailVerification(
+      @RequestBody EmailVerificationConfirmRequest request) {
+
+    request.validate();
+
+    EmailVerificationConfirmResult result =
+        emailVerificationService.confirmCode(
+            request.email(), request.purpose(), request.verificationCode());
+
+    // 3회 실패 시 Service에서 새 인증번호를 재발급한 상태
+    if (!result.verified()) {
+      throw new InvalidEmailVerificationCodeException(3L);
+    }
+
+    EmailVerificationConfirmResponse response =
+        new EmailVerificationConfirmResponse(
+            result.verificationToken(),
+            emailVerificationService.getVerificationTokenExpirationSeconds());
+
+    return ResponseEntity.ok(ApiResponse.success(response));
   }
 }

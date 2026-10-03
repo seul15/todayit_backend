@@ -21,7 +21,10 @@ public enum MemberErrorCode implements ErrorCode {
   EMAIL_VERIFICATION_TOKEN_INVALID(
       "EMAIL_VERIFICATION_TOKEN_INVALID", "이메일 인증 정보가 유효하지 않습니다.", ErrorStatus.BAD_REQUEST),
 
-  EMAIL_ALREADY_EXISTS("EMAIL_ALREADY_EXISTS", "이미 사용 중인 이메일입니다.", ErrorStatus.CONFLICT);
+  EMAIL_ALREADY_EXISTS("EMAIL_ALREADY_EXISTS", "이미 사용 중인 이메일입니다.", ErrorStatus.CONFLICT),
+
+  EMAIL_DELIVERY_FAILED(
+      "EMAIL_DELIVERY_FAILED", "인증 이메일 발송에 실패했습니다.", ErrorStatus.INTERNAL_SERVER_ERROR);
 
   private final String code;
   private final String message;

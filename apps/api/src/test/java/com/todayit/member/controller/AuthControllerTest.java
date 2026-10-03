@@ -10,14 +10,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.todayit.common.exception.GlobalExceptionHandler;
+import com.todayit.member.dto.request.EmailVerificationConfirmRequest;
+import com.todayit.member.dto.request.EmailVerificationRequest;
 import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.SignupRequest;
+import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
+import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import com.todayit.member.service.model.LoginResult;
 import com.todayit.member.service.model.MemberLoginResult;
 import java.util.List;
@@ -44,12 +49,15 @@ class AuthControllerTest {
 
   @Mock private SignupService signupService;
 
+  @Mock private EmailVerificationService emailVerificationService;
+
   private MockMvc mockMvc;
   private ObjectMapper objectMapper;
 
   @BeforeEach
   void setUp() {
-    AuthController authController = new AuthController(loginFacade, logoutService, signupService);
+    AuthController authController =
+        new AuthController(loginFacade, logoutService, signupService, emailVerificationService);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(authController)
@@ -374,5 +382,69 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("이메일 인증 토큰은 필수입니다."));
 
     verify(signupService, never()).createLocalMember(any());
+  }
+
+  @Test
+  @DisplayName("이메일 인증번호 발급에 성공하면 유효 시간과 재발급 대기 시간을 반환한다")
+  void issuesEmailVerificationCode() throws Exception {
+    // Given
+    EmailVerificationRequest request =
+        new EmailVerificationRequest("test@test.com", EmailVerificationPurpose.SIGNUP);
+
+    when(emailVerificationService.getCodeExpirationSeconds()).thenReturn(1800L);
+    when(emailVerificationService.getResendCooldownSeconds()).thenReturn(60L);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/email-verifications")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.email").value("test@test.com"))
+        .andExpect(jsonPath("$.data.purpose").value("SIGNUP"))
+        .andExpect(jsonPath("$.data.expiresIn").value(1800))
+        .andExpect(jsonPath("$.data.resendAvailableIn").value(60));
+
+    verify(emailVerificationService).issueCode("test@test.com", EmailVerificationPurpose.SIGNUP);
+  }
+
+  @Test
+  @DisplayName("올바른 이메일 인증번호를 확인하면 인증 완료 토큰을 반환한다")
+  void confirmsEmailVerificationCode() throws Exception {
+    // Given
+    EmailVerificationConfirmRequest request =
+        new EmailVerificationConfirmRequest(
+            "test@test.com", "123456", EmailVerificationPurpose.SIGNUP);
+
+    EmailVerificationConfirmResult result =
+        EmailVerificationConfirmResult.verified("verification-token");
+
+    when(emailVerificationService.confirmCode(
+            "test@test.com", EmailVerificationPurpose.SIGNUP, "123456"))
+        .thenReturn(result);
+
+    when(emailVerificationService.getVerificationTokenExpirationSeconds()).thenReturn(1800L);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.verificationToken").value("verification-token"))
+        .andExpect(jsonPath("$.data.expiresIn").value(1800));
+
+    verify(emailVerificationService)
+        .confirmCode("test@test.com", EmailVerificationPurpose.SIGNUP, "123456");
   }
 }

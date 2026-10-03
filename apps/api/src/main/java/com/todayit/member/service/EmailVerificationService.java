@@ -1,10 +1,13 @@
 package com.todayit.member.service;
 
+import com.todayit.common.exception.BusinessException;
+import com.todayit.member.client.external.ResendEmailClient;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.exception.EmailVerificationCodeExpiredException;
 import com.todayit.member.exception.EmailVerificationResendTooSoonException;
 import com.todayit.member.exception.InvalidEmailVerificationCodeException;
 import com.todayit.member.exception.InvalidEmailVerificationTokenException;
+import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -34,14 +37,18 @@ public class EmailVerificationService {
 
   private final StringRedisTemplate redisTemplate;
   private final SecureRandom secureRandom = new SecureRandom();
+  private final ResendEmailClient resendEmailClient;
 
   /**
-   * 이메일 인증 상태를 저장할 Redis 접근 객체를 받습니다.
+   * 이메일 인증 상태 저장소와 이메일 발송 Client를 받습니다.
    *
    * @param redisTemplate 문자열 기반 Redis 접근 객체
+   * @param resendEmailClient Resend 이메일 발송 Client
    */
-  public EmailVerificationService(StringRedisTemplate redisTemplate) {
+  public EmailVerificationService(
+      StringRedisTemplate redisTemplate, ResendEmailClient resendEmailClient) {
     this.redisTemplate = redisTemplate;
+    this.resendEmailClient = resendEmailClient;
   }
 
   /**
@@ -51,6 +58,7 @@ public class EmailVerificationService {
    * @param purpose 인증 목적
    * @return 생성된 6자리 인증번호
    * @throws EmailVerificationResendTooSoonException 재발송 대기 시간이 지나지 않은 경우
+   * @throws BusinessException 인증 이메일 발송에 실패한 경우
    */
   public String issueCode(String email, EmailVerificationPurpose purpose) {
     // 예시 "SIGNUP:user@test.com"
@@ -77,6 +85,8 @@ public class EmailVerificationService {
     String attemptKey = ATTEMPT_KEY_PREFIX + keySuffix;
 
     redisTemplate.delete(attemptKey);
+
+    sendVerificationEmail(email, verificationCode, keySuffix);
 
     return verificationCode;
   }
@@ -112,7 +122,7 @@ public class EmailVerificationService {
       return EmailVerificationConfirmResult.verified(verificationToken);
     }
 
-    return handleVerificationFailure(keySuffix);
+    return handleVerificationFailure(email, keySuffix);
   }
 
   /**
@@ -147,7 +157,7 @@ public class EmailVerificationService {
     redisTemplate.delete(TOKEN_KEY_PREFIX + verificationToken);
   }
 
-  private EmailVerificationConfirmResult handleVerificationFailure(String keySuffix) {
+  private EmailVerificationConfirmResult handleVerificationFailure(String email, String keySuffix) {
 
     String attemptKey = ATTEMPT_KEY_PREFIX + keySuffix;
 
@@ -157,6 +167,7 @@ public class EmailVerificationService {
     // 인증번호가 만료된 뒤 실패 횟수만 남지 않도록 동일한 유효시간을 설정한다.
     redisTemplate.expire(attemptKey, CODE_TTL);
 
+    // 최대 실패 횟수 도달
     if (failureCount != null && failureCount >= MAX_FAILURE_COUNT) {
 
       // 3회 실패 시 기존 인증번호를 새 번호로 덮어써 이전 번호를 즉시 무효화한다.
@@ -166,6 +177,9 @@ public class EmailVerificationService {
 
       // 자동 재발급 직후에도 사용자가 다시 수동 발급하지 못하도록 재발송 제한
       redisTemplate.opsForValue().set(resendKey, "1", RESEND_COOLDOWN);
+
+      // 이메일 전송
+      sendVerificationEmail(email, reissuedVerificationCode, keySuffix);
 
       // 새 번호는 HTTP 응답용이 아니라 이후 메일 전송 계층으로 전달하기 위한 내부 결과다.
       return EmailVerificationConfirmResult.reissued(reissuedVerificationCode);
@@ -238,5 +252,46 @@ public class EmailVerificationService {
     secureRandom.nextBytes(tokenBytes);
     // URL이나 JSON으로 전달하기 편하도록 padding 없는 URL-safe Base64를 사용한다.
     return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+  }
+
+  /**
+   * 인증번호 유효 시간을 초 단위로 반환합니다.
+   *
+   * @return 인증번호 유효 시간(초)
+   */
+  public long getCodeExpirationSeconds() {
+    return CODE_TTL.toSeconds();
+  }
+
+  /**
+   * 인증번호 재발급 대기 시간을 초 단위로 반환합니다.
+   *
+   * @return 재발급 대기 시간(초)
+   */
+  public long getResendCooldownSeconds() {
+    return RESEND_COOLDOWN.toSeconds();
+  }
+
+  /**
+   * 이메일 인증 완료 토큰의 유효 시간을 초 단위로 반환합니다.
+   *
+   * @return 인증 완료 토큰 유효 시간(초)
+   */
+  public long getVerificationTokenExpirationSeconds() {
+    return VERIFICATION_TOKEN_TTL.toSeconds();
+  }
+
+  private void sendVerificationEmail(String email, String verificationCode, String keySuffix) {
+
+    try {
+      resendEmailClient.sendVerificationCode(email, verificationCode);
+    } catch (RuntimeException exception) {
+      // 이메일이 실제로 전달되지 않았다면 바로 다시 요청할 수 있도록 인증 상태 제거
+      redisTemplate.delete(CODE_KEY_PREFIX + keySuffix);
+      redisTemplate.delete(ATTEMPT_KEY_PREFIX + keySuffix);
+      redisTemplate.delete(RESEND_KEY_PREFIX + keySuffix);
+
+      throw new BusinessException(MemberErrorCode.EMAIL_DELIVERY_FAILED);
+    }
   }
 }

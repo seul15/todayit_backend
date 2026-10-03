@@ -103,7 +103,12 @@ public class SecurityConfig {
             authorize ->
                 authorize
                     // 로그인, 회원가입 -> 인증 안 된 사용자가 호출해야함
-                    .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/signup")
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/signup",
+                        "/api/v1/auth/email-verifications",
+                        "/api/v1/auth/email-verifications/confirm")
                     .permitAll()
 
                     // 회원가입 전 이메일 중복 확인해야함
