@@ -47,4 +47,22 @@ public interface MemberRepository extends JpaRepository<Member, String> {
                   """,
       nativeQuery = true)
   List<String> findRoleNamesByMemberId(@Param("memberId") String memberId);
+
+  /**
+   * 영문 대소문자와 앞뒤 공백을 제외하고 동일한 닉네임이 존재하는지 확인합니다.
+   *
+   * @param nickname 확인할 닉네임
+   * @return 동일한 닉네임이 존재하면 true
+   */
+  @Query(
+      value =
+          """
+                  SELECT EXISTS (
+                      SELECT 1
+                      FROM member
+                      WHERE LOWER(BTRIM(nickname)) = LOWER(BTRIM(:nickname))
+                  )
+                  """,
+      nativeQuery = true)
+  boolean existsByNormalizedNickname(@Param("nickname") String nickname);
 }

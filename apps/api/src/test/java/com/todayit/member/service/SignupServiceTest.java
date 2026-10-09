@@ -3,6 +3,7 @@ package com.todayit.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -22,9 +23,11 @@ import com.todayit.member.repository.MemberRoleRepository;
 import com.todayit.member.repository.NicknameBlocklistRepository;
 import com.todayit.member.repository.PasswordBlocklistRepository;
 import com.todayit.member.service.command.SignupCommand;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -296,5 +300,151 @@ class SignupServiceTest {
     public Boolean getRequired() {
       return required;
     }
+  }
+
+  @Test
+  @DisplayName("사용 가능한 닉네임이면 true를 반환한다")
+  void returnsTrueWhenNicknameIsAvailable() {
+    String nickname = "새닉네임";
+
+    boolean available = signupService.isNicknameAvailable(nickname);
+
+    assertThat(available).isTrue();
+    verify(nicknameBlocklistRepository).existsBlockedNickname(nickname);
+    verify(memberRepository).existsByNormalizedNickname(nickname);
+  }
+
+  @Test
+  @DisplayName("이미 사용 중인 닉네임이면 false를 반환한다")
+  void returnsFalseWhenNicknameAlreadyExists() {
+    String nickname = "더미사용자";
+
+    when(memberRepository.existsByNormalizedNickname(nickname)).thenReturn(true);
+
+    boolean available = signupService.isNicknameAvailable(nickname);
+
+    assertThat(available).isFalse();
+    verify(memberRepository).existsByNormalizedNickname(nickname);
+  }
+
+  @Test
+  @DisplayName("금칙어 닉네임이면 400에 해당하는 예외를 발생시킨다")
+  void rejectsBlockedNickname() {
+    String nickname = "관리자";
+
+    when(nicknameBlocklistRepository.existsBlockedNickname(nickname)).thenReturn(true);
+
+    assertThatThrownBy(() -> signupService.isNicknameAvailable(nickname))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("사용할 수 없는 닉네임입니다.");
+
+    verify(memberRepository, never()).existsByNormalizedNickname(any());
+  }
+
+  @Test
+  @DisplayName("닉네임 길이가 2자 미만이면 거부한다")
+  void rejectsTooShortNickname() {
+    assertThatThrownBy(() -> signupService.isNicknameAvailable("가"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("닉네임은 2자 이상 8자 이하이어야 합니다.");
+
+    verify(memberRepository, never()).existsByNormalizedNickname(any());
+  }
+
+  @Test
+  @DisplayName("닉네임에 특수문자가 포함되면 거부한다")
+  void rejectsNicknameWithSpecialCharacters() {
+    assertThatThrownBy(() -> signupService.isNicknameAvailable("test!"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.");
+
+    verify(memberRepository, never()).existsByNormalizedNickname(any());
+  }
+
+  @Test
+  @DisplayName("회원가입 시 이미 사용 중인 닉네임이면 저장하지 않는다")
+  void rejectsSignupWhenNicknameAlreadyExists() {
+    String nickname = "더미사용자";
+
+    SignupCommand command =
+        new SignupCommand(
+            "new@test.com",
+            "verification-token",
+            "safePassword123!",
+            nickname,
+            Map.of("TOS", true));
+
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(memberRepository.existsByNormalizedNickname(nickname)).thenReturn(true);
+
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(BusinessException.class)
+        .hasMessage("이미 사용 중인 닉네임입니다.");
+
+    verify(memberRepository, never()).save(any(Member.class));
+  }
+
+  @Test
+  @DisplayName("DB 닉네임 UNIQUE 제약 위반은 닉네임 중복 오류로 변환한다")
+  void convertsNicknameUniqueViolationToBusinessException() {
+    String nickname = "중복닉네임";
+
+    SignupCommand command =
+        new SignupCommand(
+            "new@test.com",
+            "verification-token",
+            "safePassword123!",
+            nickname,
+            Map.of("TOS", true));
+
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(passwordEncoder.encode("safePassword123!")).thenReturn("encoded-password");
+    when(memberRepository.save(any(Member.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ConstraintViolationException constraintException =
+        new ConstraintViolationException(
+            "닉네임 중복", new SQLException("duplicate key", "23505"), "uk_member_nickname_normalized");
+
+    doThrow(new DataIntegrityViolationException("DB UNIQUE 위반", constraintException))
+        .when(memberRepository)
+        .flush();
+
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(BusinessException.class)
+        .hasMessage("이미 사용 중인 닉네임입니다.");
+
+    verify(memberRepository).flush();
+    verify(memberRoleRepository, never()).save(any(MemberRole.class));
+    verify(memberAgreementRepository, never()).save(any(MemberAgreement.class));
+  }
+
+  @Test
+  @DisplayName("닉네임과 무관한 DB 제약 위반은 닉네임 중복 오류로 변환하지 않는다")
+  void doesNotConvertUnrelatedConstraintViolation() {
+    SignupCommand command =
+        new SignupCommand(
+            "new@test.com", "verification-token", "safePassword123!", "새닉네임", Map.of("TOS", true));
+
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(passwordEncoder.encode("safePassword123!")).thenReturn("encoded-password");
+    when(memberRepository.save(any(Member.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ConstraintViolationException constraintException =
+        new ConstraintViolationException(
+            "다른 DB 제약 위반",
+            new SQLException("constraint violation", "23503"),
+            "fk_member_preferred_region");
+
+    DataIntegrityViolationException dbException =
+        new DataIntegrityViolationException("DB 제약 위반", constraintException);
+
+    doThrow(dbException).when(memberRepository).flush();
+
+    assertThatThrownBy(() -> signupService.createLocalMember(command)).isSameAs(dbException);
+
+    verify(memberRepository).flush();
+    verify(memberRoleRepository, never()).save(any(MemberRole.class));
   }
 }

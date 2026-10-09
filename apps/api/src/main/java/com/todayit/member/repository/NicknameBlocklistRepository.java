@@ -17,17 +17,19 @@ public interface NicknameBlocklistRepository extends JpaRepository<NicknameBlock
   @Query(
       value =
           """
-                    SELECT EXISTS (
-                        SELECT 1
-                        FROM nickname_blocklist
-                        WHERE enabled = TRUE
-                          AND (
-                              (match_type = 'EXACT' AND word = :nickname)
-                              OR
-                              (match_type = 'CONTAINS' AND POSITION(word IN :nickname) > 0)
-                          )
-                    )
-                    """,
+                  SELECT EXISTS (
+                      SELECT 1
+                      FROM nickname_blocklist
+                      WHERE enabled = TRUE
+                        AND (
+                            (match_type = 'EXACT'
+                             AND LOWER(word) = LOWER(:nickname))
+                            OR
+                            (match_type = 'CONTAINS'
+                             AND POSITION(LOWER(word) IN LOWER(:nickname)) > 0)
+                        )
+                  )
+                  """,
       nativeQuery = true)
   boolean existsBlockedNickname(@Param("nickname") String nickname);
 }

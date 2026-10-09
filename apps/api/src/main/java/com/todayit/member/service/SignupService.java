@@ -19,6 +19,8 @@ import com.todayit.member.service.command.SignupCommand;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +76,34 @@ public class SignupService {
   @Transactional(readOnly = true)
   public boolean isEmailAvailable(String email) {
     return !memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL);
+  }
+
+  /**
+   * 닉네임의 형식과 금칙어를 검사하고 사용 가능 여부를 확인합니다.
+   *
+   * @param nickname 확인할 닉네임
+   * @return 사용 가능한 닉네임이면 true
+   * @throws InvalidRequestException 형식이 올바르지 않거나 금칙어인 경우
+   */
+  @Transactional(readOnly = true)
+  public boolean isNicknameAvailable(String nickname) {
+    if (nickname == null || nickname.isBlank()) {
+      throw new InvalidRequestException("닉네임은 필수입니다.");
+    }
+
+    if (nickname.length() < 2 || nickname.length() > 8) {
+      throw new InvalidRequestException("닉네임은 2자 이상 8자 이하이어야 합니다.");
+    }
+
+    if (!nickname.matches("[가-힣A-Za-z0-9]+")) {
+      throw new InvalidRequestException("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.");
+    }
+
+    if (nicknameBlocklistRepository.existsBlockedNickname(nickname)) {
+      throw new InvalidRequestException("사용할 수 없는 닉네임입니다.");
+    }
+
+    return !memberRepository.existsByNormalizedNickname(nickname);
   }
 
   /**
@@ -148,8 +178,9 @@ public class SignupService {
       throw new InvalidRequestException("쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.");
     }
 
-    if (nicknameBlocklistRepository.existsBlockedNickname(command.nickname())) {
-      throw new InvalidRequestException("사용할 수 없는 닉네임입니다.");
+    // 회원가입 직전 닉네임 형식, 금칙어 및 중복 확인
+    if (!isNicknameAvailable(command.nickname())) {
+      throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
     }
 
     String encodedPassword = passwordEncoder.encode(command.password());
@@ -157,7 +188,34 @@ public class SignupService {
     Member member = Member.createLocal(command.email(), encodedPassword, command.nickname());
 
     // 생성된 회원 정보를 DB에 저장
-    Member savedMember = memberRepository.save(member);
+
+    // 생성된 회원 정보를 DB에 저장
+    Member savedMember;
+
+    try {
+      savedMember = memberRepository.save(member);
+
+      // INSERT를 즉시 실행하여 UNIQUE 제약 위반을 여기에서 확인
+      memberRepository.flush();
+
+    } catch (DataIntegrityViolationException exception) {
+
+      // 중복된 닉네임으로 DB 저장이 실패한 경우
+      Throwable cause = exception;
+
+      while (cause != null) {
+        if (cause instanceof ConstraintViolationException constraintException
+            && "uk_member_nickname_normalized".equals(constraintException.getConstraintName())) {
+
+          throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+        }
+
+        cause = cause.getCause();
+      }
+
+      // 닉네임 이외의 DB 제약 위반은 임의로 변환하지 않음
+      throw exception;
+    }
 
     // 신규 회원에게 부여할 기본 USER 권한 식별자 조회
     Integer userRoleId =

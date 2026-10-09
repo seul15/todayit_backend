@@ -115,6 +115,8 @@ public class SecurityConfig {
                     // 회원가입 전 이메일 중복 확인해야함
                     .requestMatchers(HttpMethod.GET, "/api/v1/auth/emails/check")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/members/nickname/check")
+                    .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/places")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/places/*/location")
