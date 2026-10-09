@@ -7,19 +7,23 @@ import com.todayit.member.dto.request.EmailVerificationRequest;
 import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.LogoutRequest;
 import com.todayit.member.dto.request.SignupRequest;
+import com.todayit.member.dto.request.TokenRefreshRequest;
 import com.todayit.member.dto.response.EmailAvailabilityResponse;
 import com.todayit.member.dto.response.EmailVerificationConfirmResponse;
 import com.todayit.member.dto.response.EmailVerificationResponse;
 import com.todayit.member.dto.response.LoginResponse;
 import com.todayit.member.dto.response.SignupResponse;
+import com.todayit.member.dto.response.TokenRefreshResponse;
 import com.todayit.member.entity.Member;
 import com.todayit.member.exception.InvalidEmailVerificationCodeException;
 import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.TokenRefreshService;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import com.todayit.member.service.model.LoginResult;
+import com.todayit.member.service.model.TokenRefreshResult;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -38,6 +42,7 @@ public class AuthController {
   private final LogoutService logoutService;
   private final SignupService signupService;
   private final EmailVerificationService emailVerificationService;
+  private final TokenRefreshService tokenRefreshService;
 
   /**
    * 인증과 회원가입 처리에 필요한 서비스를 받습니다.
@@ -46,16 +51,19 @@ public class AuthController {
    * @param logoutService 로그아웃 처리 Service
    * @param signupService 회원가입 처리 Service
    * @param emailVerificationService 이메일 인증 처리 Service
+   * @param tokenRefreshService 토큰 갱신 처리 Service
    */
   public AuthController(
       LoginFacade loginFacade,
       LogoutService logoutService,
       SignupService signupService,
-      EmailVerificationService emailVerificationService) {
+      EmailVerificationService emailVerificationService,
+      TokenRefreshService tokenRefreshService) {
     this.loginFacade = loginFacade;
     this.logoutService = logoutService;
     this.signupService = signupService;
     this.emailVerificationService = emailVerificationService;
+    this.tokenRefreshService = tokenRefreshService;
   }
 
   /**
@@ -194,5 +202,22 @@ public class AuthController {
             emailVerificationService.getVerificationTokenExpirationSeconds());
 
     return ResponseEntity.ok(ApiResponse.success(response));
+  }
+
+  /**
+   * Refresh Token으로 Access Token을 갱신합니다.
+   *
+   * @param request 토큰 갱신 요청
+   * @return 갱신된 Access Token과 Refresh Token
+   */
+  @PostMapping("/refresh")
+  public ResponseEntity<ApiResponse<TokenRefreshResponse>> refresh(
+      @RequestBody TokenRefreshRequest request) {
+
+    request.validate();
+
+    TokenRefreshResult result = tokenRefreshService.refresh(request.refreshToken());
+
+    return ResponseEntity.ok(ApiResponse.success(TokenRefreshResponse.from(result)));
   }
 }

@@ -24,7 +24,10 @@ public enum MemberErrorCode implements ErrorCode {
   EMAIL_ALREADY_EXISTS("EMAIL_ALREADY_EXISTS", "이미 사용 중인 이메일입니다.", ErrorStatus.CONFLICT),
 
   EMAIL_DELIVERY_FAILED(
-      "EMAIL_DELIVERY_FAILED", "인증 이메일 발송에 실패했습니다.", ErrorStatus.INTERNAL_SERVER_ERROR);
+      "EMAIL_DELIVERY_FAILED", "인증 이메일 발송에 실패했습니다.", ErrorStatus.INTERNAL_SERVER_ERROR),
+
+  REFRESH_TOKEN_INVALID(
+      "REFRESH_TOKEN_INVALID", "Refresh Token이 유효하지 않습니다.", ErrorStatus.UNAUTHORIZED);
 
   private final String code;
   private final String message;

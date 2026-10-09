@@ -22,9 +22,11 @@ import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.TokenRefreshService;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import com.todayit.member.service.model.LoginResult;
 import com.todayit.member.service.model.MemberLoginResult;
+import com.todayit.member.service.model.TokenRefreshResult;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,13 +53,20 @@ class AuthControllerTest {
 
   @Mock private EmailVerificationService emailVerificationService;
 
+  @Mock private TokenRefreshService tokenRefreshService;
+
   private MockMvc mockMvc;
   private ObjectMapper objectMapper;
 
   @BeforeEach
   void setUp() {
     AuthController authController =
-        new AuthController(loginFacade, logoutService, signupService, emailVerificationService);
+        new AuthController(
+            loginFacade,
+            logoutService,
+            signupService,
+            emailVerificationService,
+            tokenRefreshService);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(authController)
@@ -322,10 +331,10 @@ class AuthControllerTest {
             "password123!",
             "테스트",
             Map.of(
-                1, true,
-                2, true,
-                3, false,
-                4, false));
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true,
+                "PREFERENCE", false,
+                "PROFILE_IMAGE", false));
 
     Member member = Member.createLocal("test@test.com", "encoded-password", "테스트");
 
@@ -362,10 +371,10 @@ class AuthControllerTest {
             "password123!",
             "테스트",
             Map.of(
-                1, true,
-                2, true,
-                3, false,
-                4, false));
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true,
+                "PREFERENCE", false,
+                "PROFILE_IMAGE", false));
 
     // When
     ResultActions response =
@@ -446,5 +455,63 @@ class AuthControllerTest {
 
     verify(emailVerificationService)
         .confirmCode("test@test.com", EmailVerificationPurpose.SIGNUP, "123456");
+  }
+
+  @Test
+  @DisplayName("유효한 Refresh Token이면 새 Access Token을 반환한다")
+  void refreshesAccessTokenWithValidRefreshToken() throws Exception {
+    // Given
+    String refreshToken = "refresh-token";
+
+    TokenRefreshResult result = new TokenRefreshResult("new-access-token", refreshToken, 1800L);
+
+    when(tokenRefreshService.refresh(refreshToken)).thenReturn(result);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "refreshToken": "refresh-token"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.accessToken").value("new-access-token"))
+        .andExpect(jsonPath("$.data.refreshToken").value(refreshToken))
+        .andExpect(jsonPath("$.data.expiresIn").value(1800));
+
+    verify(tokenRefreshService).refresh(refreshToken);
+  }
+
+  @Test
+  @DisplayName("토큰 갱신 Refresh Token이 비어 있으면 400 응답을 반환한다")
+  void returnsBadRequestWhenRefreshTokenForRefreshIsBlank() throws Exception {
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "refreshToken": ""
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("Refresh Token은 필수입니다."));
+
+    verify(tokenRefreshService, never()).refresh(any());
   }
 }

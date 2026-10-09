@@ -18,7 +18,7 @@ public record SignupRequest(
     String emailVerificationToken,
     String password,
     String nickname,
-    Map<Integer, Boolean> agreements) {
+    Map<String, Boolean> agreements) {
 
   /**
    * 회원가입 요청을 서비스에 전달할 형태로 변환합니다.

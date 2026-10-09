@@ -33,25 +33,27 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class SignupServiceTest {
 
   @Mock private MemberRepository memberRepository;
-
   @Mock private PasswordEncoder passwordEncoder;
-
   @Mock private EmailVerificationService emailVerificationService;
-
   @Mock private MemberRoleRepository memberRoleRepository;
-
   @Mock private MemberAgreementRepository memberAgreementRepository;
-
   @Mock private PasswordBlocklistRepository passwordBlocklistRepository;
-
   @Mock private NicknameBlocklistRepository nicknameBlocklistRepository;
 
   private SignupService signupService;
+
+  private static final List<MemberAgreementRepository.CurrentAgreement> CURRENT_AGREEMENTS =
+      List.of(
+          new TestAgreement(10, "TOS", true),
+          new TestAgreement(20, "ACCOUNT_PRIVACY", false),
+          new TestAgreement(30, "PREFERENCE", false),
+          new TestAgreement(40, "PROFILE_IMAGE", false));
 
   @BeforeEach
   void setUp() {
@@ -67,75 +69,60 @@ class SignupServiceTest {
   }
 
   @Test
-  @DisplayName("로컬 회원가입 시 회원과 USER 권한 및 약관 동의 정보를 저장한다")
-  void createsLocalMemberWithEncodedPassword() {
-    // Given
+  @DisplayName("회원가입 시 약관 코드를 실제 agreement_id로 변환하여 저장한다")
+  void createsLocalMemberWithAgreementCodes() {
     String email = "test@test.com";
     String password = "password123!";
-    String encodedPassword = "encoded-password";
     String verificationToken = "verification-token";
-    String nickname = "테스트";
-    Integer userRoleId = 1;
 
-    Map<Integer, Boolean> agreements =
+    Map<String, Boolean> agreements =
         Map.of(
-            1, true,
-            2, true,
-            3, false,
-            4, false);
+            "TOS", true,
+            "ACCOUNT_PRIVACY", true,
+            "PREFERENCE", false,
+            "PROFILE_IMAGE", false);
 
     SignupCommand command =
-        new SignupCommand(email, verificationToken, password, nickname, agreements);
+        new SignupCommand(email, verificationToken, password, "테스트", agreements);
 
-    when(passwordEncoder.encode(password)).thenReturn(encodedPassword);
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(passwordEncoder.encode(password)).thenReturn("encoded-password");
     when(memberRepository.save(any(Member.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    when(memberRoleRepository.findRoleIdByName("USER")).thenReturn(Optional.of(userRoleId));
-    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
-    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of(1, 2));
+    when(memberRoleRepository.findRoleIdByName("USER")).thenReturn(Optional.of(1));
 
-    // When
     Member savedMember = signupService.createLocalMember(command);
 
-    // Then
+    assertThat(savedMember.getPassword()).isEqualTo("encoded-password");
+    assertThat(savedMember.getCreatedAt()).isNotNull();
+
     verify(emailVerificationService)
         .validateVerificationToken(email, EmailVerificationPurpose.SIGNUP, verificationToken);
     verify(emailVerificationService).invalidateVerificationToken(verificationToken);
-
-    ArgumentCaptor<Member> memberCaptor = ArgumentCaptor.forClass(Member.class);
-    verify(memberRepository).save(memberCaptor.capture());
-
-    Member member = memberCaptor.getValue();
-
-    assertThat(member.getPassword()).isEqualTo(encodedPassword);
-    assertThat(savedMember).isSameAs(member);
-    assertThat(savedMember.getCreatedAt()).isNotNull();
-
-    verify(memberRoleRepository).findRoleIdByName("USER");
     verify(memberRoleRepository).save(any(MemberRole.class));
-    verify(memberAgreementRepository, times(agreements.size())).save(any(MemberAgreement.class));
+
+    ArgumentCaptor<MemberAgreement> captor = ArgumentCaptor.forClass(MemberAgreement.class);
+
+    verify(memberAgreementRepository, times(4)).save(captor.capture());
+
+    List<Integer> savedAgreementIds =
+        captor.getAllValues().stream()
+            .map(agreement -> (Integer) ReflectionTestUtils.getField(agreement, "agreementId"))
+            .toList();
+
+    assertThat(savedAgreementIds).containsExactlyInAnyOrder(10, 20, 30, 40);
   }
 
   @Test
-  @DisplayName("이미 가입된 LOCAL 이메일이면 회원가입을 거부한다")
+  @DisplayName("이미 가입된 이메일이면 회원가입을 거부한다")
   void rejectsSignupWhenLocalEmailAlreadyExists() {
-    // Given
     SignupCommand command =
         new SignupCommand(
-            "test@test.com",
-            "verification-token",
-            "password123!",
-            "테스트",
-            Map.of(
-                1, true,
-                2, true,
-                3, false,
-                4, false));
+            "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
 
     when(memberRepository.existsByEmailAndProvider("test@test.com", MemberProvider.LOCAL))
         .thenReturn(true);
 
-    // When & Then
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(BusinessException.class)
         .hasMessage("이미 사용 중인 이메일입니다.");
@@ -147,32 +134,44 @@ class SignupServiceTest {
   @Test
   @DisplayName("필수 약관에 동의하지 않으면 회원가입을 거부한다")
   void rejectsSignupWhenRequiredAgreementIsNotAccepted() {
-    // Given
-    String email = "test@test.com";
-
     SignupCommand command =
         new SignupCommand(
-            email,
+            "test@test.com",
             "verification-token",
             "password123!",
             "테스트",
             Map.of(
-                1, true,
-                2, false,
-                3, false,
-                4, false));
+                "TOS", false,
+                "ACCOUNT_PRIVACY", true,
+                "PREFERENCE", false,
+                "PROFILE_IMAGE", false));
 
-    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
 
-    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of(1, 2));
-
-    // When & Then
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("필수 약관과 동의 항목을 확인해 주세요.");
 
     verify(emailVerificationService, never()).validateVerificationToken(any(), any(), any());
-    verify(emailVerificationService, never()).invalidateVerificationToken(any());
+    verify(memberRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("필수 약관 코드가 누락되면 회원가입을 거부한다")
+  void rejectsSignupWhenRequiredAgreementIsMissing() {
+    SignupCommand command =
+        new SignupCommand(
+            "test@test.com",
+            "verification-token",
+            "password123!",
+            "테스트",
+            Map.of("PREFERENCE", false));
+
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("필수 약관과 동의 항목을 확인해 주세요.");
 
     verify(memberRepository, never()).save(any());
   }
@@ -180,50 +179,74 @@ class SignupServiceTest {
   @Test
   @DisplayName("필수 약관 정보가 없으면 회원가입을 진행하지 않는다")
   void rejectsSignupWhenRequiredAgreementInformationDoesNotExist() {
-    // Given
-    String email = "test@test.com";
-
     SignupCommand command =
-        new SignupCommand(email, "verification-token", "password123!", "테스트", Map.of(1, true));
+        new SignupCommand(
+            "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
 
-    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(List.of());
 
-    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of());
-
-    // When & Then
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("필수 약관 정보가 없습니다.");
-
-    verify(emailVerificationService, never()).validateVerificationToken(any(), any(), any());
 
     verify(memberRepository, never()).save(any());
   }
 
   @Test
-  @DisplayName("금칙어에 등록된 비밀번호이면 회원가입을 거부한다")
+  @DisplayName("존재하지 않는 약관 코드를 전달하면 회원가입을 거부한다")
+  void rejectsSignupWhenAgreementCodeIsUnknown() {
+    SignupCommand command =
+        new SignupCommand(
+            "test@test.com",
+            "verification-token",
+            "password123!",
+            "테스트",
+            Map.of(
+                "TOS", true,
+                "marketing", false));
+
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("유효하지 않은 약관 코드가 포함되어 있습니다.");
+
+    verify(memberRepository, never()).save(any());
+  }
+
+  @Test
+  @DisplayName("선택 약관을 전달하지 않아도 회원가입할 수 있다")
+  void allowsSignupWithoutOptionalAgreements() {
+    SignupCommand command =
+        new SignupCommand(
+            "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
+
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(passwordEncoder.encode("password123!")).thenReturn("encoded-password");
+    when(memberRepository.save(any(Member.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(memberRoleRepository.findRoleIdByName("USER")).thenReturn(Optional.of(1));
+
+    Member savedMember = signupService.createLocalMember(command);
+
+    assertThat(savedMember).isNotNull();
+    verify(memberAgreementRepository, times(1)).save(any(MemberAgreement.class));
+  }
+
+  @Test
+  @DisplayName("금칙어 비밀번호이면 회원가입을 거부한다")
   void rejectsSignupWhenPasswordIsBlocked() {
-    // Given
-    String email = "test@test.com";
     String password = "password123!";
 
     SignupCommand command =
         new SignupCommand(
-            email,
-            "verification-token",
-            password,
-            "테스트",
-            Map.of(
-                1, true,
-                2, true));
+            "test@test.com", "verification-token", password, "테스트", Map.of("TOS", true));
 
-    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
-    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of(1, 2));
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
     when(passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
             password, BlocklistMatchType.EXACT))
         .thenReturn(true);
 
-    // When & Then
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.");
@@ -233,36 +256,45 @@ class SignupServiceTest {
   }
 
   @Test
-  @DisplayName("금칙어에 해당하는 닉네임이면 회원가입을 거부한다")
+  @DisplayName("금칙어 닉네임이면 회원가입을 거부한다")
   void rejectsSignupWhenNicknameIsBlocked() {
-    // Given
-    String email = "test@test.com";
-    String password = "safePassword123!";
     String nickname = "관리자";
 
     SignupCommand command =
         new SignupCommand(
-            email,
+            "test@test.com",
             "verification-token",
-            password,
+            "safePassword123!",
             nickname,
-            Map.of(
-                1, true,
-                2, true));
+            Map.of("TOS", true));
 
-    when(memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL)).thenReturn(false);
-    when(memberAgreementRepository.findRequiredAgreementIds()).thenReturn(List.of(1, 2));
-    when(passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
-            password, BlocklistMatchType.EXACT))
-        .thenReturn(false);
+    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
     when(nicknameBlocklistRepository.existsBlockedNickname(nickname)).thenReturn(true);
 
-    // When & Then
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("사용할 수 없는 닉네임입니다.");
 
     verify(passwordEncoder, never()).encode(any());
     verify(memberRepository, never()).save(any());
+  }
+
+  private record TestAgreement(Integer agreementId, String code, Boolean required)
+      implements MemberAgreementRepository.CurrentAgreement {
+
+    @Override
+    public Integer getAgreementId() {
+      return agreementId;
+    }
+
+    @Override
+    public String getCode() {
+      return code;
+    }
+
+    @Override
+    public Boolean getRequired() {
+      return required;
+    }
   }
 }

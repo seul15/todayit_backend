@@ -130,6 +130,16 @@ public class RefreshTokenService {
     redisTemplate.delete(memberKey);
   }
 
+  /**
+   * Refresh Token에 해당하는 로그인 세션 식별자를 반환합니다.
+   *
+   * @param token Refresh Token
+   * @return 로그인 세션 식별자
+   */
+  public String getSessionId(String token) {
+    return hash(token);
+  }
+
   private String hash(String token) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");

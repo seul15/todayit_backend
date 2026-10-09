@@ -17,6 +17,8 @@ import com.todayit.member.repository.NicknameBlocklistRepository;
 import com.todayit.member.repository.PasswordBlocklistRepository;
 import com.todayit.member.service.command.SignupCommand;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,17 +94,47 @@ public class SignupService {
     }
 
     // 현재 적용 중인 필수 약관 조회
-    List<Integer> requiredAgreementIds = memberAgreementRepository.findRequiredAgreementIds();
 
-    // 필수 약관 데이터 자체가 없으면 회원가입을 진행하지 않음
-    if (requiredAgreementIds.isEmpty()) {
+    // 현재 적용 중인 약관 조회
+    List<MemberAgreementRepository.CurrentAgreement> currentAgreements =
+        memberAgreementRepository.findCurrentAgreements();
+
+    // 현재 적용 중인 필수 약관이 없으면 회원가입을 진행하지 않음
+    boolean hasRequiredAgreement =
+        currentAgreements.stream()
+            .anyMatch(agreement -> Boolean.TRUE.equals(agreement.getRequired()));
+
+    if (!hasRequiredAgreement) {
       throw new IllegalStateException("필수 약관 정보가 없습니다.");
     }
 
-    // 필수 약관이 누락되었거나 false인 경우 회원가입 거부
+    // 약관 코드를 실제 DB 약관 정보와 연결
+    Map<String, MemberAgreementRepository.CurrentAgreement> agreementsByCode =
+        currentAgreements.stream()
+            .collect(
+                Collectors.toMap(
+                    MemberAgreementRepository.CurrentAgreement::getCode, agreement -> agreement));
+
+    // 존재하지 않거나 현재 적용되지 않는 약관 코드는 거부
+    boolean hasUnknownAgreement =
+        command.agreements().keySet().stream()
+            .anyMatch(code -> !agreementsByCode.containsKey(code));
+
+    if (hasUnknownAgreement) {
+      throw new InvalidRequestException("유효하지 않은 약관 코드가 포함되어 있습니다.");
+    }
+
+    // 동의 여부는 반드시 true 또는 false
+    if (command.agreements().values().stream().anyMatch(agreed -> agreed == null)) {
+      throw new InvalidRequestException("약관 동의 여부를 확인해 주세요.");
+    }
+
+    // DB에서 필수로 설정한 약관은 반드시 동의해야 함
     boolean hasMissingRequiredAgreement =
-        requiredAgreementIds.stream()
-            .anyMatch(agreementId -> !Boolean.TRUE.equals(command.agreements().get(agreementId)));
+        currentAgreements.stream()
+            .filter(agreement -> Boolean.TRUE.equals(agreement.getRequired()))
+            .anyMatch(
+                agreement -> !Boolean.TRUE.equals(command.agreements().get(agreement.getCode())));
 
     if (hasMissingRequiredAgreement) {
       throw new InvalidRequestException("필수 약관과 동의 항목을 확인해 주세요.");
@@ -136,13 +168,16 @@ public class SignupService {
     // 회원과 USER 권한 연결 정보 저장
     memberRoleRepository.save(MemberRole.create(savedMember.getId(), userRoleId));
 
-    // 요청으로 전달받은 약관별 동의 여부 저장
+    // 약관 코드를 실제 agreement_id로 변환해서 동의 정보 저장
     command
         .agreements()
         .forEach(
-            (agreementId, agreed) ->
-                memberAgreementRepository.save(
-                    MemberAgreement.create(agreementId, savedMember.getId(), agreed)));
+            (code, agreed) -> {
+              Integer agreementId = agreementsByCode.get(code).getAgreementId();
+
+              memberAgreementRepository.save(
+                  MemberAgreement.create(agreementId, savedMember.getId(), agreed));
+            });
 
     // 회원가입에 사용한 이메일 인증 토큰 재사용 방지를 위해 삭제
     emailVerificationService.invalidateVerificationToken(command.emailVerificationToken());
