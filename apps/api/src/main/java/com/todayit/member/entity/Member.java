@@ -14,6 +14,8 @@ import java.util.UUID;
 @Table(name = "member")
 public class Member {
 
+  private static final String DEFAULT_PROFILE_IMAGE = "/images/default-profile.png";
+
   @Id
   @Column(name = "member_id", length = 36)
   private String id;
@@ -26,6 +28,9 @@ public class Member {
 
   @Column(name = "nickname", nullable = false, length = 50)
   private String nickname;
+
+  @Column(name = "profile_image", nullable = false, length = 2048)
+  private String profileImage;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "provider", nullable = false, length = 20)
@@ -52,6 +57,7 @@ public class Member {
     this.password = password;
     this.provider = provider;
     this.nickname = nickname;
+    this.profileImage = DEFAULT_PROFILE_IMAGE;
     this.active = active;
     this.createdAt = createdAt;
   }
@@ -89,6 +95,15 @@ public class Member {
 
   public String getNickname() {
     return nickname;
+  }
+
+  /**
+   * 회원의 프로필 이미지 참조값을 반환합니다.
+   *
+   * @return 프로필 이미지 참조값
+   */
+  public String getProfileImage() {
+    return profileImage;
   }
 
   public OffsetDateTime getCreatedAt() {

@@ -5,6 +5,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -513,5 +515,69 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("Refresh Token은 필수입니다."));
 
     verify(tokenRefreshService, never()).refresh(any());
+  }
+
+  @Test
+  @DisplayName("프로필 이미지 없이 Multipart 회원가입하면 기본 이미지를 반환한다")
+  void signsUpWithMultipartWithoutProfileImage() throws Exception {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
+
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "request.json",
+            MediaType.APPLICATION_JSON_VALUE,
+            objectMapper.writeValueAsBytes(request));
+
+    Member member = Member.createLocal("test@test.com", "encoded-password", "테스트");
+
+    when(signupService.createLocalMember(any())).thenReturn(member);
+
+    // When
+    ResultActions response = mockMvc.perform(multipart("/api/v1/auth/signup").file(requestPart));
+
+    // Then
+    response
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.profileImage").value("/images/default-profile.png"));
+
+    verify(signupService).createLocalMember(any());
+  }
+
+  @Test
+  @DisplayName("이미지 저장소 연결 전 파일이 첨부되면 회원가입을 거부한다")
+  void rejectsMultipartSignupWithProfileImageBeforeStorageReady() throws Exception {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
+
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "request.json",
+            MediaType.APPLICATION_JSON_VALUE,
+            objectMapper.writeValueAsBytes(request));
+
+    MockMultipartFile imagePart =
+        new MockMultipartFile(
+            "profileImage", "profile.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1, 2, 3});
+
+    // When
+    ResultActions response =
+        mockMvc.perform(multipart("/api/v1/auth/signup").file(requestPart).file(imagePart));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("프로필 이미지 업로드 기능은 아직 준비 중입니다."));
+
+    verify(signupService, never()).createLocalMember(any());
   }
 }

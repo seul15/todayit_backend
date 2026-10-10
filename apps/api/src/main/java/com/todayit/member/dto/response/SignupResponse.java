@@ -10,12 +10,14 @@ import java.time.OffsetDateTime;
  * @param email 회원 이메일
  * @param nickname 회원 닉네임
  * @param coupleConnected 커플 연결 여부
+ * @param profileImage 프로필 이미지
  * @param createdAt 회원 생성 시각
  */
 public record SignupResponse(
     String memberId,
     String email,
     String nickname,
+    String profileImage,
     boolean coupleConnected,
     OffsetDateTime createdAt) {
 
@@ -27,6 +29,11 @@ public record SignupResponse(
    */
   public static SignupResponse from(Member member) {
     return new SignupResponse(
-        member.getId(), member.getEmail(), member.getNickname(), false, member.getCreatedAt());
+        member.getId(),
+        member.getEmail(),
+        member.getNickname(),
+        member.getProfileImage(),
+        false,
+        member.getCreatedAt());
   }
 }
