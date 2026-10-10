@@ -15,6 +15,7 @@ import com.todayit.place.repository.PlaceRepository;
 import com.todayit.place.repository.PlaceScrapRepository;
 import com.todayit.place.service.model.PlaceLocationResult;
 import com.todayit.place.service.model.PlaceResult;
+import com.todayit.place.service.model.PlaceScrapSort;
 import com.todayit.place.service.model.PlaceSort;
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,7 +31,7 @@ import org.springframework.data.domain.Sort;
 
 /** 장소 목록 조회 Service의 업무 결과를 검증합니다. */
 @ExtendWith(MockitoExtension.class)
-class PlaceServiceTest {
+class PlaceQueryServiceTest {
 
   @Mock private PlaceRepository placeRepository;
 
@@ -63,11 +64,11 @@ class PlaceServiceTest {
                     pageable.equals(
                         PageRequest.of(1, 2, Sort.by(Sort.Direction.DESC, "viewCount"))))))
         .thenReturn(new PageImpl<>(List.of(place), PageRequest.of(1, 2), 3));
-    PlaceService placeService =
-        new PlaceService(placeRepository, placeImageRepository, placeScrapRepository);
+    PlaceQueryService placeQueryService =
+        new PlaceQueryService(placeRepository, placeImageRepository, placeScrapRepository);
 
     // When
-    PageResult<PlaceResult> result = placeService.findPlaces(1, 2, PlaceSort.POPULAR);
+    PageResult<PlaceResult> result = placeQueryService.findPlaces(1, 2, PlaceSort.POPULAR);
 
     // Then
     assertThat(result.content())
@@ -108,11 +109,11 @@ class PlaceServiceTest {
                 List.of("https://placehold.co/1200x800?text=Restaurant")));
     when(placeRepository.findByPlaceIdAndIsActiveTrueAndIsDeletedFalse(1))
         .thenReturn(Optional.of(place));
-    PlaceService placeService =
-        new PlaceService(placeRepository, placeImageRepository, placeScrapRepository);
+    PlaceQueryService placeQueryService =
+        new PlaceQueryService(placeRepository, placeImageRepository, placeScrapRepository);
 
     // When
-    PlaceLocationResult result = placeService.findPlaceLocation(1);
+    PlaceLocationResult result = placeQueryService.findPlaceLocation(1);
 
     // Then
     assertThat(result)
@@ -131,13 +132,48 @@ class PlaceServiceTest {
     // Given
     when(placeRepository.findByPlaceIdAndIsActiveTrueAndIsDeletedFalse(999))
         .thenReturn(Optional.empty());
-    PlaceService placeService =
-        new PlaceService(placeRepository, placeImageRepository, placeScrapRepository);
+    PlaceQueryService placeQueryService =
+        new PlaceQueryService(placeRepository, placeImageRepository, placeScrapRepository);
 
     // When
-    var exception = assertThatThrownBy(() -> placeService.findPlaceLocation(999));
+    var exception = assertThatThrownBy(() -> placeQueryService.findPlaceLocation(999));
 
     // Then
     exception.isInstanceOf(com.todayit.place.exception.PlaceNotFoundException.class);
+  }
+
+  @Test
+  @DisplayName("회원이 스크랩한 장소를 오래된 순서로 페이지 조회한다")
+  void findsScrappedPlacesOldest() {
+    // Given
+    when(place.getPlaceId()).thenReturn(1);
+    when(place.getSnapshot(anyList()))
+        .thenReturn(
+            new Place.PlaceSnapshot(
+                1,
+                "오늘의 식당",
+                new BigDecimal("37.5"),
+                new BigDecimal("127.0"),
+                "서울특별시 종로구 종로 1",
+                Category.RESTAURANT,
+                15,
+                List.of("https://example.com/place.jpg")));
+    PageRequest pageable = PageRequest.of(1, 2);
+    when(placeScrapRepository.findScrappedPlacesOldest("member-1", pageable))
+        .thenReturn(new PageImpl<>(List.of(place), pageable, 3));
+    PlaceQueryService placeQueryService =
+        new PlaceQueryService(placeRepository, placeImageRepository, placeScrapRepository);
+
+    // When
+    PageResult<PlaceResult> result =
+        placeQueryService.findScrappedPlaces("member-1", 1, 2, PlaceScrapSort.OLDEST);
+
+    // Then
+    assertThat(result.content()).hasSize(1);
+    assertThat(result.content().getFirst().placeId()).isEqualTo(1);
+    assertThat(result.page()).isEqualTo(1);
+    assertThat(result.totalElements()).isEqualTo(3);
+    verify(placeScrapRepository).findScrappedPlacesOldest("member-1", pageable);
+    verify(placeImageRepository).findByPlacePlaceIdInOrderByPlacePlaceIdAscCreatedAtAsc(List.of(1));
   }
 }

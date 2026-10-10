@@ -9,11 +9,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 
 /** 회원이 좋아요를 누른 장소 정보를 나타냅니다. */
 @Entity
-@Table(name = "place_member_like")
+@Table(
+    name = "place_member_like",
+    uniqueConstraints =
+        @UniqueConstraint(
+            name = "uk_place_member_like_member_place",
+            columnNames = {"member_id", "place_id"}))
 public class PlaceMemberLike {
 
   @Id

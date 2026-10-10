@@ -11,8 +11,10 @@ import java.util.function.Function;
  * @param page 현재 페이지 번호
  * @param size 페이지 크기
  * @param totalElements 전체 요소 수
+ * @param totalPages 전체 페이지 수
  */
-public record PageResponse<T>(List<T> content, int page, int size, long totalElements) {
+public record PageResponse<T>(
+    List<T> content, int page, int size, long totalElements, int totalPages) {
 
   /** 페이지 응답의 목록을 방어적으로 복사합니다. */
   public PageResponse {
@@ -33,6 +35,7 @@ public record PageResponse<T>(List<T> content, int page, int size, long totalEle
         result.content().stream().map(mapper).toList(),
         result.page(),
         result.size(),
-        result.totalElements());
+        result.totalElements(),
+        result.totalPages());
   }
 }

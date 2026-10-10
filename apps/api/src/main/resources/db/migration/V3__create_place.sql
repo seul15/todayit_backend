@@ -94,7 +94,8 @@ CREATE TABLE place_member_like (
     CONSTRAINT fk_place_member_like_place
         FOREIGN KEY (place_id) REFERENCES place (place_id),
     CONSTRAINT fk_place_member_like_member
-        FOREIGN KEY (member_id) REFERENCES member (member_id)
+        FOREIGN KEY (member_id) REFERENCES member (member_id),
+    CONSTRAINT uk_place_member_like_member_place UNIQUE (member_id, place_id)
 );
 
 COMMENT ON TABLE place_scrap IS '장소 스크랩';

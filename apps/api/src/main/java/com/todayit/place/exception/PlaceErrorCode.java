@@ -6,7 +6,13 @@ import com.todayit.common.exception.ErrorStatus;
 /** 장소 기능에서 사용하는 오류 코드입니다. */
 public enum PlaceErrorCode implements ErrorCode {
   /** 요청한 장소가 존재하지 않는 경우입니다. */
-  NOT_FOUND("PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.", ErrorStatus.NOT_FOUND);
+  NOT_FOUND("PLACE_NOT_FOUND", "장소를 찾을 수 없습니다.", ErrorStatus.NOT_FOUND),
+
+  /** 이미 좋아요를 누른 장소에 다시 좋아요를 요청한 경우입니다. */
+  ALREADY_LIKED("PLACE_ALREADY_LIKED", "이미 좋아요를 눌렀습니다.", ErrorStatus.BAD_REQUEST),
+
+  /** 이미 스크랩한 장소에 다시 스크랩을 요청한 경우입니다. */
+  ALREADY_SCRAPPED("PLACE_ALREADY_SCRAPPED", "이미 스크랩되었습니다.", ErrorStatus.BAD_REQUEST);
 
   /** 클라이언트에 전달할 오류 코드입니다. */
   private final String code;
