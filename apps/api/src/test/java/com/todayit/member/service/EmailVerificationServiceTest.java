@@ -13,6 +13,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.todayit.common.exception.BusinessException;
 import com.todayit.member.client.external.ResendEmailClient;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.exception.EmailVerificationCodeExpiredException;
@@ -60,6 +61,17 @@ public class EmailVerificationServiceTest {
     String attemptKey = "auth:email-verification:attempt:SIGNUP:test@test.com";
 
     when(valueOperations.setIfAbsent(resendKey, "1", Duration.ofMinutes(1))).thenReturn(true);
+
+    when(redisTemplate.execute(
+            any(),
+            eq(
+                List.of(
+                    "auth:email-verification:send-count:test@test.com",
+                    "auth:email-verification:send-block:test@test.com")),
+            eq("600000"),
+            eq("5"),
+            eq("1800000")))
+        .thenReturn(1L);
 
     // When
     String verificationCode = emailVerificationService.issueCode(email, purpose);
@@ -210,6 +222,17 @@ public class EmailVerificationServiceTest {
 
     when(valueOperations.increment(attemptKey)).thenReturn(3L);
 
+    when(redisTemplate.execute(
+            any(),
+            eq(
+                List.of(
+                    "auth:email-verification:send-count:test@test.com",
+                    "auth:email-verification:send-block:test@test.com")),
+            eq("600000"),
+            eq("5"),
+            eq("1800000")))
+        .thenReturn(2L);
+
     // When
     EmailVerificationConfirmResult result =
         emailVerificationService.confirmCode(email, purpose, "999999");
@@ -322,5 +345,37 @@ public class EmailVerificationServiceTest {
 
     // Then
     assertEquals(MemberErrorCode.EMAIL_VERIFICATION_CODE_EXPIRED, exception.getErrorCode());
+  }
+
+  @Test
+  @DisplayName("발송 횟수 제한에 도달하면 인증메일을 추가로 발송하지 않는다")
+  void rejectsEmailSendWhenLimitExceeded() {
+    // Given
+    String email = "test@test.com";
+    String resendKey = "auth:email-verification:resend:SIGNUP:" + email;
+
+    when(valueOperations.setIfAbsent(resendKey, "1", Duration.ofMinutes(1))).thenReturn(true);
+
+    when(redisTemplate.execute(
+            any(),
+            eq(
+                List.of(
+                    "auth:email-verification:send-count:" + email,
+                    "auth:email-verification:send-block:" + email)),
+            eq("600000"),
+            eq("5"),
+            eq("1800000")))
+        .thenReturn(-1L);
+
+    // When
+    BusinessException exception =
+        assertThrows(
+            BusinessException.class,
+            () -> emailVerificationService.issueCode(email, EmailVerificationPurpose.SIGNUP));
+
+    // Then
+    assertEquals(MemberErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED, exception.getErrorCode());
+
+    verify(resendEmailClient, never()).sendVerificationCode(anyString(), anyString());
   }
 }

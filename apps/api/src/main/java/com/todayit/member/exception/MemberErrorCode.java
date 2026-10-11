@@ -28,6 +28,11 @@ public enum MemberErrorCode implements ErrorCode {
   EMAIL_DELIVERY_FAILED(
       "EMAIL_DELIVERY_FAILED", "인증 이메일 발송에 실패했습니다.", ErrorStatus.INTERNAL_SERVER_ERROR),
 
+  EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED(
+      "EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED",
+      "이메일 인증 요청 횟수를 초과했습니다. 30분 후 다시 시도해 주세요.",
+      ErrorStatus.BAD_REQUEST),
+
   REFRESH_TOKEN_INVALID(
       "REFRESH_TOKEN_INVALID", "Refresh Token이 유효하지 않습니다.", ErrorStatus.UNAUTHORIZED);
 
