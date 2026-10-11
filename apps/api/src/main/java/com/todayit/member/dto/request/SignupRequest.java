@@ -3,6 +3,7 @@ package com.todayit.member.dto.request;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.service.command.SignupCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -27,7 +28,7 @@ public record SignupRequest(
             requiredMode = Schema.RequiredMode.REQUIRED)
         String emailVerificationToken,
     @Schema(
-            description = "비밀번호. 유니코드 코드 포인트 기준 10자 이상 72자 이하입니다.",
+            description = "비밀번호는 10자 이상 72자 이하이며, UTF-8 기준 최대 72바이트입니다.",
             example = "ExamplePassword123!",
             minLength = 10,
             maxLength = 72,
@@ -77,6 +78,10 @@ public record SignupRequest(
     int passwordLength = password.codePointCount(0, password.length());
     if (passwordLength < 10 || passwordLength > 72) {
       throw new InvalidRequestException("비밀번호는 10자 이상 72자 이하로 입력해 주세요.");
+    }
+
+    if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+      throw new InvalidRequestException("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.");
     }
 
     if (nickname == null || nickname.isBlank()) {

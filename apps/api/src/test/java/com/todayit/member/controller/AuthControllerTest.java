@@ -580,4 +580,35 @@ class AuthControllerTest {
 
     verify(signupService, never()).createLocalMember(any());
   }
+
+  @Test
+  @DisplayName("비밀번호가 72바이트를 초과하면 회원가입을 거부한다")
+  void rejectsSignupPasswordExceeding72Bytes() throws Exception {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            "test@test.com",
+            "verification-token",
+            "가".repeat(25),
+            "테스트",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요."));
+
+    verify(signupService, never()).createLocalMember(any());
+  }
 }
