@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,9 +42,29 @@ public class EmailVerificationServiceTest {
   @Mock private ResendEmailClient resendEmailClient;
   private EmailVerificationService emailVerificationService;
 
+  private void mockSendLimitResult(
+      String email, EmailVerificationPurpose purpose, boolean checkCooldown, long result) {
+
+    String keySuffix = purpose.name() + ":" + email;
+
+    when(redisTemplate.execute(
+            any(),
+            eq(
+                List.of(
+                    "auth:email-verification:send-count:" + email,
+                    "auth:email-verification:send-block:" + email,
+                    "auth:email-verification:resend:" + keySuffix)),
+            eq("600000"),
+            eq("5"),
+            eq("1800000"),
+            eq("60000"),
+            eq(checkCooldown ? "1" : "0")))
+        .thenReturn(result);
+  }
+
   @BeforeEach
   void setUp() {
-    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     emailVerificationService = new EmailVerificationService(redisTemplate, resendEmailClient);
   }
 
@@ -60,18 +81,7 @@ public class EmailVerificationServiceTest {
 
     String attemptKey = "auth:email-verification:attempt:SIGNUP:test@test.com";
 
-    when(valueOperations.setIfAbsent(resendKey, "1", Duration.ofMinutes(1))).thenReturn(true);
-
-    when(redisTemplate.execute(
-            any(),
-            eq(
-                List.of(
-                    "auth:email-verification:send-count:test@test.com",
-                    "auth:email-verification:send-block:test@test.com")),
-            eq("600000"),
-            eq("5"),
-            eq("1800000")))
-        .thenReturn(1L);
+    mockSendLimitResult(email, purpose, true, 1L);
 
     // When
     String verificationCode = emailVerificationService.issueCode(email, purpose);
@@ -79,8 +89,6 @@ public class EmailVerificationServiceTest {
     // Then
     assertEquals(6, verificationCode.length());
     assertTrue(verificationCode.matches("\\d{6}"));
-
-    verify(valueOperations).setIfAbsent(resendKey, "1", Duration.ofMinutes(1));
 
     verify(valueOperations).set(codeKey, verificationCode, Duration.ofMinutes(30));
 
@@ -96,9 +104,8 @@ public class EmailVerificationServiceTest {
     String email = "test@test.com";
     EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
 
-    String resendKey = "auth:email-verification:resend:SIGNUP:test@test.com";
-
-    when(valueOperations.setIfAbsent(resendKey, "1", Duration.ofMinutes(1))).thenReturn(false);
+    // Lua 스크립트에서 1분 재발송 제한 확인
+    mockSendLimitResult(email, purpose, true, -2L);
 
     // When
     EmailVerificationResendTooSoonException exception =
@@ -222,16 +229,7 @@ public class EmailVerificationServiceTest {
 
     when(valueOperations.increment(attemptKey)).thenReturn(3L);
 
-    when(redisTemplate.execute(
-            any(),
-            eq(
-                List.of(
-                    "auth:email-verification:send-count:test@test.com",
-                    "auth:email-verification:send-block:test@test.com")),
-            eq("600000"),
-            eq("5"),
-            eq("1800000")))
-        .thenReturn(2L);
+    mockSendLimitResult(email, purpose, false, 2L);
 
     // When
     EmailVerificationConfirmResult result =
@@ -249,8 +247,6 @@ public class EmailVerificationServiceTest {
     verify(valueOperations).set(codeKey, result.reissuedVerificationCode(), Duration.ofMinutes(30));
 
     verify(redisTemplate).delete(attemptKey);
-
-    verify(valueOperations).set(resendKey, "1", Duration.ofMinutes(1));
 
     verify(resendEmailClient).sendVerificationCode(email, result.reissuedVerificationCode());
   }
@@ -352,26 +348,15 @@ public class EmailVerificationServiceTest {
   void rejectsEmailSendWhenLimitExceeded() {
     // Given
     String email = "test@test.com";
-    String resendKey = "auth:email-verification:resend:SIGNUP:" + email;
+    EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
 
-    when(valueOperations.setIfAbsent(resendKey, "1", Duration.ofMinutes(1))).thenReturn(true);
-
-    when(redisTemplate.execute(
-            any(),
-            eq(
-                List.of(
-                    "auth:email-verification:send-count:" + email,
-                    "auth:email-verification:send-block:" + email)),
-            eq("600000"),
-            eq("5"),
-            eq("1800000")))
-        .thenReturn(-1L);
+    // Lua 스크립트에서 30분 발송 제한 확인
+    mockSendLimitResult(email, purpose, true, -1L);
 
     // When
     BusinessException exception =
         assertThrows(
-            BusinessException.class,
-            () -> emailVerificationService.issueCode(email, EmailVerificationPurpose.SIGNUP));
+            BusinessException.class, () -> emailVerificationService.issueCode(email, purpose));
 
     // Then
     assertEquals(MemberErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED, exception.getErrorCode());

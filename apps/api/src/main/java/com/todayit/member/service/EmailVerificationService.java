@@ -61,30 +61,44 @@ public class EmailVerificationService {
           Long.class);
 
   /**
-   * 이메일 인증메일 발송 횟수를 원자적으로 집계하는 Redis Lua 스크립트입니다.
+   * 인증메일 발송 제한을 원자적으로 검사합니다.
    *
-   * <p>KEYS[1]은 발송 횟수 키, KEYS[2]는 발송 차단 키입니다. ARGV[1]은 집계 시간(ms), ARGV[2]는 최대 횟수, ARGV[3]은 차단
-   * 시간(ms)입니다.
+   * <p>KEYS[1]: 10분 발송 횟수 KEYS[2]: 30분 발송 차단 KEYS[3]: 1분 재발송 제한
    *
-   * <p>첫 시도에서만 집계 키의 만료 시간을 설정하므로 재발송해도 10분의 집계 시작 시점이 변경되지 않습니다. 허용된 발송 횟수를 반환하며, 차단된 경우 -1을
-   * 반환합니다.
+   * <p>ARGV[1]: 집계 시간(ms) ARGV[2]: 최대 발송 횟수 ARGV[3]: 차단 시간(ms) ARGV[4]: 재발송 제한 시간(ms) ARGV[5]: 1분
+   * 제한 검사 여부(1: 검사, 0: 생략)
+   *
+   * <p>-1: 30분 제한, -2: 1분 제한 양수: 허용된 발송 횟수
    */
   private static final RedisScript<Long> SEND_LIMIT_SCRIPT =
       RedisScript.of(
           """
+                  -- 30분 발송 제한을 가장 먼저 확인
                   if redis.call('EXISTS', KEYS[2]) == 1 then
                     return -1
                   end
 
+                  -- 일반 재발송일 때만 1분 제한 확인
+                  if ARGV[5] == '1'
+                      and redis.call('EXISTS', KEYS[3]) == 1 then
+                    return -2
+                  end
+
+                  -- 발송 시도 횟수 증가
                   local count = redis.call('INCR', KEYS[1])
 
+                  -- 첫 시도에서만 10분 집계 시간 설정
                   if count == 1 then
                     redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[1]))
                   end
 
+                  -- 5회 한도 도달 시 30분 제한 시작
                   if count >= tonumber(ARGV[2]) then
                     redis.call('SET', KEYS[2], '1', 'PX', tonumber(ARGV[3]))
                   end
+
+                  -- 허용된 발송에 대해서만 1분 재발송 제한 설정
+                  redis.call('SET', KEYS[3], '1', 'PX', tonumber(ARGV[4]))
 
                   return count
                   """,
@@ -116,21 +130,10 @@ public class EmailVerificationService {
    * @throws BusinessException 인증 이메일 발송에 실패한 경우
    */
   public String issueCode(String email, EmailVerificationPurpose purpose) {
-    // 예시 "SIGNUP:user@test.com"
-    String keySuffix = purpose.name() + ":" + email;
-    String resendKey = RESEND_KEY_PREFIX + keySuffix;
+    String keySuffix = createKeySuffix(email, purpose);
 
-    // resendKey가 Redis에 없을때만 1 저장
-    // auth:email-verification:resend:SIGNUP:user@test.com → "1"
-    Boolean resendAllowed =
-        redisTemplate.opsForValue().setIfAbsent(resendKey, "1", RESEND_COOLDOWN);
-
-    if (!Boolean.TRUE.equals(resendAllowed)) {
-      throw new EmailVerificationResendTooSoonException();
-    }
-
-    // 10분 동안 최대 5회 발송 제한 확인 및 횟수 기록
-    recordEmailSendAttempt(email);
+    // 30분 발송 제한, 1분 재발송 제한, 발송 횟수를 원자적으로 처리
+    recordEmailSendAttempt(email, keySuffix, true);
 
     // 6자리 랜덤 숫자 생성
     String verificationCode = String.format("%06d", secureRandom.nextInt(1_000_000));
@@ -237,16 +240,10 @@ public class EmailVerificationService {
 
     // 최대 실패 횟수 도달
     if (failureCount != null && failureCount >= MAX_FAILURE_COUNT) {
-      // 자동 재발급도 일반 발송과 동일하게 횟수 제한 적용
-      // 차단 중이라면 새 인증번호를 만들거나 메일을 보내지 않음
-      recordEmailSendAttempt(email);
+      // 자동 재발급은 1분 제한 검사를 생략하지만 발송 횟수에는 포함
+      recordEmailSendAttempt(email, keySuffix, false);
 
       String reissuedVerificationCode = createAndStoreVerificationCode(keySuffix);
-
-      String resendKey = RESEND_KEY_PREFIX + keySuffix;
-
-      // 자동 재발급 직후에도 사용자가 다시 수동 발급하지 못하도록 재발송 제한
-      redisTemplate.opsForValue().set(resendKey, "1", RESEND_COOLDOWN);
 
       // 이메일 전송
       sendVerificationEmail(email, reissuedVerificationCode, keySuffix);
@@ -364,30 +361,39 @@ public class EmailVerificationService {
   }
 
   /**
-   * 인증메일 발송 가능 여부를 확인하고 발송 시도를 집계합니다.
+   * 이메일 인증메일 발송 가능 여부를 확인하고 발송 시도를 집계합니다.
    *
    * @param email 발송 대상 이메일
-   * @throws BusinessException 발송 횟수 제한에 도달한 경우
+   * @param keySuffix 인증 목적과 이메일을 결합한 Redis 키
+   * @param checkCooldown 1분 재발송 제한 검사 여부
    */
-  private void recordEmailSendAttempt(String email) {
+  private void recordEmailSendAttempt(String email, String keySuffix, boolean checkCooldown) {
+
     String countKey = SEND_COUNT_KEY_PREFIX + email;
     String blockKey = SEND_BLOCK_KEY_PREFIX + email;
+    String resendKey = RESEND_KEY_PREFIX + keySuffix;
 
-    // 동시 요청에서도 발송 횟수 확인과 증가가 한 번에 처리되도록 실행
     Long result =
         redisTemplate.execute(
             SEND_LIMIT_SCRIPT,
-            List.of(countKey, blockKey),
+            List.of(countKey, blockKey, resendKey),
             String.valueOf(SEND_WINDOW.toMillis()),
             String.valueOf(MAX_SEND_COUNT),
-            String.valueOf(SEND_BLOCK_DURATION.toMillis()));
+            String.valueOf(SEND_BLOCK_DURATION.toMillis()),
+            String.valueOf(RESEND_COOLDOWN.toMillis()),
+            checkCooldown ? "1" : "0");
 
     if (result == null) {
       throw new IllegalStateException("이메일 발송 제한 정보를 확인할 수 없습니다.");
     }
 
+    // 30분 제한을 1분 재발송 제한보다 우선 처리
     if (result == -1L) {
       throw new BusinessException(MemberErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED);
+    }
+
+    if (result == -2L) {
+      throw new EmailVerificationResendTooSoonException();
     }
   }
 }
