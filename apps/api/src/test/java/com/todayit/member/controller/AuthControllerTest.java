@@ -634,4 +634,53 @@ class AuthControllerTest {
 
     verify(loginFacade, never()).login(any());
   }
+
+  @Test
+  @DisplayName("인증번호가 6자리가 아니면 요청을 거부한다")
+  void rejectsInvalidVerificationCodeLength() throws Exception {
+    // Given
+    EmailVerificationConfirmRequest request =
+        new EmailVerificationConfirmRequest(
+            "test@test.com", "12345", EmailVerificationPurpose.SIGNUP);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("인증번호는 숫자 6자리로 입력해 주세요."));
+
+    // 형식 오류는 인증 실패 횟수에 포함하지 않음
+    verify(emailVerificationService, never()).confirmCode(any(), any(), any());
+  }
+
+  @Test
+  @DisplayName("인증번호에 문자가 포함되면 요청을 거부한다")
+  void rejectsNonNumericVerificationCode() throws Exception {
+    // Given
+    EmailVerificationConfirmRequest request =
+        new EmailVerificationConfirmRequest(
+            "test@test.com", "12ab56", EmailVerificationPurpose.SIGNUP);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+    verify(emailVerificationService, never()).confirmCode(any(), any(), any());
+  }
 }

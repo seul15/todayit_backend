@@ -43,6 +43,11 @@ public record EmailVerificationConfirmRequest(
       throw new InvalidRequestException("인증번호는 필수입니다.");
     }
 
+    // 인증번호는 앞자리 0을 포함할 수 있는 숫자 6자리 문자열
+    if (!verificationCode.matches("[0-9]{6}")) {
+      throw new InvalidRequestException("인증번호는 숫자 6자리로 입력해 주세요.");
+    }
+
     if (purpose == null) {
       throw new InvalidRequestException("인증 목적은 필수입니다.");
     }
