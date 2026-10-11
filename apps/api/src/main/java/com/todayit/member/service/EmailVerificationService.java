@@ -12,7 +12,9 @@ import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 /** 이메일 인증번호의 발급과 유효 상태를 관리합니다. */
@@ -34,6 +36,20 @@ public class EmailVerificationService {
   private static final String ATTEMPT_KEY_PREFIX = "auth:email-verification:attempt:";
   // 이메일 인증 완료 토큰을 저장하는 Redis Key prefix
   private static final String TOKEN_KEY_PREFIX = "auth:email-verification:token:";
+
+  /**
+   * 인증번호 조회와 삭제를 원자적으로 처리하는 Redis Lua 스크립트 동시에 여러 인증 요청이 들어와도 동일한 인증번호가 중복 사용되지 않도록 함 KEYS[1]은 인증번호
+   * Redis 키, ARGV[1]은 사용자가 입력한 인증번호 인증번호가 일치하여 삭제에 성공하면 1, 그렇지 않으면 0을 반환
+   */
+  private static final RedisScript<Long> CONSUME_CODE_SCRIPT =
+      RedisScript.of(
+          """
+                          if redis.call('GET',KEYS[1]) == ARGV[1] then
+                            return redis.call('DEL',KEYS[1])
+                          end
+                          return 0
+                          """,
+          Long.class);
 
   private final StringRedisTemplate redisTemplate;
   private final SecureRandom secureRandom = new SecureRandom();
@@ -117,6 +133,16 @@ public class EmailVerificationService {
 
     // 인증번호가 일치하면 일회성 인증 완료 토큰을 발급하고 기존 인증 상태를 정리한다.
     if (storedCode.equals(verificationCode)) {
+      // 인증번호 확인과 삭제를 원자적으로 실행하여 동시에 들어온 중복 인증 요청을 방지
+      Long consumed =
+          redisTemplate.execute(CONSUME_CODE_SCRIPT, List.of(codeKey), verificationCode);
+
+      // 다른 요청이 먼저 인증번호를 사용했거나 이미 삭제된 경우 인증 실패 처리
+      if (!Long.valueOf(1L).equals(consumed)) {
+        throw new EmailVerificationCodeExpiredException();
+      }
+
+      // 인증번호 사용이 완료됐으므로 회원가입에 사용할 인증 완료 토큰 발급
       String verificationToken = completeVerification(email, purpose);
 
       return EmailVerificationConfirmResult.verified(verificationToken);
@@ -226,8 +252,6 @@ public class EmailVerificationService {
     redisTemplate.opsForValue().set(tokenKey, keySuffix, VERIFICATION_TOKEN_TTL);
 
     // 인증이 완료됐으므로 해당 인증번호와 관련 상태 제거
-    redisTemplate.delete(CODE_KEY_PREFIX + keySuffix);
-
     redisTemplate.delete(ATTEMPT_KEY_PREFIX + keySuffix);
 
     redisTemplate.delete(RESEND_KEY_PREFIX + keySuffix);

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -21,6 +22,7 @@ import com.todayit.member.exception.InvalidEmailVerificationTokenException;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -109,14 +111,14 @@ public class EmailVerificationServiceTest {
     String verificationCode = "123456";
 
     String keySuffix = "SIGNUP:test@test.com";
-
     String codeKey = "auth:email-verification:code:" + keySuffix;
-
     String attemptKey = "auth:email-verification:attempt:" + keySuffix;
-
     String resendKey = "auth:email-verification:resend:" + keySuffix;
 
     when(valueOperations.get(codeKey)).thenReturn(verificationCode);
+
+    // Lua 스크립트가 인증번호 확인 및 삭제에 성공한 상황
+    when(redisTemplate.execute(any(), eq(List.of(codeKey)), eq(verificationCode))).thenReturn(1L);
 
     // When
     EmailVerificationConfirmResult result =
@@ -129,9 +131,10 @@ public class EmailVerificationServiceTest {
 
     String tokenKey = "auth:email-verification:token:" + result.verificationToken();
 
+    verify(redisTemplate).execute(any(), eq(List.of(codeKey)), eq(verificationCode));
+
     verify(valueOperations).set(tokenKey, keySuffix, Duration.ofMinutes(30));
 
-    verify(redisTemplate).delete(codeKey);
     verify(redisTemplate).delete(attemptKey);
     verify(redisTemplate).delete(resendKey);
   }
@@ -294,5 +297,30 @@ public class EmailVerificationServiceTest {
 
     // Then
     assertEquals(MemberErrorCode.EMAIL_VERIFICATION_TOKEN_INVALID, exception.getErrorCode());
+  }
+
+  @Test
+  @DisplayName("이미 사용된 인증번호로는 인증 토큰을 다시 발급할 수 없다")
+  void rejectsAlreadyConsumedVerificationCode() {
+    // Given
+    String email = "test@test.com";
+    EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
+    String verificationCode = "123456";
+
+    String codeKey = "auth:email-verification:code:SIGNUP:" + email;
+
+    when(valueOperations.get(codeKey)).thenReturn(verificationCode);
+
+    // 다른 요청이 인증번호를 먼저 사용해서 Lua 스크립트가 0을 반환
+    when(redisTemplate.execute(any(), eq(List.of(codeKey)), eq(verificationCode))).thenReturn(0L);
+
+    // When
+    EmailVerificationCodeExpiredException exception =
+        assertThrows(
+            EmailVerificationCodeExpiredException.class,
+            () -> emailVerificationService.confirmCode(email, purpose, verificationCode));
+
+    // Then
+    assertEquals(MemberErrorCode.EMAIL_VERIFICATION_CODE_EXPIRED, exception.getErrorCode());
   }
 }
