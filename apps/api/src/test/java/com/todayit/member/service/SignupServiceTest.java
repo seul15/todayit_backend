@@ -11,12 +11,14 @@ import static org.mockito.Mockito.when;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.entity.Agreement;
 import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberAgreement;
 import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.entity.MemberRole;
+import com.todayit.member.repository.AgreementRepository;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.repository.MemberRoleRepository;
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.BeanUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -49,15 +52,16 @@ class SignupServiceTest {
   @Mock private MemberAgreementRepository memberAgreementRepository;
   @Mock private PasswordBlocklistRepository passwordBlocklistRepository;
   @Mock private NicknameBlocklistRepository nicknameBlocklistRepository;
+  @Mock private AgreementRepository agreementRepository;
 
   private SignupService signupService;
 
-  private static final List<MemberAgreementRepository.CurrentAgreement> CURRENT_AGREEMENTS =
+  private static final List<Agreement> CURRENT_AGREEMENTS =
       List.of(
-          new TestAgreement(10, "TOS", true),
-          new TestAgreement(20, "ACCOUNT_PRIVACY", false),
-          new TestAgreement(30, "PREFERENCE", false),
-          new TestAgreement(40, "PROFILE_IMAGE", false));
+          agreement(10, "TOS", true),
+          agreement(20, "ACCOUNT_PRIVACY", true),
+          agreement(30, "PREFERENCE", false),
+          agreement(40, "PROFILE_IMAGE", false));
 
   @BeforeEach
   void setUp() {
@@ -69,7 +73,8 @@ class SignupServiceTest {
             memberRoleRepository,
             memberAgreementRepository,
             passwordBlocklistRepository,
-            nicknameBlocklistRepository);
+            nicknameBlocklistRepository,
+            agreementRepository);
   }
 
   @Test
@@ -89,7 +94,7 @@ class SignupServiceTest {
     SignupCommand command =
         new SignupCommand(email, verificationToken, password, "테스트", agreements);
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(passwordEncoder.encode(password)).thenReturn("encoded-password");
     when(memberRepository.save(any(Member.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -150,7 +155,7 @@ class SignupServiceTest {
                 "PREFERENCE", false,
                 "PROFILE_IMAGE", false));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
 
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(InvalidRequestException.class)
@@ -171,7 +176,7 @@ class SignupServiceTest {
             "테스트",
             Map.of("PREFERENCE", false));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
 
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(InvalidRequestException.class)
@@ -187,7 +192,7 @@ class SignupServiceTest {
         new SignupCommand(
             "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(List.of());
+    when(agreementRepository.findByDeletedFalse()).thenReturn(List.of());
 
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(IllegalStateException.class)
@@ -209,7 +214,7 @@ class SignupServiceTest {
                 "TOS", true,
                 "marketing", false));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
 
     assertThatThrownBy(() -> signupService.createLocalMember(command))
         .isInstanceOf(InvalidRequestException.class)
@@ -223,9 +228,15 @@ class SignupServiceTest {
   void allowsSignupWithoutOptionalAgreements() {
     SignupCommand command =
         new SignupCommand(
-            "test@test.com", "verification-token", "password123!", "테스트", Map.of("TOS", true));
+            "test@test.com",
+            "verification-token",
+            "password123!",
+            "테스트",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(passwordEncoder.encode("password123!")).thenReturn("encoded-password");
     when(memberRepository.save(any(Member.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -234,7 +245,7 @@ class SignupServiceTest {
     Member savedMember = signupService.createLocalMember(command);
 
     assertThat(savedMember).isNotNull();
-    verify(memberAgreementRepository, times(1)).save(any(MemberAgreement.class));
+    verify(memberAgreementRepository, times(2)).save(any(MemberAgreement.class));
   }
 
   @Test
@@ -244,9 +255,15 @@ class SignupServiceTest {
 
     SignupCommand command =
         new SignupCommand(
-            "test@test.com", "verification-token", password, "테스트", Map.of("TOS", true));
+            "test@test.com",
+            "verification-token",
+            password,
+            "테스트",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
             password, BlocklistMatchType.EXACT))
         .thenReturn(true);
@@ -270,9 +287,11 @@ class SignupServiceTest {
             "verification-token",
             "safePassword123!",
             nickname,
-            Map.of("TOS", true));
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(nicknameBlocklistRepository.existsBlockedNickname(nickname)).thenReturn(true);
 
     assertThatThrownBy(() -> signupService.createLocalMember(command))
@@ -283,23 +302,15 @@ class SignupServiceTest {
     verify(memberRepository, never()).save(any());
   }
 
-  private record TestAgreement(Integer agreementId, String code, Boolean required)
-      implements MemberAgreementRepository.CurrentAgreement {
+  /** 테스트에 사용할 Agreement 엔티티를 생성합니다. */
+  private static Agreement agreement(Integer id, String code, boolean required) {
+    Agreement agreement = BeanUtils.instantiateClass(Agreement.class);
 
-    @Override
-    public Integer getAgreementId() {
-      return agreementId;
-    }
+    ReflectionTestUtils.setField(agreement, "id", id);
+    ReflectionTestUtils.setField(agreement, "code", code);
+    ReflectionTestUtils.setField(agreement, "required", required);
 
-    @Override
-    public String getCode() {
-      return code;
-    }
-
-    @Override
-    public Boolean getRequired() {
-      return required;
-    }
+    return agreement;
   }
 
   @Test
@@ -372,9 +383,11 @@ class SignupServiceTest {
             "verification-token",
             "safePassword123!",
             nickname,
-            Map.of("TOS", true));
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(memberRepository.existsByNormalizedNickname(nickname)).thenReturn(true);
 
     assertThatThrownBy(() -> signupService.createLocalMember(command))
@@ -395,9 +408,11 @@ class SignupServiceTest {
             "verification-token",
             "safePassword123!",
             nickname,
-            Map.of("TOS", true));
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(passwordEncoder.encode("safePassword123!")).thenReturn("encoded-password");
     when(memberRepository.save(any(Member.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
@@ -424,9 +439,15 @@ class SignupServiceTest {
   void doesNotConvertUnrelatedConstraintViolation() {
     SignupCommand command =
         new SignupCommand(
-            "new@test.com", "verification-token", "safePassword123!", "새닉네임", Map.of("TOS", true));
+            "new@test.com",
+            "verification-token",
+            "safePassword123!",
+            "새닉네임",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
 
-    when(memberAgreementRepository.findCurrentAgreements()).thenReturn(CURRENT_AGREEMENTS);
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
     when(passwordEncoder.encode("safePassword123!")).thenReturn("encoded-password");
     when(memberRepository.save(any(Member.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));

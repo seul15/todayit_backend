@@ -2,6 +2,7 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.entity.Agreement;
 import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
@@ -10,6 +11,7 @@ import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.entity.MemberRole;
 import com.todayit.member.exception.InvalidEmailVerificationTokenException;
 import com.todayit.member.exception.MemberErrorCode;
+import com.todayit.member.repository.AgreementRepository;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.repository.MemberRoleRepository;
@@ -20,10 +22,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hibernate.exception.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 로컬 회원가입 관련 기능을 처리합니다. */
 @Service
@@ -36,11 +42,13 @@ public class SignupService {
   private final MemberAgreementRepository memberAgreementRepository;
   private final PasswordBlocklistRepository passwordBlocklistRepository;
   private final NicknameBlocklistRepository nicknameBlocklistRepository;
+  private final AgreementRepository agreementRepository;
 
   private static final String DEFAULT_ROLE_NAME = "USER";
+  private static final Logger log = LoggerFactory.getLogger(SignupService.class);
 
   /**
-   * 회원가입에 필요한 회원 저장소를 받습니다.
+   * 회원가입에 필요한 저장소와 서비스를 받습니다.
    *
    * @param memberRepository 회원 Repository
    * @param passwordEncoder 비밀번호 암호화
@@ -49,6 +57,7 @@ public class SignupService {
    * @param memberAgreementRepository 회원 약관 동의 Repository
    * @param passwordBlocklistRepository 비밀번호 금칙어 Repository
    * @param nicknameBlocklistRepository 닉네임 금칙어 Repository
+   * @param agreementRepository 약관 Repository
    */
   public SignupService(
       MemberRepository memberRepository,
@@ -57,7 +66,9 @@ public class SignupService {
       MemberRoleRepository memberRoleRepository,
       MemberAgreementRepository memberAgreementRepository,
       PasswordBlocklistRepository passwordBlocklistRepository,
-      NicknameBlocklistRepository nicknameBlocklistRepository) {
+      NicknameBlocklistRepository nicknameBlocklistRepository,
+      AgreementRepository agreementRepository) {
+
     this.memberRepository = memberRepository;
     this.passwordEncoder = passwordEncoder;
     this.emailVerificationService = emailVerificationService;
@@ -65,6 +76,7 @@ public class SignupService {
     this.memberAgreementRepository = memberAgreementRepository;
     this.passwordBlocklistRepository = passwordBlocklistRepository;
     this.nicknameBlocklistRepository = nicknameBlocklistRepository;
+    this.agreementRepository = agreementRepository;
   }
 
   /**
@@ -123,27 +135,20 @@ public class SignupService {
       throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
     }
 
-    // 현재 적용 중인 필수 약관 조회
-
     // 현재 적용 중인 약관 조회
-    List<MemberAgreementRepository.CurrentAgreement> currentAgreements =
-        memberAgreementRepository.findCurrentAgreements();
+    List<Agreement> currentAgreements = agreementRepository.findByDeletedFalse();
 
     // 현재 적용 중인 필수 약관이 없으면 회원가입을 진행하지 않음
-    boolean hasRequiredAgreement =
-        currentAgreements.stream()
-            .anyMatch(agreement -> Boolean.TRUE.equals(agreement.getRequired()));
+    boolean hasRequiredAgreement = currentAgreements.stream().anyMatch(Agreement::isRequired);
 
     if (!hasRequiredAgreement) {
       throw new IllegalStateException("필수 약관 정보가 없습니다.");
     }
 
     // 약관 코드를 실제 DB 약관 정보와 연결
-    Map<String, MemberAgreementRepository.CurrentAgreement> agreementsByCode =
+    Map<String, Agreement> agreementsByCode =
         currentAgreements.stream()
-            .collect(
-                Collectors.toMap(
-                    MemberAgreementRepository.CurrentAgreement::getCode, agreement -> agreement));
+            .collect(Collectors.toMap(Agreement::getCode, agreement -> agreement));
 
     // 존재하지 않거나 현재 적용되지 않는 약관 코드는 거부
     boolean hasUnknownAgreement =
@@ -162,7 +167,7 @@ public class SignupService {
     // DB에서 필수로 설정한 약관은 반드시 동의해야 함
     boolean hasMissingRequiredAgreement =
         currentAgreements.stream()
-            .filter(agreement -> Boolean.TRUE.equals(agreement.getRequired()))
+            .filter(Agreement::isRequired)
             .anyMatch(
                 agreement -> !Boolean.TRUE.equals(command.agreements().get(agreement.getCode())));
 
@@ -186,8 +191,6 @@ public class SignupService {
     String encodedPassword = passwordEncoder.encode(command.password());
 
     Member member = Member.createLocal(command.email(), encodedPassword, command.nickname());
-
-    // 생성된 회원 정보를 DB에 저장
 
     // 생성된 회원 정보를 DB에 저장
     Member savedMember;
@@ -231,15 +234,53 @@ public class SignupService {
         .agreements()
         .forEach(
             (code, agreed) -> {
-              Integer agreementId = agreementsByCode.get(code).getAgreementId();
+              Integer agreementId = agreementsByCode.get(code).getId();
 
               memberAgreementRepository.save(
                   MemberAgreement.create(agreementId, savedMember.getId(), agreed));
             });
 
     // 회원가입에 사용한 이메일 인증 토큰 재사용 방지를 위해 삭제
-    emailVerificationService.invalidateVerificationToken(command.emailVerificationToken());
+    invalidateVerificationTokenAfterCommit(command.emailVerificationToken());
 
     return savedMember;
+  }
+
+  /**
+   * DB 커밋이 성공한 이후 이메일 인증 토큰을 무효화합니다.
+   *
+   * @param verificationToken 이메일 인증 토큰
+   */
+  private void invalidateVerificationTokenAfterCommit(String verificationToken) {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      emailVerificationService.invalidateVerificationToken(verificationToken);
+      return;
+    }
+
+    TransactionSynchronizationManager.registerSynchronization(
+        new EmailVerificationTokenCleanupService(emailVerificationService, verificationToken));
+  }
+
+  /** 트랜잭션 커밋 완료 후 인증 토큰을 정리합니다. */
+  private static final class EmailVerificationTokenCleanupService
+      implements TransactionSynchronization {
+
+    private final EmailVerificationService emailVerificationService;
+    private final String verificationToken;
+
+    private EmailVerificationTokenCleanupService(
+        EmailVerificationService emailVerificationService, String verificationToken) {
+      this.emailVerificationService = emailVerificationService;
+      this.verificationToken = verificationToken;
+    }
+
+    @Override
+    public void afterCommit() {
+      try {
+        emailVerificationService.invalidateVerificationToken(verificationToken);
+      } catch (RuntimeException exception) {
+        log.error("회원가입 완료 후 이메일 인증 토큰 삭제에 실패했습니다.", exception);
+      }
+    }
   }
 }
