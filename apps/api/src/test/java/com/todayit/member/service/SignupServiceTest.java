@@ -468,4 +468,44 @@ class SignupServiceTest {
     verify(memberRepository).flush();
     verify(memberRoleRepository, never()).save(any(MemberRole.class));
   }
+
+  @Test
+  @DisplayName("DB 이메일 UNIQUE 제약 위반은 이메일 중복 오류로 변환한다")
+  void convertsEmailUniqueViolationToBusinessException() {
+    // Given
+    SignupCommand command =
+        new SignupCommand(
+            "duplicate@test.com",
+            "verification-token",
+            "safePassword123!",
+            "새닉네임",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
+
+    when(passwordEncoder.encode("safePassword123!")).thenReturn("encoded-password");
+
+    when(memberRepository.save(any(Member.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    ConstraintViolationException constraintException =
+        new ConstraintViolationException(
+            "이메일 중복", new SQLException("duplicate key", "23505"), "uk_member_email_provider");
+
+    doThrow(new DataIntegrityViolationException("DB UNIQUE 위반", constraintException))
+        .when(memberRepository)
+        .flush();
+
+    // When & Then
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(BusinessException.class)
+        .hasMessage("이미 사용 중인 이메일입니다.");
+
+    verify(memberRepository).flush();
+    verify(memberRoleRepository, never()).save(any(MemberRole.class));
+    verify(memberAgreementRepository, never()).save(any(MemberAgreement.class));
+    verify(emailVerificationService, never()).invalidateVerificationToken(any());
+  }
 }

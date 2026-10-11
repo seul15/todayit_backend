@@ -203,20 +203,28 @@ public class SignupService {
 
     } catch (DataIntegrityViolationException exception) {
 
-      // 중복된 닉네임으로 DB 저장이 실패한 경우
       Throwable cause = exception;
 
       while (cause != null) {
-        if (cause instanceof ConstraintViolationException constraintException
-            && "uk_member_nickname_normalized".equals(constraintException.getConstraintName())) {
+        if (cause instanceof ConstraintViolationException constraintException) {
 
-          throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+          String constraintName = constraintException.getConstraintName();
+
+          // 이메일 + 가입 방식 UNIQUE 제약 위반
+          if ("uk_member_email_provider".equalsIgnoreCase(constraintName)) {
+            throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
+          }
+
+          // 닉네임 UNIQUE 제약 위반
+          if ("uk_member_nickname_normalized".equalsIgnoreCase(constraintName)) {
+            throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+          }
         }
 
         cause = cause.getCause();
       }
 
-      // 닉네임 이외의 DB 제약 위반은 임의로 변환하지 않음
+      // 그 외 DB 제약 위반은 기존 예외를 유지
       throw exception;
     }
 
