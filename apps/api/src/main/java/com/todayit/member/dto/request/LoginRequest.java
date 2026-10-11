@@ -3,6 +3,7 @@ package com.todayit.member.dto.request;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.service.command.LoginCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 로컬 로그인 요청입니다.
@@ -46,6 +47,10 @@ public record LoginRequest(
 
     if (password == null || password.isBlank()) {
       throw new InvalidRequestException("비밀번호는 필수입니다.");
+    }
+
+    if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
+      throw new InvalidRequestException("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.");
     }
   }
 }
