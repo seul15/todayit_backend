@@ -4,6 +4,7 @@ import com.todayit.common.dto.response.ApiResponse;
 import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.pagination.PaginationValidator;
 import com.todayit.common.response.CommonResponse;
+import com.todayit.member.controller.docs.MemberApiDocs;
 import com.todayit.member.dto.response.NicknameAvailabilityResponse;
 import com.todayit.member.service.SignupService;
 import com.todayit.place.dto.response.PlaceResponse;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** 회원의 장소 관련 HTTP 요청을 처리하는 Controller입니다. */
 @RestController
 @RequestMapping("/api/v1/members")
-public class MemberController {
+public class MemberController implements MemberApiDocs {
 
   private static final int DEFAULT_PAGE = 0;
   private static final int DEFAULT_SIZE = 20;
@@ -46,6 +47,7 @@ public class MemberController {
    * @param nickname 확인할 닉네임
    * @return 닉네임 사용 가능 여부
    */
+  @Override
   @GetMapping("/nickname/check")
   public ResponseEntity<ApiResponse<NicknameAvailabilityResponse>> checkNickname(
       @RequestParam(required = false) String nickname) {
@@ -63,6 +65,7 @@ public class MemberController {
    * @param authentication 인증된 회원 정보
    * @return 스크랩 장소 페이지
    */
+  @Override
   @GetMapping("/me/scrapped-places")
   public ResponseEntity<CommonResponse<PageResponse<PlaceResponse>>> findScrappedPlaces(
       @RequestParam(defaultValue = "" + DEFAULT_PAGE) int page,

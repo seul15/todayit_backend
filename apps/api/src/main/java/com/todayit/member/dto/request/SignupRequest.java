@@ -2,6 +2,7 @@ package com.todayit.member.dto.request;
 
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.service.command.SignupCommand;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.Map;
 
 /**
@@ -13,12 +14,38 @@ import java.util.Map;
  * @param nickname 회원 닉네임
  * @param agreements 약관 식별자별 동의 여부
  */
+@Schema(description = "로컬 회원가입 요청")
 public record SignupRequest(
-    String email,
-    String emailVerificationToken,
-    String password,
-    String nickname,
-    Map<String, Boolean> agreements) {
+    @Schema(
+            description = "가입할 이메일. 필수 입력값입니다.",
+            example = "user@example.com",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String email,
+    @Schema(
+            description = "이메일 인증번호 확인 후 발급받은 인증 완료 토큰입니다.",
+            example = "example-verification-token",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String emailVerificationToken,
+    @Schema(
+            description = "비밀번호. 유니코드 코드 포인트 기준 10자 이상 72자 이하입니다.",
+            example = "ExamplePassword123!",
+            minLength = 10,
+            maxLength = 72,
+            accessMode = Schema.AccessMode.WRITE_ONLY,
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String password,
+    @Schema(
+            description = "닉네임. 한글, 영문, 숫자만 허용하며 2자 이상 8자 이하입니다. 금칙어와 중복 닉네임은 사용할 수 없습니다.",
+            example = "오늘이",
+            minLength = 2,
+            maxLength = 8,
+            pattern = "[가-힣A-Za-z0-9]+",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String nickname,
+    @Schema(
+            description = "현재 활성화된 약관 코드별 동의 여부입니다. 필수 약관은 true로 동의해야 합니다.",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        Map<String, Boolean> agreements) {
 
   /**
    * 회원가입 요청을 서비스에 전달할 형태로 변환합니다.

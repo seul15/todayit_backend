@@ -2,6 +2,7 @@ package com.todayit.member.dto.request;
 
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.entity.EmailVerificationPurpose;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * 이메일 인증번호 확인 요청입니다.
@@ -10,8 +11,23 @@ import com.todayit.member.entity.EmailVerificationPurpose;
  * @param verificationCode 사용자가 입력한 인증번호
  * @param purpose 이메일 인증 목적
  */
+@Schema(description = "이메일 인증번호 확인 요청")
 public record EmailVerificationConfirmRequest(
-    String email, String verificationCode, EmailVerificationPurpose purpose) {
+    @Schema(
+            description = "인증번호를 발급받은 이메일입니다.",
+            example = "user@example.com",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String email,
+    @Schema(
+            description = "이메일로 전송된 인증번호입니다. 앞자리 0을 보존하기 위해 문자열로 전달합니다.",
+            example = "012345",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String verificationCode,
+    @Schema(
+            description = "이메일 인증 목적입니다. 현재 SIGNUP만 지원합니다.",
+            example = "SIGNUP",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        EmailVerificationPurpose purpose) {
 
   /**
    * 이메일 인증번호 확인에 필요한 입력값을 검증합니다.
