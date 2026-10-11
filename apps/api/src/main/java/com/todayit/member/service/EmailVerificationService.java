@@ -240,7 +240,10 @@ public class EmailVerificationService {
 
     // 최대 실패 횟수 도달
     if (failureCount != null && failureCount >= MAX_FAILURE_COUNT) {
-      // 자동 재발급은 1분 제한 검사를 생략하지만 발송 횟수에는 포함
+      // 3회 실패한 기존 인증번호는 자동 재발급 가능 여부와 관계없이 무효화
+      redisTemplate.delete(CODE_KEY_PREFIX + keySuffix);
+
+      // 30분 발송 제한 중이면 새 인증번호를 발급하지 않음
       recordEmailSendAttempt(email, keySuffix, false);
 
       String reissuedVerificationCode = createAndStoreVerificationCode(keySuffix);

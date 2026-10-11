@@ -248,7 +248,43 @@ public class EmailVerificationServiceTest {
 
     verify(redisTemplate).delete(attemptKey);
 
+    verify(redisTemplate).delete(codeKey);
+
     verify(resendEmailClient).sendVerificationCode(email, result.reissuedVerificationCode());
+  }
+
+  @Test
+  @DisplayName("3회 실패 시 발송 제한 중이어도 기존 인증번호를 무효화한다")
+  void invalidatesCodeAfterThreeFailuresWhenSendBlocked() {
+    // Given
+    String email = "test@test.com";
+    EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
+
+    String codeKey = "auth:email-verification:code:SIGNUP:" + email;
+    String attemptKey = "auth:email-verification:attempt:SIGNUP:" + email;
+
+    when(valueOperations.get(codeKey)).thenReturn("123456");
+    when(valueOperations.increment(attemptKey)).thenReturn(3L);
+
+    // 30분 발송 차단 상태
+    mockSendLimitResult(email, purpose, false, -1L);
+
+    // When
+    BusinessException exception =
+        assertThrows(
+            BusinessException.class,
+            () -> emailVerificationService.confirmCode(email, purpose, "999999"));
+
+    // Then
+    assertEquals(MemberErrorCode.EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED, exception.getErrorCode());
+
+    // 3회 실패한 기존 인증번호 삭제
+    verify(redisTemplate).delete(codeKey);
+
+    // 발송 차단 중에는 새 인증번호 저장 및 이메일 발송 금지
+    verify(valueOperations, never()).set(eq(codeKey), anyString(), eq(Duration.ofMinutes(30)));
+
+    verify(resendEmailClient, never()).sendVerificationCode(anyString(), anyString());
   }
 
   @Test
