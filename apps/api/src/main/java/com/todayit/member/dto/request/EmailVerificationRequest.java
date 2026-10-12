@@ -33,6 +33,10 @@ public record EmailVerificationRequest(
       throw new InvalidRequestException("이메일은 필수입니다.");
     }
 
+    if (email.length() > 100) {
+      throw new InvalidRequestException("이메일은 100자 이하로 입력해 주세요.");
+    }
+
     if (purpose == null) {
       throw new InvalidRequestException("인증 목적은 필수입니다.");
     }

@@ -67,6 +67,10 @@ public record SignupRequest(
       throw new InvalidRequestException("이메일은 필수입니다.");
     }
 
+    if (email.length() > 100) {
+      throw new InvalidRequestException("이메일은 100자 이하로 입력해 주세요.");
+    }
+
     if (emailVerificationToken == null || emailVerificationToken.isBlank()) {
       throw new InvalidRequestException("이메일 인증 토큰은 필수입니다.");
     }

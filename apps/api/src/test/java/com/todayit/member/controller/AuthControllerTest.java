@@ -683,4 +683,45 @@ class AuthControllerTest {
 
     verify(emailVerificationService, never()).confirmCode(any(), any(), any());
   }
+
+  @Test
+  @DisplayName("이메일이 100자를 초과하면 회원가입을 거부한다")
+  void rejectsSignupEmailExceeding100Characters() throws Exception {
+    SignupRequest request =
+        new SignupRequest(
+            "a".repeat(101) + "@test.com",
+            "verification-token",
+            "password123!",
+            "테스트",
+            Map.of("TOS", true));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("이메일은 100자 이하로 입력해 주세요."));
+
+    verify(signupService, never()).createLocalMember(any());
+  }
+
+  @Test
+  @DisplayName("이메일이 100자를 초과하면 인증메일을 발송하지 않는다")
+  void rejectsVerificationEmailExceeding100Characters() throws Exception {
+    EmailVerificationRequest request =
+        new EmailVerificationRequest(
+            "a".repeat(101) + "@test.com", EmailVerificationPurpose.SIGNUP);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/email-verifications")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+    verify(emailVerificationService, never()).issueCode(any(), any());
+  }
 }

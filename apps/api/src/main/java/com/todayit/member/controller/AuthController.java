@@ -130,6 +130,10 @@ public class AuthController implements AuthApiDocs {
       throw new InvalidRequestException("이메일은 필수입니다.");
     }
 
+    if (email.length() > 100) {
+      throw new InvalidRequestException("이메일은 100자 이하로 입력해 주세요.");
+    }
+
     boolean available = signupService.isEmailAvailable(email);
 
     return ResponseEntity.ok(ApiResponse.success(new EmailAvailabilityResponse(email, available)));
