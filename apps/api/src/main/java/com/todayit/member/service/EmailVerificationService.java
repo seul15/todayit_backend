@@ -132,20 +132,11 @@ public class EmailVerificationService {
   public String issueCode(String email, EmailVerificationPurpose purpose) {
     String keySuffix = createKeySuffix(email, purpose);
 
-    // 30분 발송 제한, 1분 재발송 제한, 발송 횟수를 원자적으로 처리
+    // 발송 제한 확인 및 횟수 집계
     recordEmailSendAttempt(email, keySuffix, true);
 
-    // 6자리 랜덤 숫자 생성
-    String verificationCode = String.format("%06d", secureRandom.nextInt(1_000_000));
-
-    String codeKey = CODE_KEY_PREFIX + keySuffix;
-
-    // Redis에 인증번호 저장
-    redisTemplate.opsForValue().set(codeKey, verificationCode, CODE_TTL);
-    // 이전 인증번호의 실패 횟수 제거
-    String attemptKey = ATTEMPT_KEY_PREFIX + keySuffix;
-
-    redisTemplate.delete(attemptKey);
+    // 인증번호 생성, 저장 및 실패 횟수 초기화
+    String verificationCode = createAndStoreVerificationCode(keySuffix);
 
     sendVerificationEmail(email, verificationCode, keySuffix);
 
@@ -252,7 +243,7 @@ public class EmailVerificationService {
       sendVerificationEmail(email, reissuedVerificationCode, keySuffix);
 
       // 새 번호는 HTTP 응답용이 아니라 이후 메일 전송 계층으로 전달하기 위한 내부 결과다.
-      return EmailVerificationConfirmResult.reissued(reissuedVerificationCode);
+      return EmailVerificationConfirmResult.reissued();
     }
 
     long currentFailureCount = failureCount == null ? 1L : failureCount;

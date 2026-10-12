@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -146,7 +147,6 @@ public class EmailVerificationServiceTest {
     // Then
     assertTrue(result.verified());
     assertNotNull(result.verificationToken());
-    assertNull(result.reissuedVerificationCode());
 
     String tokenKey = "auth:email-verification:token:" + result.verificationToken();
 
@@ -238,19 +238,21 @@ public class EmailVerificationServiceTest {
     // Then
     assertFalse(result.verified());
     assertNull(result.verificationToken());
-    assertNotNull(result.reissuedVerificationCode());
 
-    assertEquals(6, result.reissuedVerificationCode().length());
+    // Redis에 저장된 새 인증번호 확인
+    ArgumentCaptor<String> codeCaptor = ArgumentCaptor.forClass(String.class);
 
-    assertTrue(result.reissuedVerificationCode().matches("\\d{6}"));
+    verify(valueOperations).set(eq(codeKey), codeCaptor.capture(), eq(Duration.ofMinutes(30)));
 
-    verify(valueOperations).set(codeKey, result.reissuedVerificationCode(), Duration.ofMinutes(30));
+    String reissuedCode = codeCaptor.getValue();
+
+    assertTrue(reissuedCode.matches("[0-9]{6}"));
 
     verify(redisTemplate).delete(attemptKey);
 
     verify(redisTemplate).delete(codeKey);
 
-    verify(resendEmailClient).sendVerificationCode(email, result.reissuedVerificationCode());
+    verify(resendEmailClient).sendVerificationCode(email, reissuedCode);
   }
 
   @Test

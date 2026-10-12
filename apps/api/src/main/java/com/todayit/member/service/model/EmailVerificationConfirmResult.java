@@ -5,11 +5,8 @@ package com.todayit.member.service.model;
  *
  * @param verified 인증 성공 여부
  * @param verificationToken 인증 성공 시 발급된 토큰
- * @param reissuedVerificationCode 3회 실패로 재발급된 인증번호
  */
-public record EmailVerificationConfirmResult(
-    boolean verified, String verificationToken, String reissuedVerificationCode) {
-
+public record EmailVerificationConfirmResult(boolean verified, String verificationToken) {
   /**
    * 이메일 인증 성공 결과를 생성합니다.
    *
@@ -17,16 +14,15 @@ public record EmailVerificationConfirmResult(
    * @return 인증 성공 결과
    */
   public static EmailVerificationConfirmResult verified(String verificationToken) {
-    return new EmailVerificationConfirmResult(true, verificationToken, null);
+    return new EmailVerificationConfirmResult(true, verificationToken);
   }
 
   /**
    * 인증번호 재발급 결과를 생성합니다.
    *
-   * @param verificationCode 새로 발급된 인증번호
    * @return 인증번호 재발급 결과
    */
-  public static EmailVerificationConfirmResult reissued(String verificationCode) {
-    return new EmailVerificationConfirmResult(false, null, verificationCode);
+  public static EmailVerificationConfirmResult reissued() {
+    return new EmailVerificationConfirmResult(false, null);
   }
 }
