@@ -6,18 +6,24 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
+@Testcontainers
 @ActiveProfiles({"test", "local"})
-@SpringBootTest(
-    properties = {
-      "spring.datasource.url=jdbc:h2:mem:local_seed;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-      "spring.datasource.driver-class-name=org.h2.Driver",
-      "spring.datasource.username=sa",
-      "spring.datasource.password="
-    })
+@SpringBootTest
 class FlywayLocalSeedTest {
+
+  @ServiceConnection
+  static final PostgreSQLContainer POSTGRESQL =
+      new PostgreSQLContainer("postgres:17-alpine")
+          .withDatabaseName("todayit")
+          .withUsername("todayit_user")
+          .withPassword("todayit1234")
+          .withUrlParam("currentSchema", "todayit");
 
   @Autowired private JdbcTemplate jdbcTemplate;
 
