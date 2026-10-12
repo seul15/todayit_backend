@@ -13,8 +13,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(description = "이메일 인증번호 발급 요청")
 public record EmailVerificationRequest(
     @Schema(
-            description = "인증번호를 받을 이메일입니다. 필수 입력값입니다.",
+            description = "이메일은 100자 이하로 입력합니다.",
             example = "user@example.com",
+            maxLength = 100,
             requiredMode = Schema.RequiredMode.REQUIRED)
         String email,
     @Schema(

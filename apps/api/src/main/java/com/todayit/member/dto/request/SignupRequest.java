@@ -18,8 +18,9 @@ import java.util.Map;
 @Schema(description = "로컬 회원가입 요청")
 public record SignupRequest(
     @Schema(
-            description = "가입할 이메일. 필수 입력값입니다.",
+            description = "이메일은 100자 이하로 입력합니다.",
             example = "user@example.com",
+            maxLength = 100,
             requiredMode = Schema.RequiredMode.REQUIRED)
         String email,
     @Schema(

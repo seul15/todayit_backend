@@ -139,7 +139,7 @@ public interface AuthApiDocs {
                             "{\"success\":true,\"data\":{\"email\":\"user@example.com\",\"available\":true}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "이메일 누락",
+        description = "이메일 누락 또는 100자 초과",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -273,15 +273,21 @@ public interface AuthApiDocs {
                             "{\"success\":true,\"data\":{\"email\":\"user@example.com\",\"purpose\":\"SIGNUP\",\"expiresIn\":1800,\"resendAvailableIn\":60}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "요청값 오류 또는 재발송 대기 시간 미경과",
+        description = "요청값 오류, 재발송 대기 시간 미경과 또는 발송 횟수 초과",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_RESEND_TOO_SOON\",\"message\":\"인증번호는 1분 후 다시 요청할 수 있습니다.\"}"))),
+                examples = {
+                  @ExampleObject(
+                      name = "1분 재발송 제한",
+                      value =
+                          "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_RESEND_TOO_SOON\",\"message\":\"인증번호는 1분 후 다시 요청할 수 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "30분 발송 제한",
+                      value =
+                          "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED\",\"message\":\"이메일 인증 요청 횟수를 초과했습니다. 30분 후 다시 시도해 주세요.\"}")
+                })),
     @ApiResponse(
         responseCode = "500",
         description = "인증 이메일 발송 실패",
@@ -332,8 +338,23 @@ public interface AuthApiDocs {
                   @ExampleObject(
                       name = "인증번호 만료",
                       value =
-                          "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_CODE_EXPIRED\",\"message\":\"인증번호가 만료되었거나 존재하지 않습니다.\"}")
-                }))
+                          "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_CODE_EXPIRED\",\"message\":\"인증번호가 만료되었거나 존재하지 않습니다.\"}"),
+                  @ExampleObject(
+                      name = "인증번호 재발급 제한",
+                      value =
+                          "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_SEND_LIMIT_EXCEEDED\",\"message\":\"이메일 인증 요청 횟수를 초과했습니다. 30분 후 다시 시도해 주세요.\"}")
+                })),
+    @ApiResponse(
+        responseCode = "500",
+        description = "인증번호 자동 재발급 중 이메일 발송 실패",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"EMAIL_DELIVERY_FAILED\",\"message\":\"인증 이메일 발송에 실패했습니다.\"}")))
   })
   ResponseEntity<com.todayit.common.dto.response.ApiResponse<EmailVerificationConfirmResponse>>
       confirmEmailVerification(EmailVerificationConfirmRequest request);

@@ -201,7 +201,7 @@ class MemberLoginServiceTest {
 
     // Then
     assertEquals("이메일 또는 비밀번호가 올바르지 않습니다.", exception.getMessage());
-    assertEquals(3L, exception.getFailureCount());
+    assertEquals(3L, exception.getDetails().get("failureCount"));
 
     verify(loginAttemptService).recordFailure(email);
     verify(loginAttemptService, never()).resetFailures(email);

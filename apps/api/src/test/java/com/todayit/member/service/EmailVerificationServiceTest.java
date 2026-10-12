@@ -76,8 +76,6 @@ public class EmailVerificationServiceTest {
     String email = "test@test.com";
     EmailVerificationPurpose purpose = EmailVerificationPurpose.SIGNUP;
 
-    String resendKey = "auth:email-verification:resend:SIGNUP:test@test.com";
-
     String codeKey = "auth:email-verification:code:SIGNUP:test@test.com";
 
     String attemptKey = "auth:email-verification:attempt:SIGNUP:test@test.com";
@@ -222,8 +220,6 @@ public class EmailVerificationServiceTest {
     String codeKey = "auth:email-verification:code:" + keySuffix;
 
     String attemptKey = "auth:email-verification:attempt:" + keySuffix;
-
-    String resendKey = "auth:email-verification:resend:" + keySuffix;
 
     when(valueOperations.get(codeKey)).thenReturn("123456");
 
