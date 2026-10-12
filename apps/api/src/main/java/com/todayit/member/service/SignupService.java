@@ -45,7 +45,7 @@ public class SignupService {
   private final AgreementRepository agreementRepository;
 
   private static final String DEFAULT_ROLE_NAME = "USER";
-  private static final Logger log = LoggerFactory.getLogger(SignupService.class);
+  private static final Logger LOG = LoggerFactory.getLogger(SignupService.class);
 
   /**
    * 회원가입에 필요한 저장소와 서비스를 받습니다.
@@ -287,7 +287,7 @@ public class SignupService {
       try {
         emailVerificationService.invalidateVerificationToken(verificationToken);
       } catch (RuntimeException exception) {
-        log.error("회원가입 완료 후 이메일 인증 토큰 삭제에 실패했습니다.", exception);
+        LOG.error("회원가입 완료 후 이메일 인증 토큰 삭제에 실패했습니다.", exception);
       }
     }
   }
