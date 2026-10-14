@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -286,7 +287,7 @@ public class SignupService {
     public void afterCommit() {
       try {
         emailVerificationService.invalidateVerificationToken(verificationToken);
-      } catch (RuntimeException exception) {
+      } catch (DataAccessException exception) {
         LOG.error("회원가입 완료 후 이메일 인증 토큰 삭제에 실패했습니다.", exception);
       }
     }
