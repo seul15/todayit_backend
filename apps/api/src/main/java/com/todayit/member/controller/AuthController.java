@@ -76,7 +76,6 @@ public class AuthController implements AuthApiDocs {
    * @param request 로그인 요청
    * @return 로그인 성공 정보와 토큰
    */
-  @Override
   @PostMapping("/login")
   public ResponseEntity<CommonResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
     // 이메일, 비밀번호 입력됐는지 확인
@@ -96,7 +95,6 @@ public class AuthController implements AuthApiDocs {
    * @param request 로그아웃 요청
    * @return 응답 본문 없음
    */
-  @Override
   @PostMapping("/logout")
   public ResponseEntity<Void> logout(
       Authentication authentication, @RequestBody LogoutRequest request) {
@@ -121,7 +119,6 @@ public class AuthController implements AuthApiDocs {
    * @return 이메일과 사용 가능 여부
    * @throws InvalidRequestException 이메일이 없거나 공백일 때
    */
-  @Override
   @GetMapping("/emails/check")
   public ResponseEntity<CommonResponse<EmailAvailabilityResponse>> checkEmail(
       @RequestParam(required = false) String email) {
@@ -146,7 +143,6 @@ public class AuthController implements AuthApiDocs {
    * @param request 회원가입 요청
    * @return 생성된 회원 정보
    */
-  @Override
   @PostMapping(value = "/signup", consumes = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<CommonResponse<SignupResponse>> signup(@RequestBody SignupRequest request) {
 
@@ -169,7 +165,6 @@ public class AuthController implements AuthApiDocs {
    * @return 생성된 회원 정보
    * @throws InvalidRequestException 이미지 업로드 기능이 준비되지 않은 상태에서 이미지가 첨부된 경우
    */
-  @Override
   @PostMapping(value = "/signup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<CommonResponse<SignupResponse>> signupWithProfileImage(
       @RequestPart("request") SignupRequest request,
@@ -194,7 +189,6 @@ public class AuthController implements AuthApiDocs {
    * @param request 이메일 인증번호 발급 요청
    * @return 이메일 인증번호 유효 시간과 재발급 대기 시간
    */
-  @Override
   @PostMapping("/email-verifications")
   public ResponseEntity<CommonResponse<EmailVerificationResponse>> issueEmailVerification(
       @RequestBody EmailVerificationRequest request) {
@@ -222,7 +216,6 @@ public class AuthController implements AuthApiDocs {
    * @return 이메일 인증 완료 토큰과 유효 시간
    * @throws InvalidEmailVerificationCodeException 인증번호 확인에 실패한 경우
    */
-  @Override
   @PostMapping("/email-verifications/confirm")
   public ResponseEntity<CommonResponse<EmailVerificationConfirmResponse>> confirmEmailVerification(
       @RequestBody EmailVerificationConfirmRequest request) {
@@ -254,7 +247,6 @@ public class AuthController implements AuthApiDocs {
    * @param request 토큰 갱신 요청
    * @return 갱신된 Access Token과 Refresh Token
    */
-  @Override
   @PostMapping("/refresh")
   public ResponseEntity<CommonResponse<TokenRefreshResponse>> refresh(
       @RequestBody TokenRefreshRequest request) {

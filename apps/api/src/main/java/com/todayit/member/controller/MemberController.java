@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 회원 관련 API를 처리합니다. */
-/** 회원의 장소 관련 HTTP 요청을 처리하는 Controller입니다. */
 @RestController
 @RequestMapping("/api/v1/members")
 public class MemberController implements MemberApiDocs {
@@ -46,7 +45,6 @@ public class MemberController implements MemberApiDocs {
    * @param nickname 확인할 닉네임
    * @return 닉네임 사용 가능 여부
    */
-  @Override
   @GetMapping("/nickname/check")
   public ResponseEntity<CommonResponse<NicknameAvailabilityResponse>> checkNickname(
       @RequestParam(required = false) String nickname) {
@@ -64,7 +62,6 @@ public class MemberController implements MemberApiDocs {
    * @param authentication 인증된 회원 정보
    * @return 스크랩 장소 페이지
    */
-  @Override
   @GetMapping("/me/scrapped-places")
   public ResponseEntity<CommonResponse<PageResponse<PlaceResponse>>> findScrappedPlaces(
       @RequestParam(defaultValue = "" + DEFAULT_PAGE) int page,
