@@ -358,25 +358,33 @@ public interface AuthApiDocs {
       EmailVerificationConfirmRequest request);
 
   /**
-   * Refresh Token으로 Access Token을 다시 발급합니다.
+   * Refresh Token을 검증하고 새로운 인증 토큰을 발급합니다.
    *
-   * @param request 토큰 갱신 요청
-   * @return 새 Access Token과 기존 Refresh Token
+   * <p>유효한 Refresh Token으로 요청하면 새로운 Access Token과 Refresh Token을 발급합니다. 기존 Refresh Token은 즉시 무효화되며,
+   * 로그인 세션 ID는 유지됩니다.
+   *
+   * <p>클라이언트는 갱신 응답으로 받은 새 Refresh Token을 저장하고 이후 토큰 갱신 요청에 사용해야 합니다.
+   *
+   * @param request 기존 Refresh Token이 포함된 토큰 갱신 요청
+   * @return 새 Access Token, 새 Refresh Token 및 Access Token 유효 시간
    */
   @Operation(
       summary = "토큰 갱신",
-      description = "요청 본문의 Refresh Token을 확인하고 새 Access Token을 발급합니다. 기존 Refresh Token은 유지합니다.")
+      description =
+          "유효한 Refresh Token을 확인하고 새 Access Token과 Refresh Token을 발급합니다. "
+              + "기존 Refresh Token은 즉시 무효화되며, 로그인 세션은 유지됩니다. "
+              + "이후 갱신 요청에는 새로 발급된 Refresh Token을 사용해야 합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
-        description = "토큰 갱신 성공",
+        description = "토큰 갱신 및 Refresh Token 회전 성공",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"example-refresh-token\",\"expiresIn\":3600}}"))),
+                            "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"new-refresh-token\",\"expiresIn\":3600}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "Refresh Token 누락",
@@ -390,7 +398,7 @@ public interface AuthApiDocs {
                             "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Refresh Token은 필수입니다.\"}"))),
     @ApiResponse(
         responseCode = "401",
-        description = "Refresh Token이 유효하지 않음",
+        description = "Refresh Token이 유효하지 않거나 이미 사용된 경우",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
