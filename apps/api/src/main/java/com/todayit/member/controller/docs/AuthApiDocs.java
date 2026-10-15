@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -158,7 +159,37 @@ public interface AuthApiDocs {
    */
   @Operation(
       summary = "회원가입",
-      description = "이메일 인증 완료 토큰과 약관 동의 정보를 받아 로컬 회원을 생성합니다. 프로필 이미지는 회원가입 이후 별도 API에서 등록합니다.")
+      description =
+          "이메일 인증 완료 토큰과 약관 동의 정보를 받아 로컬 회원을 생성합니다."
+              + " 필수 약관은 TOS, ACCOUNT_PRIVACY이며 동의값은 true여야 합니다."
+              + " PREFERENCE, PROFILE_IMAGE는 선택 약관입니다."
+              + " 프로필 이미지는 회원가입 이후 별도 API에서 등록합니다.",
+      requestBody =
+          @RequestBody(
+              required = true,
+              description = "회원가입 정보 및 필수·선택 약관 동의 여부",
+              content =
+                  @Content(
+                      mediaType = MediaType.APPLICATION_JSON_VALUE,
+                      schema = @Schema(implementation = SignupRequest.class),
+                      examples =
+                          @ExampleObject(
+                              name = "회원가입 요청 예시",
+                              value =
+                                  """
+                                {
+                                  "email": "user@example.com",
+                                  "emailVerificationToken": "example-verification-token",
+                                  "password": "ExamplePassword123!",
+                                  "nickname": "오늘이",
+                                  "agreements": {
+                                    "TOS": true,
+                                    "ACCOUNT_PRIVACY": true,
+                                    "PREFERENCE": false,
+                                    "PROFILE_IMAGE": false
+                                  }
+                                }
+                                """))))
   @ApiResponses({
     @ApiResponse(
         responseCode = "201",

@@ -45,7 +45,13 @@ public record SignupRequest(
             requiredMode = Schema.RequiredMode.REQUIRED)
         String nickname,
     @Schema(
-            description = "현재 활성화된 약관 코드별 동의 여부입니다. 필수 약관은 true로 동의해야 합니다.",
+            description =
+                "약관 코드별 동의 여부입니다. "
+                    + "필수: TOS(서비스 이용약관), "
+                    + "ACCOUNT_PRIVACY(계정 관련 개인정보 수집·이용 동의)는 true여야 합니다. "
+                    + "선택: PREFERENCE(선호정보 수집·이용 동의), "
+                    + "PROFILE_IMAGE(프로필 이미지 수집·이용 동의)는 "
+                    + "true 또는 false로 전달할 수 있습니다.",
             requiredMode = Schema.RequiredMode.REQUIRED)
         Map<String, Boolean> agreements) {
 
