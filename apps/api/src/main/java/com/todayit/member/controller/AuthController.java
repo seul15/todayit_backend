@@ -35,9 +35,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 /** 인증과 회원가입 관련 API를 처리합니다. */
 @RestController
@@ -156,32 +154,6 @@ public class AuthController implements AuthApiDocs {
     Member member = signupService.createLocalMember(request.toCommand());
 
     // 회원가입 성공 응답 반환
-    return ResponseEntity.status(HttpStatus.CREATED)
-        .body(CommonResponse.success(SignupResponse.from(member)));
-  }
-
-  /**
-   * 프로필 이미지 파일을 선택적으로 전달받는 회원가입 요청을 처리합니다.
-   *
-   * @param request 회원가입 정보
-   * @param profileImage 선택한 프로필 이미지 파일
-   * @return 생성된 회원 정보
-   * @throws InvalidRequestException 이미지 업로드 기능이 준비되지 않은 상태에서 이미지가 첨부된 경우
-   */
-  @PostMapping(value = "/signup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ResponseEntity<CommonResponse<SignupResponse>> signupWithProfileImage(
-      @RequestPart("request") SignupRequest request,
-      @RequestPart(value = "profileImage", required = false) MultipartFile profileImage) {
-
-    request.validate();
-
-    // 실제 저장소가 연결되기 전에는 이미지 등록 요청을 허용하지 않음
-    if (profileImage != null && !profileImage.isEmpty()) {
-      throw new InvalidRequestException("프로필 이미지 업로드 기능은 아직 준비 중입니다.");
-    }
-
-    Member member = signupService.createLocalMember(request.toCommand());
-
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(CommonResponse.success(SignupResponse.from(member)));
   }

@@ -26,7 +26,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.multipart.MultipartFile;
 
 /** 로컬 로그인, 회원가입, 이메일 인증 및 토큰 갱신 API 명세입니다. */
 @Tag(name = "인증", description = "로컬 로그인, 회원가입, 이메일 인증 및 토큰 관리 API")
@@ -157,7 +156,9 @@ public interface AuthApiDocs {
    * @param request 회원가입 요청
    * @return 생성된 회원 정보
    */
-  @Operation(summary = "회원가입 (JSON)", description = "이메일 인증 완료 토큰과 약관 동의 정보를 받아 로컬 회원을 생성합니다.")
+  @Operation(
+      summary = "회원가입",
+      description = "이메일 인증 완료 토큰과 약관 동의 정보를 받아 로컬 회원을 생성합니다. 프로필 이미지는 회원가입 이후 별도 API에서 등록합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "201",
@@ -168,7 +169,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"profileImage\":\"/images/default-profile.png\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
+                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "필수 입력, 약관 동의 또는 이메일 인증 정보 오류",
@@ -199,55 +200,6 @@ public interface AuthApiDocs {
                 }))
   })
   ResponseEntity<CommonResponse<SignupResponse>> signup(SignupRequest request);
-
-  /**
-   * Multipart 형식으로 회원가입을 처리합니다.
-   *
-   * @param request request 파트의 JSON 회원가입 정보
-   * @param profileImage 선택적 프로필 이미지 파일
-   * @return 생성된 회원 정보
-   */
-  @Operation(
-      summary = "회원가입 (Multipart)",
-      description =
-          "multipart/form-data 요청입니다. request 파트는 JSON 회원가입 정보, profileImage 파트는 선택적 파일입니다. "
-              + "현재 이미지를 실제 첨부하면 400 INVALID_REQUEST가 반환됩니다. 이미지를 첨부하지 않은 가입만 가능합니다.")
-  @ApiResponses({
-    @ApiResponse(
-        responseCode = "201",
-        description = "이미지를 첨부하지 않은 회원가입 성공",
-        content =
-            @Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"profileImage\":\"/images/default-profile.png\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
-    @ApiResponse(
-        responseCode = "400",
-        description = "이미지 첨부 기능 미지원 또는 잘못된 가입 정보",
-        content =
-            @Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"프로필 이미지 업로드 기능은 아직 준비 중입니다.\"}"))),
-    @ApiResponse(
-        responseCode = "409",
-        description = "이메일 또는 닉네임 중복",
-        content =
-            @Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":false,\"code\":\"EMAIL_ALREADY_EXISTS\",\"message\":\"이미 사용 중인 이메일입니다.\"}")))
-  })
-  ResponseEntity<CommonResponse<SignupResponse>> signupWithProfileImage(
-      SignupRequest request, MultipartFile profileImage);
 
   /**
    * 이메일 인증번호를 발급하고 발송합니다.

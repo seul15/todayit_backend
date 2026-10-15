@@ -15,7 +15,6 @@ INSERT INTO member (
     password,
     provider,
     nickname,
-    profile_image,
     preferred_theme,
     is_active
 )
@@ -26,7 +25,6 @@ SELECT
     seed.password,
     'LOCAL',
     seed.nickname,
-    '/images/default-profile.png',
     NULL,
     TRUE
 FROM (
