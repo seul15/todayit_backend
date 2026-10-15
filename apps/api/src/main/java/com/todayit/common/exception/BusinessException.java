@@ -39,6 +39,13 @@ public class BusinessException extends RuntimeException {
     this(errorCode, errorCode.message(), details);
   }
 
+  /**
+   * 오류 코드와 메시지를 저장하고 추가 정보를 변경할 수 없는 복사본으로 보관합니다.
+   *
+   * @param errorCode 오류 코드
+   * @param message 외부에 전달할 오류 메시지
+   * @param details 오류 응답에 추가할 정보
+   */
   private BusinessException(ErrorCode errorCode, String message, Map<String, Object> details) {
     super(message);
     this.errorCode = errorCode;

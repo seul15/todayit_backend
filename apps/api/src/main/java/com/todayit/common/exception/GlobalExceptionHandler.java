@@ -25,13 +25,19 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(toHttpStatus(exception.getErrorCode().status())).body(response);
   }
 
+  /**
+   * 업무 오류 상태를 HTTP 응답 상태로 변환합니다.
+   *
+   * @param status 업무 오류 상태
+   * @return HTTP 응답 상태
+   */
   private HttpStatus toHttpStatus(ErrorStatus status) {
     return switch (status) {
       case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
       case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
       case NOT_FOUND -> HttpStatus.NOT_FOUND;
-      case CONFLICT -> HttpStatus.CONFLICT;
       case INTERNAL_SERVER_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+      case CONFLICT -> HttpStatus.CONFLICT;
     };
   }
 }

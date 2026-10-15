@@ -1,4 +1,9 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 32MB
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -12,6 +17,16 @@ spring:
       - classpath:db/migration
 
 todayit:
+  file:
+    inquiry-max-files: 5
+    inquiry-max-total-size: 30MB
+    provider: ${FILE_STORAGE_PROVIDER:}
+    cloudinary:
+      cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+      api-key: ${CLOUDINARY_API_KEY:}
+      api-secret: ${CLOUDINARY_API_SECRET:}
+      timeout: 30s
+
   security:
     jwt:
       secret: ${JWT_SECRET}
