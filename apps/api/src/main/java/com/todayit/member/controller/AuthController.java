@@ -1,7 +1,7 @@
 package com.todayit.member.controller;
 
-import com.todayit.common.dto.response.ApiResponse;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.common.response.CommonResponse;
 import com.todayit.member.controller.docs.AuthApiDocs;
 import com.todayit.member.dto.request.EmailVerificationConfirmRequest;
 import com.todayit.member.dto.request.EmailVerificationRequest;
@@ -78,7 +78,7 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @PostMapping("/login")
-  public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
+  public ResponseEntity<CommonResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
     // 이메일, 비밀번호 입력됐는지 확인
     request.validate();
 
@@ -86,7 +86,7 @@ public class AuthController implements AuthApiDocs {
     LoginResult result = loginFacade.login(request.toCommand());
 
     // 로그인 결과를 API 응답으로 리턴
-    return ResponseEntity.ok(ApiResponse.success(LoginResponse.from(result)));
+    return ResponseEntity.ok(CommonResponse.success(LoginResponse.from(result)));
   }
 
   /**
@@ -123,7 +123,7 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @GetMapping("/emails/check")
-  public ResponseEntity<ApiResponse<EmailAvailabilityResponse>> checkEmail(
+  public ResponseEntity<CommonResponse<EmailAvailabilityResponse>> checkEmail(
       @RequestParam(required = false) String email) {
 
     if (email == null || email.isBlank()) {
@@ -136,7 +136,8 @@ public class AuthController implements AuthApiDocs {
 
     boolean available = signupService.isEmailAvailable(email);
 
-    return ResponseEntity.ok(ApiResponse.success(new EmailAvailabilityResponse(email, available)));
+    return ResponseEntity.ok(
+        CommonResponse.success(new EmailAvailabilityResponse(email, available)));
   }
 
   /**
@@ -147,7 +148,7 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @PostMapping(value = "/signup", consumes = MediaType.APPLICATION_JSON_VALUE)
-  public ResponseEntity<ApiResponse<SignupResponse>> signup(@RequestBody SignupRequest request) {
+  public ResponseEntity<CommonResponse<SignupResponse>> signup(@RequestBody SignupRequest request) {
 
     // 회원가입 필수 입력값 확인
     request.validate();
@@ -157,7 +158,7 @@ public class AuthController implements AuthApiDocs {
 
     // 회원가입 성공 응답 반환
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ApiResponse.success(SignupResponse.from(member)));
+        .body(CommonResponse.success(SignupResponse.from(member)));
   }
 
   /**
@@ -170,7 +171,7 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @PostMapping(value = "/signup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-  public ResponseEntity<ApiResponse<SignupResponse>> signupWithProfileImage(
+  public ResponseEntity<CommonResponse<SignupResponse>> signupWithProfileImage(
       @RequestPart("request") SignupRequest request,
       @RequestPart(value = "profileImage", required = false) MultipartFile profileImage) {
 
@@ -184,7 +185,7 @@ public class AuthController implements AuthApiDocs {
     Member member = signupService.createLocalMember(request.toCommand());
 
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(ApiResponse.success(SignupResponse.from(member)));
+        .body(CommonResponse.success(SignupResponse.from(member)));
   }
 
   /**
@@ -195,7 +196,7 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @PostMapping("/email-verifications")
-  public ResponseEntity<ApiResponse<EmailVerificationResponse>> issueEmailVerification(
+  public ResponseEntity<CommonResponse<EmailVerificationResponse>> issueEmailVerification(
       @RequestBody EmailVerificationRequest request) {
 
     // 이메일과 인증 목적 입력값 확인
@@ -211,7 +212,7 @@ public class AuthController implements AuthApiDocs {
             emailVerificationService.getCodeExpirationSeconds(),
             emailVerificationService.getResendCooldownSeconds());
 
-    return ResponseEntity.ok(ApiResponse.success(response));
+    return ResponseEntity.ok(CommonResponse.success(response));
   }
 
   /**
@@ -223,7 +224,7 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @PostMapping("/email-verifications/confirm")
-  public ResponseEntity<ApiResponse<EmailVerificationConfirmResponse>> confirmEmailVerification(
+  public ResponseEntity<CommonResponse<EmailVerificationConfirmResponse>> confirmEmailVerification(
       @RequestBody EmailVerificationConfirmRequest request) {
 
     request.validate();
@@ -242,7 +243,7 @@ public class AuthController implements AuthApiDocs {
             result.verificationToken(),
             emailVerificationService.getVerificationTokenExpirationSeconds());
 
-    return ResponseEntity.ok(ApiResponse.success(response));
+    return ResponseEntity.ok(CommonResponse.success(response));
   }
 
   /**
@@ -253,13 +254,13 @@ public class AuthController implements AuthApiDocs {
    */
   @Override
   @PostMapping("/refresh")
-  public ResponseEntity<ApiResponse<TokenRefreshResponse>> refresh(
+  public ResponseEntity<CommonResponse<TokenRefreshResponse>> refresh(
       @RequestBody TokenRefreshRequest request) {
 
     request.validate();
 
     TokenRefreshResult result = tokenRefreshService.refresh(request.refreshToken());
 
-    return ResponseEntity.ok(ApiResponse.success(TokenRefreshResponse.from(result)));
+    return ResponseEntity.ok(CommonResponse.success(TokenRefreshResponse.from(result)));
   }
 }

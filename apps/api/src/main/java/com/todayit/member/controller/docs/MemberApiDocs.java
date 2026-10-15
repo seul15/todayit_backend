@@ -61,8 +61,7 @@ public interface MemberApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 2자 이상 8자 이하이어야 합니다.\"}")))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<NicknameAvailabilityResponse>>
-      checkNickname(String nickname);
+  ResponseEntity<CommonResponse<NicknameAvailabilityResponse>> checkNickname(String nickname);
 
   /**
    * 인증된 회원이 스크랩한 장소를 페이지 단위로 조회합니다.

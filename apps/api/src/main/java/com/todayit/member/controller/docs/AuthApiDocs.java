@@ -1,6 +1,7 @@
 package com.todayit.member.controller.docs;
 
 import com.todayit.common.openapi.OpenApiConfig;
+import com.todayit.common.response.CommonResponse;
 import com.todayit.common.response.ErrorResponse;
 import com.todayit.member.dto.request.EmailVerificationConfirmRequest;
 import com.todayit.member.dto.request.EmailVerificationRequest;
@@ -78,8 +79,7 @@ public interface AuthApiDocs {
                           "{\"success\":false,\"code\":\"LOGIN_LOCKED\",\"message\":\"로그인 시도 횟수를 초과했습니다. 비밀번호를 변경해주세요.\",\"failureCount\":5,\"maxFailureCount\":5}")
                 }))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<LoginResponse>> login(
-      LoginRequest request);
+  ResponseEntity<CommonResponse<LoginResponse>> login(LoginRequest request);
 
   /**
    * 현재 기기의 로그인 세션을 종료합니다.
@@ -149,8 +149,7 @@ public interface AuthApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}")))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<EmailAvailabilityResponse>> checkEmail(
-      String email);
+  ResponseEntity<CommonResponse<EmailAvailabilityResponse>> checkEmail(String email);
 
   /**
    * 이메일 인증을 마친 회원을 JSON 요청으로 가입시킵니다.
@@ -199,8 +198,7 @@ public interface AuthApiDocs {
                           "{\"success\":false,\"code\":\"NICKNAME_ALREADY_EXISTS\",\"message\":\"이미 사용 중인 닉네임입니다.\"}")
                 }))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<SignupResponse>> signup(
-      SignupRequest request);
+  ResponseEntity<CommonResponse<SignupResponse>> signup(SignupRequest request);
 
   /**
    * Multipart 형식으로 회원가입을 처리합니다.
@@ -248,8 +246,8 @@ public interface AuthApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"EMAIL_ALREADY_EXISTS\",\"message\":\"이미 사용 중인 이메일입니다.\"}")))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<SignupResponse>>
-      signupWithProfileImage(SignupRequest request, MultipartFile profileImage);
+  ResponseEntity<CommonResponse<SignupResponse>> signupWithProfileImage(
+      SignupRequest request, MultipartFile profileImage);
 
   /**
    * 이메일 인증번호를 발급하고 발송합니다.
@@ -300,8 +298,8 @@ public interface AuthApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"EMAIL_DELIVERY_FAILED\",\"message\":\"인증 이메일 발송에 실패했습니다.\"}")))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<EmailVerificationResponse>>
-      issueEmailVerification(EmailVerificationRequest request);
+  ResponseEntity<CommonResponse<EmailVerificationResponse>> issueEmailVerification(
+      EmailVerificationRequest request);
 
   /**
    * 이메일 인증번호를 검증하고 완료 토큰을 발급합니다.
@@ -356,8 +354,8 @@ public interface AuthApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"EMAIL_DELIVERY_FAILED\",\"message\":\"인증 이메일 발송에 실패했습니다.\"}")))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<EmailVerificationConfirmResponse>>
-      confirmEmailVerification(EmailVerificationConfirmRequest request);
+  ResponseEntity<CommonResponse<EmailVerificationConfirmResponse>> confirmEmailVerification(
+      EmailVerificationConfirmRequest request);
 
   /**
    * Refresh Token으로 Access Token을 다시 발급합니다.
@@ -402,6 +400,5 @@ public interface AuthApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"REFRESH_TOKEN_INVALID\",\"message\":\"Refresh Token이 유효하지 않습니다.\"}")))
   })
-  ResponseEntity<com.todayit.common.dto.response.ApiResponse<TokenRefreshResponse>> refresh(
-      TokenRefreshRequest request);
+  ResponseEntity<CommonResponse<TokenRefreshResponse>> refresh(TokenRefreshRequest request);
 }

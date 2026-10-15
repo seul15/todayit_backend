@@ -1,6 +1,5 @@
 package com.todayit.member.controller;
 
-import com.todayit.common.dto.response.ApiResponse;
 import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.pagination.PaginationValidator;
 import com.todayit.common.response.CommonResponse;
@@ -49,12 +48,12 @@ public class MemberController implements MemberApiDocs {
    */
   @Override
   @GetMapping("/nickname/check")
-  public ResponseEntity<ApiResponse<NicknameAvailabilityResponse>> checkNickname(
+  public ResponseEntity<CommonResponse<NicknameAvailabilityResponse>> checkNickname(
       @RequestParam(required = false) String nickname) {
 
     boolean available = signupService.isNicknameAvailable(nickname);
 
-    return ResponseEntity.ok(ApiResponse.success(new NicknameAvailabilityResponse(available)));
+    return ResponseEntity.ok(CommonResponse.success(new NicknameAvailabilityResponse(available)));
   }
 
   /**
