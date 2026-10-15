@@ -25,6 +25,7 @@ import com.todayit.member.service.TokenRefreshService;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import com.todayit.member.service.model.LoginResult;
 import com.todayit.member.service.model.TokenRefreshResult;
+import com.todayit.member.util.EmailNormalizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -131,10 +132,12 @@ public class AuthController implements AuthApiDocs {
       throw new InvalidRequestException("이메일은 100자 이하로 입력해 주세요.");
     }
 
-    boolean available = signupService.isEmailAvailable(email);
+    String normalizedEmail = EmailNormalizer.normalize(email);
+
+    boolean available = signupService.isEmailAvailable(normalizedEmail);
 
     return ResponseEntity.ok(
-        CommonResponse.success(new EmailAvailabilityResponse(email, available)));
+        CommonResponse.success(new EmailAvailabilityResponse(normalizedEmail, available)));
   }
 
   /**
@@ -196,8 +199,9 @@ public class AuthController implements AuthApiDocs {
     // 이메일과 인증 목적 입력값 확인
     request.validate();
 
-    // 인증번호 생성 및 Redis 저장
-    emailVerificationService.issueCode(request.email(), request.purpose());
+    String normalizedEmail = EmailNormalizer.normalize(request.email());
+
+    emailVerificationService.issueCode(normalizedEmail, request.purpose());
 
     EmailVerificationResponse response =
         new EmailVerificationResponse(

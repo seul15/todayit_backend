@@ -9,6 +9,7 @@ import com.todayit.member.exception.InvalidEmailVerificationCodeException;
 import com.todayit.member.exception.InvalidEmailVerificationTokenException;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
+import com.todayit.member.util.EmailNormalizer;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
@@ -146,15 +147,16 @@ public class EmailVerificationService {
    * @throws BusinessException 인증 이메일 발송에 실패한 경우
    */
   public String issueCode(String email, EmailVerificationPurpose purpose) {
+    String normalizedEmail = EmailNormalizer.normalize(email);
     String keySuffix = createKeySuffix(email, purpose);
 
-    // 발송 제한 확인 및 횟수 집계
-    recordEmailSendAttempt(email, keySuffix, true);
+    // 정규화한 이메일을 기준으로 발송 제한 확인
+    recordEmailSendAttempt(normalizedEmail, keySuffix, true);
 
     // 인증번호 생성, 저장 및 실패 횟수 초기화
     String verificationCode = createAndStoreVerificationCode(keySuffix);
 
-    sendVerificationEmail(email, verificationCode, keySuffix);
+    sendVerificationEmail(normalizedEmail, verificationCode, keySuffix);
 
     return verificationCode;
   }
@@ -171,8 +173,8 @@ public class EmailVerificationService {
    */
   public EmailVerificationConfirmResult confirmCode(
       String email, EmailVerificationPurpose purpose, String verificationCode) {
-
-    String keySuffix = createKeySuffix(email, purpose);
+    String normalizedEmail = EmailNormalizer.normalize(email);
+    String keySuffix = createKeySuffix(normalizedEmail, purpose);
 
     String codeKey = CODE_KEY_PREFIX + keySuffix;
 
@@ -194,13 +196,14 @@ public class EmailVerificationService {
         throw new EmailVerificationCodeExpiredException();
       }
 
-      // 인증번호 사용이 완료됐으므로 회원가입에 사용할 인증 완료 토큰 발급
-      String verificationToken = completeVerification(email, purpose);
+      // 인증 성공 시
+      String verificationToken = completeVerification(normalizedEmail, purpose);
 
       return EmailVerificationConfirmResult.verified(verificationToken);
     }
 
-    return handleVerificationFailure(email, keySuffix);
+    // 인증번호 불일치 시
+    return handleVerificationFailure(normalizedEmail, keySuffix);
   }
 
   /**
@@ -311,9 +314,8 @@ public class EmailVerificationService {
   }
 
   private String createKeySuffix(String email, EmailVerificationPurpose purpose) {
-
-    // 같은 이메일이라도 인증 목적이 다르면 Redis 상태가 서로 덮어써지지 않도록 목적을 포함한다.
-    return purpose.name() + ":" + email;
+    // 이메일 대소문자가 달라도 동일한 Redis Key 사용
+    return purpose.name() + ":" + EmailNormalizer.normalize(email);
   }
 
   /**
@@ -387,9 +389,10 @@ public class EmailVerificationService {
    * @param checkCooldown 재발송 대기 시간 검사 여부
    */
   private void recordEmailSendAttempt(String email, String keySuffix, boolean checkCooldown) {
+    String normalizedEmail = EmailNormalizer.normalize(email);
 
-    String countKey = SEND_COUNT_KEY_PREFIX + email;
-    String blockKey = SEND_BLOCK_KEY_PREFIX + email;
+    String countKey = SEND_COUNT_KEY_PREFIX + normalizedEmail;
+    String blockKey = SEND_BLOCK_KEY_PREFIX + normalizedEmail;
     String resendKey = RESEND_KEY_PREFIX + keySuffix;
 
     Long result =

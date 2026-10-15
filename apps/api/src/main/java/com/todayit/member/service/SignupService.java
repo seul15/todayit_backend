@@ -18,6 +18,7 @@ import com.todayit.member.repository.MemberRoleRepository;
 import com.todayit.member.repository.NicknameBlocklistRepository;
 import com.todayit.member.repository.PasswordBlocklistRepository;
 import com.todayit.member.service.command.SignupCommand;
+import com.todayit.member.util.EmailNormalizer;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -88,7 +89,9 @@ public class SignupService {
    */
   @Transactional(readOnly = true)
   public boolean isEmailAvailable(String email) {
-    return !memberRepository.existsByEmailAndProvider(email, MemberProvider.LOCAL);
+    String normalizedEmail = EmailNormalizer.normalize(email);
+
+    return !memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.LOCAL);
   }
 
   /**
@@ -131,8 +134,9 @@ public class SignupService {
    */
   @Transactional
   public Member createLocalMember(SignupCommand command) {
+    String normalizedEmail = EmailNormalizer.normalize(command.email());
     // 이미 가입된 LOCAL 이메일인지 확인
-    if (memberRepository.existsByEmailAndProvider(command.email(), MemberProvider.LOCAL)) {
+    if (memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.LOCAL)) {
       throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
     }
 
@@ -177,7 +181,7 @@ public class SignupService {
     }
 
     emailVerificationService.validateVerificationToken(
-        command.email(), EmailVerificationPurpose.SIGNUP, command.emailVerificationToken());
+        normalizedEmail, EmailVerificationPurpose.SIGNUP, command.emailVerificationToken());
 
     if (passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
         command.password(), BlocklistMatchType.EXACT)) {
@@ -191,7 +195,7 @@ public class SignupService {
 
     String encodedPassword = passwordEncoder.encode(command.password());
 
-    Member member = Member.createLocal(command.email(), encodedPassword, command.nickname());
+    Member member = Member.createLocal(normalizedEmail, encodedPassword, command.nickname());
 
     // 생성된 회원 정보를 DB에 저장
     Member savedMember;
@@ -211,8 +215,9 @@ public class SignupService {
 
           String constraintName = constraintException.getConstraintName();
 
-          // 이메일 + 가입 방식 UNIQUE 제약 위반
-          if ("uk_member_email_provider".equalsIgnoreCase(constraintName)) {
+          // 이메일 + 가입 방식 UNIQUE 제약 위반 (기존 및 정규화 기준)
+          if ("uk_member_email_provider".equalsIgnoreCase(constraintName)
+              || "uk_member_email_provider_normalized".equalsIgnoreCase(constraintName)) {
             throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
           }
 

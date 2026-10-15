@@ -8,6 +8,7 @@ import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.service.command.LoginCommand;
 import com.todayit.member.service.model.MemberLoginResult;
+import com.todayit.member.util.EmailNormalizer;
 import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -50,7 +51,7 @@ public class MemberLoginService {
    */
   public MemberLoginResult login(LoginCommand command) {
     // LoginCommand에서 이메일과 비밀번호 확인
-    String email = command.email();
+    String email = EmailNormalizer.normalize(command.email());
     String password = command.password();
 
     // 같은 이메일의 소셜 계정과 구분하여 LOCAL 회원만 조회

@@ -56,6 +56,11 @@ CREATE TABLE member (
                             )
 );
 
+-- 영문 대소문자와 앞뒤 공백을 제외한 이메일 중복 방지
+CREATE UNIQUE INDEX uk_member_email_provider_normalized
+    ON member (LOWER(BTRIM(email)), provider)
+    WHERE email IS NOT NULL;
+
 -- 영문 대소문자와 앞뒤 공백을 제외한 닉네임 중복 방지
 CREATE UNIQUE INDEX uk_member_nickname_normalized
     ON member (LOWER(BTRIM(nickname)));
