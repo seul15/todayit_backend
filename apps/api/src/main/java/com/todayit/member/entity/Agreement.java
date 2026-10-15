@@ -6,7 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 /** 서비스에서 제공하는 약관 정보를 나타냅니다. */
 @Entity
@@ -37,10 +37,10 @@ public class Agreement {
   private boolean deleted;
 
   @Column(name = "created_at", nullable = false, updatable = false)
-  private OffsetDateTime createdAt;
+  private LocalDateTime createdAt;
 
   @Column(name = "updated_at")
-  private OffsetDateTime updatedAt;
+  private LocalDateTime updatedAt;
 
   protected Agreement() {}
 

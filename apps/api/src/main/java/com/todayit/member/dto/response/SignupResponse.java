@@ -2,7 +2,7 @@ package com.todayit.member.dto.response;
 
 import com.todayit.member.entity.Member;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 /**
  * 회원가입 성공 응답입니다.
@@ -25,8 +25,8 @@ public record SignupResponse(
             example = "/images/default-profile.png")
         String profileImage,
     @Schema(description = "커플 연결 여부입니다.", example = "false") boolean coupleConnected,
-    @Schema(description = "회원 생성 시각입니다. ISO-8601 형식입니다.", example = "2026-10-11T09:00:00+09:00")
-        OffsetDateTime createdAt) {
+    @Schema(description = "회원 생성 시각입니다. ISO-8601 형식입니다.", example = "2026-10-11T09:00:00")
+        LocalDateTime createdAt) {
 
   /**
    * 저장된 회원 정보를 회원가입 응답으로 변환합니다.

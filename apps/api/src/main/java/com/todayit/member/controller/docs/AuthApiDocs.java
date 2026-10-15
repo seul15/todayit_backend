@@ -168,7 +168,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"profileImage\":\"/images/default-profile.png\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00+09:00\"}}"))),
+                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"profileImage\":\"/images/default-profile.png\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "필수 입력, 약관 동의 또는 이메일 인증 정보 오류",
@@ -222,7 +222,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"profileImage\":\"/images/default-profile.png\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00+09:00\"}}"))),
+                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"profileImage\":\"/images/default-profile.png\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "이미지 첨부 기능 미지원 또는 잘못된 가입 정보",
