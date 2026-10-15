@@ -41,6 +41,7 @@ CREATE TABLE member (
                         provider VARCHAR(20) NOT NULL,
                         provider_user_id VARCHAR(255),
                         nickname VARCHAR(50) NOT NULL,
+                        profile_image VARCHAR(2048) NOT NULL DEFAULT '/images/default-profile.png',
                         preferred_theme VARCHAR(20),
                         is_active BOOLEAN NOT NULL DEFAULT TRUE,
                         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -122,6 +123,7 @@ COMMENT ON COLUMN member.password IS '비밀번호';
 COMMENT ON COLUMN member.provider IS '소셜 로그인 구분자';
 COMMENT ON COLUMN member.provider_user_id IS '소셜 로그인 제공자 사용자 식별자';
 COMMENT ON COLUMN member.nickname IS '닉네임';
+COMMENT ON COLUMN member.profile_image IS '프로필 이미지';
 COMMENT ON COLUMN member.preferred_theme IS '선호 테마';
 COMMENT ON COLUMN member.is_active IS '활성화 여부';
 COMMENT ON COLUMN member.created_at IS '생성 날짜';
