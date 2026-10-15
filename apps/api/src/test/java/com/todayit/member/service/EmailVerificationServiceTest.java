@@ -66,7 +66,17 @@ public class EmailVerificationServiceTest {
   @BeforeEach
   void setUp() {
     lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-    emailVerificationService = new EmailVerificationService(redisTemplate, resendEmailClient);
+    emailVerificationService =
+        new EmailVerificationService(
+            redisTemplate,
+            resendEmailClient,
+            Duration.ofMinutes(30),
+            Duration.ofMinutes(1),
+            3L,
+            Duration.ofMinutes(30),
+            Duration.ofMinutes(10),
+            5,
+            Duration.ofMinutes(30));
   }
 
   @Test
@@ -203,7 +213,7 @@ public class EmailVerificationServiceTest {
 
     assertEquals(1L, exception.getDetails().get("failureCount"));
 
-    assertEquals(3, exception.getDetails().get("maxFailureCount"));
+    assertEquals(3L, exception.getDetails().get("maxFailureCount"));
 
     verify(redisTemplate).expire(attemptKey, Duration.ofMinutes(30));
   }

@@ -13,6 +13,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -20,29 +21,14 @@ import org.springframework.stereotype.Service;
 /** 이메일 인증번호의 발급과 유효 상태를 관리합니다. */
 @Service
 public class EmailVerificationService {
-  // 인증번호는 발급 후 30분 동안 유효
-  private static final Duration CODE_TTL = Duration.ofMinutes(30);
-  // 인증번호 재발송은 1분 후부터 가능
-  private static final Duration RESEND_COOLDOWN = Duration.ofMinutes(1);
-  // 인증 번호 입력 최대 실패 횟수
-  private static final long MAX_FAILURE_COUNT = 3L;
   // 실제 인증번호를 저장하는 Redis Key prefix
   private static final String CODE_KEY_PREFIX = "auth:email-verification:code:";
   // 인증번호 재발송 제한을 저장하는 Redis Key prefix
   private static final String RESEND_KEY_PREFIX = "auth:email-verification:resend:";
-  // 이메일 인증 완료 토큰은 30분 동안 유효
-  private static final Duration VERIFICATION_TOKEN_TTL = Duration.ofMinutes(30);
   // 인증번호 입력 실패 횟수를 저장하는 Redis Key prefix
   private static final String ATTEMPT_KEY_PREFIX = "auth:email-verification:attempt:";
   // 이메일 인증 완료 토큰을 저장하는 Redis Key prefix
   private static final String TOKEN_KEY_PREFIX = "auth:email-verification:token:";
-  // 첫 발송 시도부터 고정된 10분 동안 최대 5회 허용
-  private static final Duration SEND_WINDOW = Duration.ofMinutes(10);
-  private static final int MAX_SEND_COUNT = 5;
-
-  // 5회 한도에 도달하면 30분 동안 추가 발송 차단
-  private static final Duration SEND_BLOCK_DURATION = Duration.ofMinutes(30);
-
   private static final String SEND_COUNT_KEY_PREFIX = "auth:email-verification:send-count:";
   private static final String SEND_BLOCK_KEY_PREFIX = "auth:email-verification:send-block:";
 
@@ -107,17 +93,47 @@ public class EmailVerificationService {
   private final StringRedisTemplate redisTemplate;
   private final SecureRandom secureRandom = new SecureRandom();
   private final ResendEmailClient resendEmailClient;
+  private final Duration codeTtl;
+  private final Duration resendCooldown;
+  private final long maxFailureCount;
+  private final Duration verificationTokenTtl;
+  private final Duration sendWindow;
+  private final int maxSendCount;
+  private final Duration sendBlockDuration;
 
   /**
-   * 이메일 인증 상태 저장소와 이메일 발송 Client를 받습니다.
+   * 이메일 인증 상태 저장소, 이메일 발송 Client와 인증 정책 설정값을 받습니다.
    *
    * @param redisTemplate 문자열 기반 Redis 접근 객체
    * @param resendEmailClient Resend 이메일 발송 Client
+   * @param codeTtl 인증번호 유효 시간
+   * @param resendCooldown 인증번호 재발송 대기 시간
+   * @param maxFailureCount 인증번호 입력 최대 실패 횟수
+   * @param verificationTokenTtl 이메일 인증 완료 토큰 유효 시간
+   * @param sendWindow 이메일 발송 횟수 집계 시간
+   * @param maxSendCount 집계 시간 내 최대 이메일 발송 횟수
+   * @param sendBlockDuration 발송 한도 초과 시 차단 시간
    */
   public EmailVerificationService(
-      StringRedisTemplate redisTemplate, ResendEmailClient resendEmailClient) {
+      StringRedisTemplate redisTemplate,
+      ResendEmailClient resendEmailClient,
+      @Value("${todayit.email.verification.code-ttl}") Duration codeTtl,
+      @Value("${todayit.email.verification.resend-cooldown}") Duration resendCooldown,
+      @Value("${todayit.email.verification.max-failure-count}") long maxFailureCount,
+      @Value("${todayit.email.verification.verification-token-ttl}") Duration verificationTokenTtl,
+      @Value("${todayit.email.verification.send-window}") Duration sendWindow,
+      @Value("${todayit.email.verification.max-send-count}") int maxSendCount,
+      @Value("${todayit.email.verification.send-block-duration}") Duration sendBlockDuration) {
+
     this.redisTemplate = redisTemplate;
     this.resendEmailClient = resendEmailClient;
+    this.codeTtl = codeTtl;
+    this.resendCooldown = resendCooldown;
+    this.maxFailureCount = maxFailureCount;
+    this.verificationTokenTtl = verificationTokenTtl;
+    this.sendWindow = sendWindow;
+    this.maxSendCount = maxSendCount;
+    this.sendBlockDuration = sendBlockDuration;
   }
 
   /**
@@ -151,7 +167,7 @@ public class EmailVerificationService {
    * @param verificationCode 사용자가 입력한 인증번호
    * @return 인증 성공 또는 새 인증번호 재발급 결과
    * @throws EmailVerificationCodeExpiredException 저장된 인증번호가 존재하지 않는 경우
-   * @throws InvalidEmailVerificationCodeException 인증번호가 틀렸고 실패 횟수가 3회 미만인 경우
+   * @throws InvalidEmailVerificationCodeException 인증번호가 틀렸고 실패 횟수가 최대 허용 횟수 미만인 경우
    */
   public EmailVerificationConfirmResult confirmCode(
       String email, EmailVerificationPurpose purpose, String verificationCode) {
@@ -162,7 +178,7 @@ public class EmailVerificationService {
 
     String storedCode = redisTemplate.opsForValue().get(codeKey);
 
-    // Key가 없으면 인증번호가 발급되지 않았거나 30분의 유효기간이 지난 것으로 처리한다.
+    // Key가 없으면 인증번호가 발급되지 않았거나 설정된 유효 시간이 지난 것으로 처리한다.
     if (storedCode == null) {
       throw new EmailVerificationCodeExpiredException();
     }
@@ -227,14 +243,14 @@ public class EmailVerificationService {
     Long failureCount = redisTemplate.opsForValue().increment(attemptKey);
 
     // 인증번호가 만료된 뒤 실패 횟수만 남지 않도록 동일한 유효시간을 설정한다.
-    redisTemplate.expire(attemptKey, CODE_TTL);
+    redisTemplate.expire(attemptKey, codeTtl);
 
     // 최대 실패 횟수 도달
-    if (failureCount != null && failureCount >= MAX_FAILURE_COUNT) {
-      // 3회 실패한 기존 인증번호는 자동 재발급 가능 여부와 관계없이 무효화
+    if (failureCount != null && failureCount >= maxFailureCount) {
+      // 최대 실패 횟수에 도달한 기존 인증번호는 자동 재발급 가능 여부와 관계없이 무효화
       redisTemplate.delete(CODE_KEY_PREFIX + keySuffix);
 
-      // 30분 발송 제한 중이면 새 인증번호를 발급하지 않음
+      // 발송 제한 중이면 새 인증번호를 발급하지 않음
       recordEmailSendAttempt(email, keySuffix, false);
 
       String reissuedVerificationCode = createAndStoreVerificationCode(keySuffix);
@@ -248,7 +264,7 @@ public class EmailVerificationService {
 
     long currentFailureCount = failureCount == null ? 1L : failureCount;
 
-    throw new InvalidEmailVerificationCodeException(currentFailureCount);
+    throw new InvalidEmailVerificationCodeException(currentFailureCount, maxFailureCount);
   }
 
   private String createAndStoreVerificationCode(String keySuffix) {
@@ -259,7 +275,7 @@ public class EmailVerificationService {
     String codeKey = CODE_KEY_PREFIX + keySuffix;
 
     // 동일한 Key에 저장하므로 재발급 시 이전 인증번호는 자동으로 무효화된다.
-    redisTemplate.opsForValue().set(codeKey, verificationCode, CODE_TTL);
+    redisTemplate.opsForValue().set(codeKey, verificationCode, codeTtl);
 
     String attemptKey = ATTEMPT_KEY_PREFIX + keySuffix;
 
@@ -284,7 +300,7 @@ public class EmailVerificationService {
 
     String tokenKey = TOKEN_KEY_PREFIX + verificationToken;
 
-    redisTemplate.opsForValue().set(tokenKey, keySuffix, VERIFICATION_TOKEN_TTL);
+    redisTemplate.opsForValue().set(tokenKey, keySuffix, verificationTokenTtl);
 
     // 인증이 완료됐으므로 해당 인증번호와 관련 상태 제거
     redisTemplate.delete(ATTEMPT_KEY_PREFIX + keySuffix);
@@ -319,7 +335,7 @@ public class EmailVerificationService {
    * @return 인증번호 유효 시간(초)
    */
   public long getCodeExpirationSeconds() {
-    return CODE_TTL.toSeconds();
+    return codeTtl.toSeconds();
   }
 
   /**
@@ -328,7 +344,7 @@ public class EmailVerificationService {
    * @return 재발급 대기 시간(초)
    */
   public long getResendCooldownSeconds() {
-    return RESEND_COOLDOWN.toSeconds();
+    return resendCooldown.toSeconds();
   }
 
   /**
@@ -337,7 +353,16 @@ public class EmailVerificationService {
    * @return 인증 완료 토큰 유효 시간(초)
    */
   public long getVerificationTokenExpirationSeconds() {
-    return VERIFICATION_TOKEN_TTL.toSeconds();
+    return verificationTokenTtl.toSeconds();
+  }
+
+  /**
+   * 인증번호 입력 최대 실패 횟수를 반환합니다.
+   *
+   * @return 인증번호 입력 최대 실패 횟수
+   */
+  public long getMaxFailureCount() {
+    return maxFailureCount;
   }
 
   private void sendVerificationEmail(String email, String verificationCode, String keySuffix) {
@@ -359,7 +384,7 @@ public class EmailVerificationService {
    *
    * @param email 발송 대상 이메일
    * @param keySuffix 인증 목적과 이메일을 결합한 Redis 키
-   * @param checkCooldown 1분 재발송 제한 검사 여부
+   * @param checkCooldown 재발송 대기 시간 검사 여부
    */
   private void recordEmailSendAttempt(String email, String keySuffix, boolean checkCooldown) {
 
@@ -371,10 +396,10 @@ public class EmailVerificationService {
         redisTemplate.execute(
             SEND_LIMIT_SCRIPT,
             List.of(countKey, blockKey, resendKey),
-            String.valueOf(SEND_WINDOW.toMillis()),
-            String.valueOf(MAX_SEND_COUNT),
-            String.valueOf(SEND_BLOCK_DURATION.toMillis()),
-            String.valueOf(RESEND_COOLDOWN.toMillis()),
+            String.valueOf(sendWindow.toMillis()),
+            String.valueOf(maxSendCount),
+            String.valueOf(sendBlockDuration.toMillis()),
+            String.valueOf(resendCooldown.toMillis()),
             checkCooldown ? "1" : "0");
 
     if (result == null) {

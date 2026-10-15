@@ -10,10 +10,11 @@ public class InvalidEmailVerificationCodeException extends BusinessException {
    * 인증번호 불일치 예외를 생성합니다.
    *
    * @param failureCount 현재 실패 횟수
+   * @param maxFailureCount 인증번호 입력 최대 실패 횟수
    */
-  public InvalidEmailVerificationCodeException(long failureCount) {
+  public InvalidEmailVerificationCodeException(long failureCount, long maxFailureCount) {
     super(
         MemberErrorCode.EMAIL_VERIFICATION_CODE_INVALID,
-        Map.of("failureCount", failureCount, "maxFailureCount", 3));
+        Map.of("failureCount", failureCount, "maxFailureCount", maxFailureCount));
   }
 }

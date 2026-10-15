@@ -233,9 +233,11 @@ public class AuthController implements AuthApiDocs {
         emailVerificationService.confirmCode(
             request.email(), request.purpose(), request.verificationCode());
 
-    // 3회 실패 시 Service에서 새 인증번호를 재발급한 상태
+    // 최대 실패 횟수 도달 시 Service에서 새 인증번호를 재발급한 상태
     if (!result.verified()) {
-      throw new InvalidEmailVerificationCodeException(3L);
+      long maxFailureCount = emailVerificationService.getMaxFailureCount();
+
+      throw new InvalidEmailVerificationCodeException(maxFailureCount, maxFailureCount);
     }
 
     EmailVerificationConfirmResponse response =

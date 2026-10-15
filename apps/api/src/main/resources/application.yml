@@ -22,6 +22,15 @@ todayit:
       api-key: ${RESEND_API_KEY:}
       from: ${RESEND_FROM:}
 
+    verification:
+      code-ttl: 30m
+      resend-cooldown: 1m
+      max-failure-count: 3
+      verification-token-ttl: 30m
+      send-window: 10m
+      max-send-count: 5
+      send-block-duration: 30m
+
 springdoc:
   api-docs:
     enabled: ${OPENAPI_ENABLED:false}
