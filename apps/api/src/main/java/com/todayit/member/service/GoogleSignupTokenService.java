@@ -1,6 +1,8 @@
 package com.todayit.member.service;
 
+import com.todayit.common.exception.BusinessException;
 import com.todayit.member.client.external.GoogleIdentity;
+import com.todayit.member.exception.MemberErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -46,12 +48,8 @@ public class GoogleSignupTokenService {
    * @throws IllegalStateException 토큰 생성 또는 정보 직렬화에 실패한 경우
    */
   public String issue(GoogleIdentity identity) {
-    if (identity == null
-        || identity.providerUserId() == null
-        || identity.providerUserId().isBlank()
-        || identity.email() == null
-        || identity.email().isBlank()
-        || !identity.emailVerified()) {
+    // Google 계정 식별자, 이메일 및 인증 여부 확인
+    if (!isValidIdentity(identity)) {
       throw new IllegalArgumentException("유효한 Google 인증 정보가 필요합니다.");
     }
 
@@ -60,9 +58,7 @@ public class GoogleSignupTokenService {
 
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
 
-    // 생성한 32바이트 난수를 sha-256으로 해싱
-    String tokenHash = hash(token);
-    String redisKey = TOKEN_KEY_PREFIX + tokenHash;
+    String redisKey = keyOf(token);
 
     String payload;
 
@@ -75,6 +71,77 @@ public class GoogleSignupTokenService {
     redisTemplate.opsForValue().set(redisKey, payload, TOKEN_TTL);
 
     return token;
+  }
+
+  /**
+   * Google 회원가입용 임시 토큰을 검증하고 사용자 정보를 조회합니다.
+   *
+   * <p>토큰 조회 시 Redis 데이터를 삭제하지 않습니다. 실제 회원가입 DB 트랜잭션이 성공한 뒤 별도로 무효화해야 합니다.
+   *
+   * @param signupToken Google 로그인에서 발급한 임시 가입 토큰
+   * @return Google에서 인증된 사용자 정보
+   * @throws BusinessException 토큰이 만료되었거나 유효하지 않은 경우
+   * @throws IllegalStateException 저장된 Google 인증 정보 복원에 실패한 경우
+   */
+  public GoogleIdentity getVerifiedIdentity(String signupToken) {
+
+    // 토큰 원문이 아닌 SHA-256 해시를 사용해 Redis Key 생성
+    String redisKey = keyOf(signupToken);
+
+    // Redis에서 Google 사용자 인증 정보 조회
+    String payload = redisTemplate.opsForValue().get(redisKey);
+
+    // 토큰이 없으면 만료되었거나 이미 삭제된 상태
+    if (payload == null || payload.isBlank()) {
+      throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
+    }
+
+    GoogleIdentity identity;
+
+    try {
+      // JSON으로 저장했던 Google 계정 정보를 다시 객체로 변환
+      identity = objectMapper.readValue(payload, GoogleIdentity.class);
+    } catch (JacksonException exception) {
+      // 서버에 저장된 데이터가 손상된 경우 내부 오류로 처리
+      throw new IllegalStateException("Google 회원가입 인증 정보 복원에 실패했습니다.", exception);
+    }
+
+    // 복원한 데이터가 정상적인 Google 인증 정보인지 재확인
+    if (!isValidIdentity(identity)) {
+      throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
+    }
+
+    return identity;
+  }
+
+  /**
+   * 회원가입에 사용한 Google 임시 토큰을 무효화합니다.
+   *
+   * <p>회원 DB 트랜잭션이 성공한 뒤 호출해야 합니다.
+   *
+   * @param signupToken 무효화할 Google 회원가입용 임시 토큰
+   */
+  public void invalidate(String signupToken) {
+
+    // 가입 완료 후 기존 임시 토큰을 사용할 수 없도록 삭제
+    redisTemplate.delete(keyOf(signupToken));
+  }
+
+  /**
+   * 회원가입 토큰을 검증하고 Redis Key로 변환합니다.
+   *
+   * @param token 회원가입 임시 토큰 원문
+   * @return SHA-256 해시값이 포함된 Redis Key
+   * @throws BusinessException 토큰 형식이 유효하지 않은 경우
+   */
+  private String keyOf(String token) {
+
+    // 기존 issue()가 발급하는 토큰은 Base64URL 43자리 문자열
+    if (token == null || !token.matches("[A-Za-z0-9_-]{43}")) {
+      throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
+    }
+
+    return TOKEN_KEY_PREFIX + hash(token);
   }
 
   /**
@@ -94,5 +161,22 @@ public class GoogleSignupTokenService {
     } catch (NoSuchAlgorithmException exception) {
       throw new IllegalStateException("회원가입 토큰 해시 생성에 실패했습니다.", exception);
     }
+  }
+
+  /**
+   * Redis에 보관할 Google 사용자 정보가 유효한지 확인합니다.
+   *
+   * @param identity Google 사용자 정보
+   * @return 필요한 인증 정보가 모두 유효하면 true
+   */
+  private boolean isValidIdentity(GoogleIdentity identity) {
+    return identity != null
+        && identity.providerUserId() != null
+        && !identity.providerUserId().isBlank()
+        && identity.providerUserId().length() <= 255
+        && identity.email() != null
+        && !identity.email().isBlank()
+        && identity.email().length() <= 100
+        && identity.emailVerified();
   }
 }

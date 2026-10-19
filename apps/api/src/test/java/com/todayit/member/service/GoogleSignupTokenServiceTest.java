@@ -2,13 +2,17 @@ package com.todayit.member.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.todayit.common.exception.BusinessException;
 import com.todayit.member.client.external.GoogleIdentity;
+import com.todayit.member.exception.MemberErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -118,5 +122,74 @@ class GoogleSignupTokenServiceTest {
     assertThatThrownBy(() -> service.issue(identity)).isInstanceOf(IllegalArgumentException.class);
 
     verifyNoInteractions(redisTemplate);
+  }
+
+  @Test
+  @DisplayName("유효한 Google 가입 토큰으로 인증된 사용자 정보를 조회한다")
+  void getsVerifiedGoogleIdentity() throws Exception {
+    // Given
+    String signupToken = "a".repeat(43);
+
+    GoogleIdentity identity = new GoogleIdentity("google-user-123", "test@gmail.com", true);
+
+    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    when(valueOperations.get(anyString())).thenReturn(objectMapper.writeValueAsString(identity));
+
+    // When
+    GoogleIdentity result = service.getVerifiedIdentity(signupToken);
+
+    // Then
+    assertThat(result).isEqualTo(identity);
+
+    // 인증 정보를 조회하는 것만으로 토큰을 삭제하지 않음
+    verify(redisTemplate, never()).delete(anyString());
+  }
+
+  @Test
+  @DisplayName("만료되었거나 존재하지 않는 Google 가입 토큰은 거부한다")
+  void rejectsExpiredGoogleSignupToken() {
+    // Given
+    String signupToken = "a".repeat(43);
+
+    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+    when(valueOperations.get(anyString())).thenReturn(null);
+
+    // When & Then
+    assertThatThrownBy(() -> service.getVerifiedIdentity(signupToken))
+        .isInstanceOf(BusinessException.class)
+        .satisfies(
+            exception ->
+                assertThat(((BusinessException) exception).getErrorCode())
+                    .isEqualTo(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID));
+  }
+
+  @Test
+  @DisplayName("Google 가입 토큰 형식이 잘못되면 Redis를 조회하지 않는다")
+  void rejectsInvalidGoogleSignupTokenFormat() {
+    // When & Then
+    assertThatThrownBy(() -> service.getVerifiedIdentity("invalid-token"))
+        .isInstanceOf(BusinessException.class);
+
+    verifyNoInteractions(redisTemplate);
+  }
+
+  @Test
+  @DisplayName("Google 회원가입 토큰을 무효화하면 Redis에서 삭제한다")
+  void invalidatesGoogleSignupToken() throws Exception {
+    // Given
+    String signupToken = "a".repeat(43);
+
+    String tokenHash =
+        Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(signupToken.getBytes(StandardCharsets.UTF_8)));
+
+    // When
+    service.invalidate(signupToken);
+
+    // Then
+    verify(redisTemplate).delete("auth:oauth-signup:google:" + tokenHash);
   }
 }

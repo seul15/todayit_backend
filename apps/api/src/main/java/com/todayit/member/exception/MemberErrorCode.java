@@ -36,6 +36,11 @@ public enum MemberErrorCode implements ErrorCode {
   REFRESH_TOKEN_INVALID(
       "REFRESH_TOKEN_INVALID", "Refresh Token이 유효하지 않습니다.", ErrorStatus.UNAUTHORIZED),
 
+  GOOGLE_SIGNUP_TOKEN_INVALID(
+      "GOOGLE_SIGNUP_TOKEN_INVALID",
+      "Google 회원가입 인증 정보가 만료되었거나 유효하지 않습니다.",
+      ErrorStatus.BAD_REQUEST),
+
   GOOGLE_AUTHENTICATION_FAILED(
       "GOOGLE_AUTHENTICATION_FAILED", "Google 인증에 실패했습니다.", ErrorStatus.UNAUTHORIZED),
 

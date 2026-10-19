@@ -86,4 +86,27 @@ class MemberGoogleRepositoryTest {
     assertThat(localMember).isEmpty();
     assertThat(unknownMember).isEmpty();
   }
+
+  @Test
+  @DisplayName("Google 회원은 비밀번호 없이 provider_user_id를 저장한다")
+  void savesGoogleMember() {
+    // Given
+    Member member = Member.createGoogle("new-google@example.com", "google-new-user-123", "구글테스트");
+
+    // When
+    memberRepository.saveAndFlush(member);
+
+    // Then
+    assertThat(member.getProvider()).isEqualTo(MemberProvider.GOOGLE);
+    assertThat(member.getPassword()).isNull();
+    assertThat(member.getProviderUserId()).isEqualTo("google-new-user-123");
+
+    // 저장한 Google 계정이 기존 로그인 조회 조건으로 검색되는지 검증
+    var savedMember =
+        memberRepository.findByProviderAndProviderUserId(
+            MemberProvider.GOOGLE, "google-new-user-123");
+
+    assertThat(savedMember).isPresent();
+    assertThat(savedMember.map(Member::getId)).contains(member.getId());
+  }
 }
