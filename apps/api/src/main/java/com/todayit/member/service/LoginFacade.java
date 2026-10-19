@@ -33,28 +33,37 @@ public class LoginFacade {
   }
 
   /**
-   * 회원을 인증하고 로그인에 필요한 토큰을 발급합니다.
+   * 이메일과 비밀번호로 회원을 인증하고 로그인 토큰을 발급합니다.
    *
    * @param command 이메일과 비밀번호
    * @return 최종 로그인 결과
    */
   public LoginResult login(LoginCommand command) {
-
-    // 로그인 가능한 회원인지 인증
+    // 이메일과 비밀번호로 LOCAL 회원 인증
     MemberLoginResult member = memberLoginService.login(command);
 
-    // Refresh Token과 로그인 세션 생성
+    return issueTokens(member);
+  }
+
+  /**
+   * 인증이 완료된 회원에게 Access Token과 Refresh Token을 발급합니다.
+   *
+   * <p>로컬 로그인과 소셜 로그인에서 공통으로 사용하며, 호출 전에 회원 인증과 권한 확인이 완료되어야 합니다.
+   *
+   * @param member 인증이 완료된 회원 정보
+   * @return 발급된 토큰과 회원 정보
+   */
+  public LoginResult issueTokens(MemberLoginResult member) {
+    // Refresh Token 및 로그인 세션 생성
     RefreshTokenResult refreshToken = refreshTokenService.create(member.memberId());
 
-    // 로그인 세션 ID를 포함해 Access Token 생성
+    // Access Token 생성
     String accessToken =
         jwtTokenProvider.createAccessToken(
             member.memberId(), member.roles(), refreshToken.sessionId());
 
-    // Access Token 사용 가능 시간 확인
     long expiresIn = jwtTokenProvider.getAccessTokenExpirationSeconds();
 
-    // 회원 정보와 두 토큰을 최종 로그인 결과로 반환
     return new LoginResult(member, accessToken, refreshToken.token(), expiresIn);
   }
 }
