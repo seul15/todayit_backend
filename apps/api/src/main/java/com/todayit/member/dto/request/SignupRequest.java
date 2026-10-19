@@ -1,75 +1,111 @@
 package com.todayit.member.dto.request;
 
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.service.command.SignupCommand;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
- * 로컬 회원가입 요청입니다.
+ * LOCAL 및 GOOGLE 회원가입 요청입니다.
  *
- * @param email 회원 이메일
- * @param emailVerificationToken 이메일 인증 완료 토큰
- * @param password 회원 비밀번호
+ * @param provider 회원가입 방식. 생략하면 LOCAL
+ * @param email LOCAL 회원 이메일
+ * @param emailVerificationToken LOCAL 이메일 인증 완료 토큰
+ * @param password LOCAL 회원 비밀번호
+ * @param signupToken GOOGLE 회원가입용 임시 토큰
  * @param nickname 회원 닉네임
- * @param agreements 약관 식별자별 동의 여부
+ * @param agreements 약관 코드별 동의 여부
  */
-@Schema(description = "로컬 회원가입 요청")
+@Schema(description = "LOCAL 및 GOOGLE 통합 회원가입 요청")
 public record SignupRequest(
     @Schema(
-            description = "이메일은 100자 이하로 입력합니다.",
-            example = "user@example.com",
-            maxLength = 100,
-            requiredMode = Schema.RequiredMode.REQUIRED)
+            description = "회원가입 방식입니다. LOCAL 또는 GOOGLE을 지원하며 생략 시 LOCAL입니다.",
+            example = "LOCAL",
+            defaultValue = "LOCAL")
+        MemberProvider provider,
+    @Schema(description = "LOCAL 회원가입 시 입력할 이메일입니다.", example = "user@example.com", maxLength = 100)
         String email,
+    @Schema(description = "LOCAL 회원가입 시 사용할 이메일 인증 완료 토큰입니다.") String emailVerificationToken,
     @Schema(
-            description = "이메일 인증번호 확인 후 발급받은 인증 완료 토큰입니다.",
-            example = "example-verification-token",
-            requiredMode = Schema.RequiredMode.REQUIRED)
-        String emailVerificationToken,
-    @Schema(
-            description = "비밀번호는 10자 이상 72자 이하이며, UTF-8 기준 최대 72바이트입니다.",
-            example = "ExamplePassword123!",
-            minLength = 10,
-            maxLength = 72,
-            accessMode = Schema.AccessMode.WRITE_ONLY,
-            requiredMode = Schema.RequiredMode.REQUIRED)
+            description = "LOCAL 회원가입 비밀번호입니다.",
+            format = "password",
+            accessMode = Schema.AccessMode.WRITE_ONLY)
         String password,
-    @Schema(
-            description = "닉네임. 한글, 영문, 숫자만 허용하며 2자 이상 8자 이하입니다. 금칙어와 중복 닉네임은 사용할 수 없습니다.",
-            example = "오늘이",
-            minLength = 2,
-            maxLength = 8,
-            pattern = "[가-힣A-Za-z0-9]+",
-            requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "GOOGLE 인증 완료 후 발급받은 회원가입용 임시 토큰입니다.") String signupToken,
+    @Schema(description = "닉네임은 한글, 영문, 숫자 2~8자입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
         String nickname,
     @Schema(
-            description =
-                "약관 코드별 동의 여부입니다. "
-                    + "필수: TOS(서비스 이용약관), "
-                    + "ACCOUNT_PRIVACY(계정 관련 개인정보 수집·이용 동의)는 true여야 합니다. "
-                    + "선택: PREFERENCE(선호정보 수집·이용 동의), "
-                    + "PROFILE_IMAGE(프로필 이미지 수집·이용 동의)는 "
-                    + "true 또는 false로 전달할 수 있습니다.",
+            description = "약관 코드별 동의 여부입니다. 필수 약관은 TOS, ACCOUNT_PRIVACY입니다.",
             requiredMode = Schema.RequiredMode.REQUIRED)
         Map<String, Boolean> agreements) {
 
+  /** 가입 방식이 생략된 기존 요청을 LOCAL 회원가입으로 처리합니다. */
+  public SignupRequest {
+    if (provider == null) {
+      provider = MemberProvider.LOCAL;
+    }
+  }
+
   /**
-   * 회원가입 요청을 서비스에 전달할 형태로 변환합니다.
+   * 기존 LOCAL 회원가입 코드와의 호환성을 유지합니다.
+   *
+   * @param email 회원 이메일
+   * @param emailVerificationToken 이메일 인증 완료 토큰
+   * @param password 회원 비밀번호
+   * @param nickname 회원 닉네임
+   * @param agreements 약관 동의 정보
+   */
+  public SignupRequest(
+      String email,
+      String emailVerificationToken,
+      String password,
+      String nickname,
+      Map<String, Boolean> agreements) {
+    this(MemberProvider.LOCAL, email, emailVerificationToken, password, null, nickname, agreements);
+  }
+
+  /**
+   * 회원가입 요청을 서비스 전달 모델로 변환합니다.
    *
    * @return 회원가입 서비스에 전달할 정보
    */
   public SignupCommand toCommand() {
-    return new SignupCommand(email, emailVerificationToken, password, nickname, agreements);
+    return new SignupCommand(
+        provider, email, emailVerificationToken, password, signupToken, nickname, agreements);
   }
 
   /**
-   * 회원가입에 필요한 필수 입력값을 확인합니다.
+   * 가입 방식에 따라 필수 입력값을 검증합니다.
    *
-   * @throws InvalidRequestException 필수 입력값이 없거나 올바르지 않은 경우
+   * @throws InvalidRequestException 입력값이 유효하지 않은 경우
    */
   public void validate() {
+
+    // LOCAL 회원은 이메일 인증과 비밀번호가 필요함
+    if (provider == MemberProvider.LOCAL) {
+      validateLocal();
+
+      // GOOGLE 회원은 Google 인증 완료 후 발급한 signupToken이 필요함
+    } else if (provider == MemberProvider.GOOGLE) {
+      validateGoogle();
+
+    } else {
+      // KAKAO는 추후 별도 인증 흐름을 구현한 뒤 허용
+      throw new InvalidRequestException("지원하지 않는 회원가입 방식입니다.");
+    }
+
+    // 가입 방식과 무관하게 닉네임과 약관 정보는 필수
+    validateNickname();
+
+    if (agreements == null || agreements.isEmpty()) {
+      throw new InvalidRequestException("약관 동의 정보는 필수입니다.");
+    }
+  }
+
+  /** LOCAL 회원가입에 필요한 입력값을 확인합니다. */
+  private void validateLocal() {
     if (email == null || email.isBlank()) {
       throw new InvalidRequestException("이메일은 필수입니다.");
     }
@@ -87,6 +123,7 @@ public record SignupRequest(
     }
 
     int passwordLength = password.codePointCount(0, password.length());
+
     if (passwordLength < 10 || passwordLength > 72) {
       throw new InvalidRequestException("비밀번호는 10자 이상 72자 이하로 입력해 주세요.");
     }
@@ -95,6 +132,29 @@ public record SignupRequest(
       throw new InvalidRequestException("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.");
     }
 
+    // LOCAL 회원가입에서는 Google 가입 토큰을 사용할 수 없음
+    if (signupToken != null) {
+      throw new InvalidRequestException("LOCAL 회원가입에는 signupToken을 사용할 수 없습니다.");
+    }
+  }
+
+  /** GOOGLE 회원가입에 필요한 입력값을 확인합니다. */
+  private void validateGoogle() {
+
+    // Google 인증 성공 시 발급받은 임시 가입 토큰 확인
+    if (signupToken == null || signupToken.isBlank()) {
+      throw new InvalidRequestException("Google 회원가입 토큰은 필수입니다.");
+    }
+
+    // Google 이메일과 사용자 ID는 서버에 저장된 인증 정보에서 가져옴
+    // 프론트가 임의로 전달한 이메일이나 비밀번호는 받지 않음
+    if (email != null || emailVerificationToken != null || password != null) {
+      throw new InvalidRequestException("GOOGLE 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.");
+    }
+  }
+
+  /** 모든 가입 방식에서 사용하는 닉네임 입력값을 확인합니다. */
+  private void validateNickname() {
     if (nickname == null || nickname.isBlank()) {
       throw new InvalidRequestException("닉네임은 필수입니다.");
     }
@@ -105,10 +165,6 @@ public record SignupRequest(
 
     if (!nickname.matches("[가-힣A-Za-z0-9]+")) {
       throw new InvalidRequestException("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.");
-    }
-
-    if (agreements == null || agreements.isEmpty()) {
-      throw new InvalidRequestException("약관 동의 정보는 필수입니다.");
     }
   }
 }

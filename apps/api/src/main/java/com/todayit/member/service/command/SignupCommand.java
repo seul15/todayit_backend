@@ -1,19 +1,44 @@
 package com.todayit.member.service.command;
 
+import com.todayit.member.entity.MemberProvider;
 import java.util.Map;
 
 /**
- * 회원가입 서비스에 전달할 회원가입 정보입니다.
+ * 회원가입 서비스에 전달할 정보입니다.
  *
- * @param email 회원 이메일
- * @param emailVerificationToken 이메일 인증 완료 토큰
- * @param password 회원 비밀번호
+ * @param provider 회원가입 방식
+ * @param email LOCAL 회원 이메일
+ * @param emailVerificationToken LOCAL 이메일 인증 완료 토큰
+ * @param password LOCAL 회원 비밀번호
+ * @param signupToken GOOGLE 회원가입용 임시 토큰
  * @param nickname 회원 닉네임
  * @param agreements 약관 코드별 동의 여부
  */
 public record SignupCommand(
+    MemberProvider provider,
     String email,
     String emailVerificationToken,
     String password,
+    String signupToken,
     String nickname,
-    Map<String, Boolean> agreements) {}
+    Map<String, Boolean> agreements) {
+
+  /**
+   * 기존 LOCAL 회원가입 서비스 테스트와의 호환성을 유지합니다.
+   *
+   * @param email 회원 이메일
+   * @param emailVerificationToken 이메일 인증 완료 토큰
+   * @param password 회원 비밀번호
+   * @param nickname 회원 닉네임
+   * @param agreements 약관 동의 정보
+   */
+  public SignupCommand(
+      String email,
+      String emailVerificationToken,
+      String password,
+      String nickname,
+      Map<String, Boolean> agreements) {
+
+    this(MemberProvider.LOCAL, email, emailVerificationToken, password, null, nickname, agreements);
+  }
+}
