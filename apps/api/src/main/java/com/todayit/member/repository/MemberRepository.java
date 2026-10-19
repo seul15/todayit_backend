@@ -49,6 +49,15 @@ public interface MemberRepository extends JpaRepository<Member, String> {
   List<String> findRoleNamesByMemberId(@Param("memberId") String memberId);
 
   /**
+   * 로그인 제공자와 해당 제공자의 사용자 고유 식별자로 회원을 조회합니다.
+   *
+   * @param provider 로그인 제공자
+   * @param providerUserId 제공자가 발급한 사용자 고유 식별자
+   * @return 일치하는 회원, 없으면 empty
+   */
+  Optional<Member> findByProviderAndProviderUserId(MemberProvider provider, String providerUserId);
+
+  /**
    * 영문 대소문자와 앞뒤 공백을 제외하고 동일한 닉네임이 존재하는지 확인합니다.
    *
    * @param nickname 확인할 닉네임

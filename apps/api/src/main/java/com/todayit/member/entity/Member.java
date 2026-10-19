@@ -30,6 +30,10 @@ public class Member {
   @Column(name = "provider", nullable = false, length = 20)
   private MemberProvider provider;
 
+  // Google·Kakao에서 발급한 사용자 고유 식별자
+  @Column(name = "provider_user_id", length = 255)
+  private String providerUserId;
+
   @Column(name = "is_active", nullable = false)
   private boolean active;
 
@@ -88,6 +92,10 @@ public class Member {
 
   public String getNickname() {
     return nickname;
+  }
+
+  public String getProviderUserId() {
+    return providerUserId;
   }
 
   public LocalDateTime getCreatedAt() {
