@@ -16,7 +16,9 @@ import com.todayit.common.auth.jwt.JwtTokenProvider;
 import com.todayit.common.auth.token.RefreshTokenService;
 import com.todayit.common.pagination.PageResult;
 import com.todayit.course.service.CoursePlaceQueryService;
+import com.todayit.member.service.GoogleLoginService;
 import com.todayit.member.service.LoginFacade;
+import com.todayit.member.service.model.GoogleLoginResult;
 import com.todayit.member.service.model.LoginResult;
 import com.todayit.member.service.model.MemberLoginResult;
 import com.todayit.place.service.PlaceCommandService;
@@ -66,6 +68,8 @@ public class SecurityConfigTest {
   @MockitoBean private PlaceCommandService placeCommandService;
 
   @MockitoBean private CoursePlaceQueryService coursePlaceQueryService;
+
+  @MockitoBean private GoogleLoginService googleLoginService;
 
   @Autowired
   SecurityConfigTest(MockMvc mockMvc) {
@@ -319,5 +323,37 @@ public class SecurityConfigTest {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
         .andExpect(jsonPath("$.message").value("인증이 필요합니다."));
+  }
+
+  @Test
+  @DisplayName("Google 로그인 API는 Access Token 없이 호출할 수 있다")
+  void allowsAnonymousGoogleLogin() throws Exception {
+    // Given
+    String redirectUri = "http://localhost:3000/oauth/google/callback";
+
+    // 실제 Google 인증 대신 신규 사용자 결과를 반환하도록 설정
+    when(googleLoginService.login("google-code", redirectUri))
+        .thenReturn(GoogleLoginResult.newMember("signup-token"));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/google")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "google-code",
+                                      "redirectUri": "http://localhost:3000/oauth/google/callback"
+                                    }
+                                    """));
+
+    // Then
+    // Authorization 헤더 없이도 Google 로그인 API에 접근 가능한지 확인
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.isNewMember").value(true))
+        .andExpect(jsonPath("$.data.signupToken").value("signup-token"));
   }
 }

@@ -5,6 +5,7 @@ import com.todayit.common.response.CommonResponse;
 import com.todayit.common.response.ErrorResponse;
 import com.todayit.member.dto.request.EmailVerificationConfirmRequest;
 import com.todayit.member.dto.request.EmailVerificationRequest;
+import com.todayit.member.dto.request.GoogleLoginRequest;
 import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.LogoutRequest;
 import com.todayit.member.dto.request.SignupRequest;
@@ -12,6 +13,7 @@ import com.todayit.member.dto.request.TokenRefreshRequest;
 import com.todayit.member.dto.response.EmailAvailabilityResponse;
 import com.todayit.member.dto.response.EmailVerificationConfirmResponse;
 import com.todayit.member.dto.response.EmailVerificationResponse;
+import com.todayit.member.dto.response.GoogleLoginResponse;
 import com.todayit.member.dto.response.LoginResponse;
 import com.todayit.member.dto.response.SignupResponse;
 import com.todayit.member.dto.response.TokenRefreshResponse;
@@ -28,10 +30,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
-/** 로컬 로그인, 회원가입, 이메일 인증 및 토큰 갱신 API 명세입니다. */
-@Tag(name = "인증", description = "로컬 로그인, 회원가입, 이메일 인증 및 토큰 관리 API")
+/** 로그인, 회원가입, 이메일 인증 및 토큰 관리 API 명세입니다. */
+@Tag(name = "인증", description = "로컬·Google 로그인, 회원가입, 이메일 인증 및 토큰 관리 API")
 public interface AuthApiDocs {
-
   /**
    * 이메일과 비밀번호로 로그인합니다.
    *
@@ -49,7 +50,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"example-refresh-token\",\"expiresIn\":3600,\"member\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"nickname\":\"오늘이\",\"coupleConnected\":false,\"roles\":[\"USER\"]}}}"))),
+                            "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"example-refresh-token\",\"expiresIn\":3600,\"member\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"nickname\":\"오늘\",\"coupleConnected\":false,\"roles\":[\"USER\"]}}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "이메일 또는 비밀번호 누락",
@@ -80,6 +81,114 @@ public interface AuthApiDocs {
                 }))
   })
   ResponseEntity<CommonResponse<LoginResponse>> login(LoginRequest request);
+
+  /**
+   * Google 인가 코드로 로그인하거나 신규 회원가입을 준비합니다.
+   *
+   * @param request Google 인가 코드와 Redirect URI
+   * @return 기존 회원의 로그인 토큰 또는 신규 회원 임시 가입 토큰
+   */
+  @Operation(
+      summary = "Google 로그인",
+      description =
+          "Google Authorization Code를 검증합니다. "
+              + "가입된 Google 회원은 Access/Refresh Token을 발급받고, "
+              + "신규 사용자는 30분 유효한 signupToken을 발급받습니다. "
+              + "같은 이메일의 로컬 계정과 자동으로 연결하지 않습니다.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "기존 회원 로그인 또는 신규 회원 인증 성공",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples = {
+                  @ExampleObject(
+                      name = "기존 Google 회원",
+                      value =
+                          """
+                                                    {
+                                                      "success": true,
+                                                      "data": {
+                                                        "isNewMember": false,
+                                                        "accessToken": "eyJ...",
+                                                        "refreshToken": "example-refresh-token",
+                                                        "expiresIn": 1800,
+                                                        "member": {
+                                                          "memberId": "123e4567-e89b-12d3-a456-426614174000",
+                                                          "nickname": "오늘",
+                                                          "coupleConnected": false,
+                                                          "roles": ["USER"]
+                                                        }
+                                                      }
+                                                    }
+                                                    """),
+                  @ExampleObject(
+                      name = "신규 Google 사용자",
+                      value =
+                          """
+                                                    {
+                                                      "success": true,
+                                                      "data": {
+                                                        "isNewMember": true,
+                                                        "signupToken": "example-signup-token"
+                                                      }
+                                                    }
+                                                    """)
+                })),
+    @ApiResponse(
+        responseCode = "400",
+        description = "요청 필수값 누락 또는 Google 이메일 미인증",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            """
+                                            {
+                                              "success": false,
+                                              "code": "GOOGLE_EMAIL_NOT_VERIFIED",
+                                              "message": "Google 이메일이 인증되지 않았습니다."
+                                            }
+                                            """))),
+    @ApiResponse(
+        responseCode = "401",
+        description = "Google 인가 코드 또는 ID Token 인증 실패",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            """
+                                            {
+                                              "success": false,
+                                              "code": "GOOGLE_AUTHENTICATION_FAILED",
+                                              "message": "Google 인증에 실패했습니다."
+                                            }
+                                            """))),
+    @ApiResponse(
+        responseCode = "500",
+        description = "Google 인증 서버 통신 장애",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            """
+                                            {
+                                              "success": false,
+                                              "code": "GOOGLE_AUTH_SERVER_ERROR",
+                                              "message": "Google 인증 서버에 연결할 수 없습니다."
+                                            }
+                                            """)))
+  })
+  ResponseEntity<CommonResponse<GoogleLoginResponse>> googleLogin(GoogleLoginRequest request);
 
   /**
    * 현재 기기의 로그인 세션을 종료합니다.
@@ -181,7 +290,7 @@ public interface AuthApiDocs {
                                   "email": "user@example.com",
                                   "emailVerificationToken": "example-verification-token",
                                   "password": "ExamplePassword123!",
-                                  "nickname": "오늘이",
+                                  "nickname": "오늘",
                                   "agreements": {
                                     "TOS": true,
                                     "ACCOUNT_PRIVACY": true,
@@ -200,7 +309,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘이\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
+                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "필수 입력, 약관 동의 또는 이메일 인증 정보 오류",
