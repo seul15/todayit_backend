@@ -4,7 +4,10 @@ import com.todayit.member.client.external.GoogleOAuthException.Reason;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.codec.CodecException;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -15,8 +18,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientRequestException;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.web.reactive.function.client.WebClientException;
+import reactor.core.publisher.Mono;
 
 /** Google OAuth 인가 코드 교환과 ID Token 검증을 담당합니다. */
 public class GoogleOAuthClient {
@@ -93,10 +96,13 @@ public class GoogleOAuthClient {
     Jwt jwt;
 
     try {
-      // Google 공개키로 서명 및 유효 시간 검증
+      // Google 공개키를 이용해 ID Token의 서명 및 유효 시간 검증
       jwt = jwtDecoder.decode(idToken);
+
     } catch (JwtException exception) {
-      throw new GoogleOAuthException(Reason.INVALID_ID_TOKEN);
+      // JWT 검증 오류를 Google 인증용 커스텀 예외로 변환
+      // 원인 예외를 함께 전달해 문제 발생 시 원인 추적이 가능하도록 함
+      throw new GoogleOAuthException(Reason.INVALID_ID_TOKEN, exception);
     }
 
     // 토큰을 발급한 주체
@@ -142,8 +148,11 @@ public class GoogleOAuthClient {
   /**
    * Google 인가 코드를 ID Token으로 교환합니다.
    *
+   * <p>WebClient의 오류 처리 기능을 사용해 HTTP 오류, 네트워크 장애 및 응답 시간 초과를 Google OAuth 커스텀 예외로 변환합니다.
+   *
    * @param authorizationCode Google 인가 코드
    * @return Google ID Token
+   * @throws GoogleOAuthException 인가 코드가 유효하지 않거나 Google 서버 통신에 실패한 경우
    */
   private String exchangeCode(String authorizationCode) {
 
@@ -155,30 +164,50 @@ public class GoogleOAuthClient {
     form.add("redirect_uri", redirectUri);
     form.add("grant_type", "authorization_code");
 
-    Map<String, Object> response;
+    // 인가 코드를 Google 토큰 발급 API에 전달
+    Map<String, Object> response =
+        webClient
+            .post()
+            .uri(TOKEN_URL)
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            .bodyValue(form)
+            .retrieve()
 
-    try {
-      response =
-          webClient
-              .post()
-              .uri(TOKEN_URL)
-              .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-              .bodyValue(form)
-              .retrieve()
-              .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-              .block(REQUEST_TIMEOUT);
+            // 인가 코드 오류 등 Google이 4xx를 반환하면 인증 실패 처리
+            .onStatus(
+                HttpStatusCode::is4xxClientError,
+                result -> Mono.error(new GoogleOAuthException(Reason.INVALID_AUTHORIZATION_CODE)))
 
-    } catch (WebClientResponseException exception) {
-      if (exception.getStatusCode().is4xxClientError()) {
-        throw new GoogleOAuthException(Reason.INVALID_AUTHORIZATION_CODE);
-      }
+            // Google 서버의 5xx 응답은 외부 서버 장애로 처리
+            .onStatus(
+                HttpStatusCode::is5xxServerError,
+                result -> Mono.error(new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE)))
 
-      throw new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE);
+            // Google 응답을 Map 형태로 변환
+            .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
 
-    } catch (WebClientRequestException | IllegalStateException exception) {
-      throw new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE);
-    }
+            // Google 응답을 기다리는 시간을 5초로 제한
+            .timeout(REQUEST_TIMEOUT)
 
+            // WebClient의 네트워크 및 HTTP 처리 오류를 커스텀 예외로 변환
+            .onErrorMap(
+                WebClientException.class,
+                exception -> new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE, exception))
+
+            // Google 응답 데이터의 역직렬화 오류 처리
+            .onErrorMap(
+                CodecException.class,
+                exception -> new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE, exception))
+
+            // Google 서버 응답 시간 초과 처리
+            .onErrorMap(
+                TimeoutException.class,
+                exception -> new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE, exception))
+
+            // Spring MVC 환경이므로 응답 결과를 동기적으로 가져옴
+            .block();
+
+    // 응답에 ID Token이 없거나 비어 있다면 인증 실패 처리
     if (response == null
         || !(response.get("id_token") instanceof String idToken)
         || idToken.isBlank()) {
