@@ -46,6 +46,12 @@ todayit:
       max-send-count: 5
       send-block-duration: 30m
 
+  oauth:
+    google:
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+      client-secret: ${GOOGLE_OAUTH_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_OAUTH_REDIRECT_URI:http://localhost:3000/oauth/google/callback}
+
 springdoc:
   api-docs:
     enabled: ${OPENAPI_ENABLED:false}
