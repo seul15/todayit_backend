@@ -173,7 +173,12 @@ public class GoogleOAuthClient {
             .bodyValue(form)
             .retrieve()
 
-            // 인가 코드 오류 등 Google이 4xx를 반환하면 인증 실패 처리
+            // Google 요청 제한(429)은 인가 코드 오류가 아닌 외부 서비스 장애로 처리
+            .onStatus(
+                status -> status.value() == 429,
+                result -> Mono.error(new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE)))
+
+            // 그 외 Google 4xx 응답은 인증 실패로 처리
             .onStatus(
                 HttpStatusCode::is4xxClientError,
                 result -> Mono.error(new GoogleOAuthException(Reason.INVALID_AUTHORIZATION_CODE)))
