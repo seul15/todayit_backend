@@ -19,6 +19,8 @@ import java.util.Date;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -35,7 +37,6 @@ class GoogleOAuthIdTokenTest {
 
   @BeforeEach
   void setUp() throws Exception {
-
     // 테스트에서 사용할 RSA 공개키와 개인키 생성
     trustedKeys = generateKeyPair();
   }
@@ -68,7 +69,6 @@ class GoogleOAuthIdTokenTest {
       String authorizedParty,
       Instant expiresAt)
       throws JOSEException {
-
     JWTClaimsSet.Builder claims =
         new JWTClaimsSet.Builder()
             .issuer(issuer)
@@ -98,7 +98,6 @@ class GoogleOAuthIdTokenTest {
    * @return 테스트용 Google OAuth 클라이언트
    */
   private GoogleOAuthClient createClient(String idToken) {
-
     // 외부 Google 서버 대신 테스트용 응답 반환
     WebClient.Builder builder =
         WebClient.builder()
@@ -134,7 +133,6 @@ class GoogleOAuthIdTokenTest {
   @Test
   @DisplayName("올바르게 서명된 Google ID Token은 인증에 성공한다")
   void authenticatesValidGoogleIdToken() throws Exception {
-
     // Given
     GoogleOAuthClient client = createClient(validIdToken());
 
@@ -147,105 +145,30 @@ class GoogleOAuthIdTokenTest {
     assertEquals(true, identity.emailVerified());
   }
 
-  @Test
-  @DisplayName("Google 이외의 발급자가 포함된 토큰은 거부한다")
-  void rejectsInvalidIssuer() throws Exception {
+  @ParameterizedTest(name = "{index}: iss={0}, aud={1}, azp={2}, expired={3}")
+  @CsvSource({
+    "https://other-provider.example, test-client-id, test-client-id, false",
+    "https://accounts.google.com, another-client-id, test-client-id, false",
+    "https://accounts.google.com, test-client-id, another-client-id, false",
+    "https://accounts.google.com, test-client-id, test-client-id, true"
+  })
+  @DisplayName("Google ID Token의 발급자·대상·승인 앱·만료 시간을 검증한다")
+  void rejectsInvalidClaims(String issuer, String audience, String authorizedParty, boolean expired)
+      throws JOSEException {
 
     // Given
-    String token =
-        signedIdToken(
-            trustedKeys,
-            "https://other-provider.example",
-            CLIENT_ID,
-            CLIENT_ID,
-            Instant.now().plusSeconds(3600));
+    Instant expiresAt = Instant.now().plusSeconds(expired ? -300 : 3600);
 
-    // When
-    GoogleOAuthException exception =
-        assertThrows(
-            GoogleOAuthException.class,
-            () -> createClient(token).authenticate("authorization-code", REDIRECT_URI));
+    String token = signedIdToken(trustedKeys, issuer, audience, authorizedParty, expiresAt);
 
-    // Then
-    assertEquals(Reason.INVALID_ID_TOKEN, exception.getReason());
-  }
-
-  @Test
-  @DisplayName("다른 클라이언트에 발급된 ID Token은 거부한다")
-  void rejectsInvalidAudience() throws Exception {
-
-    // Given
-    String token =
-        signedIdToken(
-            trustedKeys,
-            "https://accounts.google.com",
-            "another-client-id",
-            CLIENT_ID,
-            Instant.now().plusSeconds(3600));
-
-    // When
-    GoogleOAuthException exception =
-        assertThrows(
-            GoogleOAuthException.class,
-            () -> createClient(token).authenticate("authorization-code", REDIRECT_URI));
-
-    // Then
-    assertEquals(Reason.INVALID_ID_TOKEN, exception.getReason());
-  }
-
-  @Test
-  @DisplayName("azp가 다른 Google Client ID이면 거부한다")
-  void rejectsInvalidAuthorizedParty() throws Exception {
-
-    // Given
-    String token =
-        signedIdToken(
-            trustedKeys,
-            "https://accounts.google.com",
-            CLIENT_ID,
-            "another-client-id",
-            Instant.now().plusSeconds(3600));
-
-    // When
-    GoogleOAuthException exception =
-        assertThrows(
-            GoogleOAuthException.class,
-            () -> createClient(token).authenticate("authorization-code", REDIRECT_URI));
-
-    // Then
-    assertEquals(Reason.INVALID_ID_TOKEN, exception.getReason());
-  }
-
-  @Test
-  @DisplayName("만료된 Google ID Token은 거부한다")
-  void rejectsExpiredToken() throws Exception {
-
-    // Given
-    // JWT 검증기의 허용 시간 오차보다 충분히 오래전에 만료
-    String token =
-        signedIdToken(
-            trustedKeys,
-            "https://accounts.google.com",
-            CLIENT_ID,
-            CLIENT_ID,
-            Instant.now().minusSeconds(300));
-
-    // When
-    GoogleOAuthException exception =
-        assertThrows(
-            GoogleOAuthException.class,
-            () -> createClient(token).authenticate("authorization-code", REDIRECT_URI));
-
-    // Then
-    assertEquals(Reason.INVALID_ID_TOKEN, exception.getReason());
+    // When & Then
+    assertInvalidIdToken(token);
   }
 
   @Test
   @DisplayName("신뢰하지 않는 개인키로 서명한 ID Token은 거부한다")
   void rejectsInvalidSignature() throws Exception {
-
     // Given
-    // 공개키가 다른 별도의 RSA 키 쌍 생성
     KeyPair untrustedKeys = generateKeyPair();
 
     String token =
@@ -256,13 +179,17 @@ class GoogleOAuthIdTokenTest {
             CLIENT_ID,
             Instant.now().plusSeconds(3600));
 
-    // When
+    // When & Then
+    assertInvalidIdToken(token);
+  }
+
+  /** 유효하지 않은 ID Token이 인증 실패로 처리되는지 확인합니다. */
+  private void assertInvalidIdToken(String token) {
     GoogleOAuthException exception =
         assertThrows(
             GoogleOAuthException.class,
             () -> createClient(token).authenticate("authorization-code", REDIRECT_URI));
 
-    // Then
     assertEquals(Reason.INVALID_ID_TOKEN, exception.getReason());
   }
 }
