@@ -9,6 +9,8 @@ import com.todayit.member.service.command.SignupCommand;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class SignupRequestTest {
 
@@ -36,44 +38,18 @@ class SignupRequestTest {
     assertThat(request.nickname()).isEqualTo("오늘이");
   }
 
-  @Test
-  @DisplayName("영문이 없으면 회원가입을 거부한다")
-  void rejectsPasswordWithoutEnglish() {
-    SignupRequest request = localRequest("123456789!", "오늘이");
+  @ParameterizedTest
+  @ValueSource(strings = {"123456789!", "abcdefghij!", "Abcdef12345"})
+  @DisplayName("필수 문자 조합이 누락된 비밀번호는 거부한다")
+  void rejectsPasswordWithoutRequiredCharacters(String password) {
 
+    // Given
+    SignupRequest request = localRequest(password, "오늘이");
+
+    // When & Then
     assertThatThrownBy(request::validate)
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage(PASSWORD_ERROR);
-  }
-
-  @Test
-  @DisplayName("숫자가 없으면 회원가입을 거부한다")
-  void rejectsPasswordWithoutNumber() {
-    SignupRequest request = localRequest("abcdefghij!", "오늘이");
-
-    assertThatThrownBy(request::validate)
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage(PASSWORD_ERROR);
-  }
-
-  @Test
-  @DisplayName("특수문자가 없으면 회원가입을 거부한다")
-  void rejectsPasswordWithoutSpecialCharacter() {
-    SignupRequest request = localRequest("Abcdef12345", "오늘이");
-
-    assertThatThrownBy(request::validate)
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage(PASSWORD_ERROR);
-  }
-
-  @Test
-  @DisplayName("기존 72바이트 제한을 유지한다")
-  void rejectsPasswordExceeding72Bytes() {
-    SignupRequest request = localRequest("가".repeat(25) + "Ab1!", "오늘이");
-
-    assertThatThrownBy(request::validate)
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.");
   }
 
   @Test

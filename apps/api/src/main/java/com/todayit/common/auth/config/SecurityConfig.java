@@ -95,8 +95,7 @@ public class SecurityConfig {
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-        // Access Token은 cookie가 아닌 Authorization Bearer Header로 전달
-        // Refresh Token 도입 시 수정 예정
+        // Bearer Token 기반 인증으로 쿠키 세션을 사용하지 않음
         .csrf(csrf -> csrf.disable())
 
         // 인증이 필요 없는 API, 인증이 필요한 API를 구분
