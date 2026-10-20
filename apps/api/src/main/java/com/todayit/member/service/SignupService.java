@@ -2,6 +2,7 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.client.external.GoogleIdentity;
 import com.todayit.member.entity.Agreement;
 import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
@@ -33,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-/** 로컬 회원가입 관련 기능을 처리합니다. */
+/** LOCAL 및 GOOGLE 회원가입과 공통 회원 정보 저장을 처리합니다. */
 @Service
 public class SignupService {
 
@@ -82,9 +83,9 @@ public class SignupService {
   }
 
   /**
-   * 로컬 회원가입에 사용할 수 있는 이메일인지 확인합니다.
+   * LOCAL 회원가입에 사용할 이메일의 중복 여부를 확인합니다.
    *
-   * @param email 확인할 이메일
+   * @param email 회원 이메일
    * @return 사용 가능하면 true
    */
   @Transactional(readOnly = true)
@@ -95,11 +96,11 @@ public class SignupService {
   }
 
   /**
-   * 닉네임의 형식과 금칙어를 검사하고 사용 가능 여부를 확인합니다.
+   * 닉네임 형식과 금칙어, 중복 여부를 확인합니다.
    *
-   * @param nickname 확인할 닉네임
+   * @param nickname 검사할 닉네임
    * @return 사용 가능한 닉네임이면 true
-   * @throws InvalidRequestException 형식이 올바르지 않거나 금칙어인 경우
+   * @throws InvalidRequestException 닉네임 형식이 잘못되었거나 금칙어인 경우
    */
   @Transactional(readOnly = true)
   public boolean isNicknameAvailable(String nickname) {
@@ -123,87 +124,193 @@ public class SignupService {
   }
 
   /**
-   * 이메일 인증을 확인한 뒤 로컬 회원을 생성하고 기본 권한과 약관 동의 정보를 저장합니다.
+   * 이메일 인증을 확인하고 LOCAL 회원을 생성합니다.
    *
-   * @param command 회원가입에 필요한 정보
-   * @return 저장된 회원
-   * @throws BusinessException 이미 사용 중인 로컬 이메일인 경우
-   * @throws InvalidRequestException 필수 약관에 동의하지 않은 경우
-   * @throws InvalidEmailVerificationTokenException 이메일 인증 정보가 유효하지 않은 경우
-   * @throws IllegalStateException 필수 약관 또는 기본 USER 권한 정보가 존재하지 않는 경우
+   * @param command LOCAL 회원가입 정보
+   * @return 생성된 회원
+   * @throws BusinessException 이메일 또는 닉네임이 중복된 경우
+   * @throws InvalidRequestException 약관 또는 비밀번호가 유효하지 않은 경우
+   * @throws InvalidEmailVerificationTokenException 이메일 인증에 실패한 경우
    */
   @Transactional
   public Member createLocalMember(SignupCommand command) {
     String normalizedEmail = EmailNormalizer.normalize(command.email());
-    // 이미 가입된 LOCAL 이메일인지 확인
+
+    // 동일한 LOCAL 이메일로 이미 가입했는지 검사
     if (memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.LOCAL)) {
       throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
     }
 
-    // 현재 적용 중인 약관 조회
+    // 현재 적용 중인 약관을 조회하고 필수 동의 여부 검증
+    Map<String, Agreement> agreementsByCode = validateAgreements(command.agreements());
+
+    // LOCAL 회원은 이메일 인증 완료 토큰이 반드시 필요
+    emailVerificationService.validateVerificationToken(
+        normalizedEmail, EmailVerificationPurpose.SIGNUP, command.emailVerificationToken());
+
+    // 금칙어로 등록된 비밀번호는 사용할 수 없음
+    if (passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
+        command.password(), BlocklistMatchType.EXACT)) {
+      throw new InvalidRequestException("쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.");
+    }
+
+    // 닉네임은 가입 직전에 다시 확인
+    validateNicknameAvailability(command.nickname());
+
+    // LOCAL 회원만 비밀번호를 암호화해 저장
+    String encodedPassword = passwordEncoder.encode(command.password());
+
+    Member member = Member.createLocal(normalizedEmail, encodedPassword, command.nickname());
+
+    // 회원, USER 권한, 약관 동의를 하나의 DB 트랜잭션으로 저장
+    Member savedMember = saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
+
+    // 기존과 동일하게 DB 커밋 성공 후 이메일 인증 토큰 무효화
+    invalidateVerificationTokenAfterCommit(command.emailVerificationToken());
+
+    return savedMember;
+  }
+
+  /**
+   * 검증된 Google 계정 정보로 GOOGLE 회원을 생성합니다.
+   *
+   * <p>Google 인증 정보는 상위 Facade가 DB 트랜잭션 밖에서 조회한 뒤 전달해야 합니다. 이 메서드에서는 회원, 권한, 약관 동의 정보를 함께 저장합니다.
+   *
+   * @param command GOOGLE 회원가입 정보
+   * @param identity Google에서 인증된 계정 정보
+   * @return 생성된 Google 회원
+   * @throws BusinessException 인증 정보가 유효하지 않거나 이미 가입된 계정인 경우
+   * @throws InvalidRequestException 닉네임이나 약관 동의가 유효하지 않은 경우
+   */
+  @Transactional
+  public Member createGoogleMember(SignupCommand command, GoogleIdentity identity) {
+
+    // Redis에서 복원된 Google 인증 정보도 서비스 경계에서 다시 확인
+    if (identity == null
+        || !identity.emailVerified()
+        || identity.email() == null
+        || identity.email().isBlank()
+        || identity.email().length() > 100
+        || identity.providerUserId() == null
+        || identity.providerUserId().isBlank()
+        || identity.providerUserId().length() > 255) {
+      throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
+    }
+
+    String normalizedEmail = EmailNormalizer.normalize(identity.email());
+
+    // Google 고유 ID(sub)가 이미 가입된 계정에 연결되어 있는지 검사
+    boolean alreadyRegistered =
+        memberRepository
+            .findByProviderAndProviderUserId(MemberProvider.GOOGLE, identity.providerUserId())
+            .isPresent();
+
+    if (alreadyRegistered) {
+      throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+    }
+
+    // 기존 GOOGLE 계정 이메일과의 중복도 확인
+    if (memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.GOOGLE)) {
+      throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+    }
+
+    // LOCAL 회원가입과 동일한 약관 검증 로직 사용
+    Map<String, Agreement> agreementsByCode = validateAgreements(command.agreements());
+
+    // LOCAL과 동일한 닉네임 형식, 금칙어 및 중복 기준 적용
+    validateNicknameAvailability(command.nickname());
+
+    // GOOGLE 회원은 비밀번호 없이 provider_user_id로 식별
+    Member member =
+        Member.createGoogle(normalizedEmail, identity.providerUserId(), command.nickname());
+
+    // 회원, USER 권한, 약관 동의를 동일한 방식으로 저장
+    return saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
+  }
+
+  /**
+   * 가입 요청에 포함된 약관 동의를 현재 적용 중인 약관과 비교합니다.
+   *
+   * @param requestedAgreements 약관 코드별 동의 여부
+   * @return 약관 코드를 Key로 하는 현재 약관 정보
+   */
+  private Map<String, Agreement> validateAgreements(Map<String, Boolean> requestedAgreements) {
+
+    if (requestedAgreements == null || requestedAgreements.isEmpty()) {
+      throw new InvalidRequestException("약관 동의 정보는 필수입니다.");
+    }
+
     List<Agreement> currentAgreements = agreementRepository.findByDeletedFalse();
 
-    // 현재 적용 중인 필수 약관이 없으면 회원가입을 진행하지 않음
+    // 적용 중인 필수 약관이 없는 경우 가입 처리 중단
     boolean hasRequiredAgreement = currentAgreements.stream().anyMatch(Agreement::isRequired);
 
     if (!hasRequiredAgreement) {
       throw new IllegalStateException("필수 약관 정보가 없습니다.");
     }
 
-    // 약관 코드를 실제 DB 약관 정보와 연결
     Map<String, Agreement> agreementsByCode =
         currentAgreements.stream()
             .collect(Collectors.toMap(Agreement::getCode, agreement -> agreement));
 
     // 존재하지 않거나 현재 적용되지 않는 약관 코드는 거부
     boolean hasUnknownAgreement =
-        command.agreements().keySet().stream()
-            .anyMatch(code -> !agreementsByCode.containsKey(code));
+        requestedAgreements.keySet().stream().anyMatch(code -> !agreementsByCode.containsKey(code));
 
     if (hasUnknownAgreement) {
       throw new InvalidRequestException("유효하지 않은 약관 코드가 포함되어 있습니다.");
     }
 
-    // 동의 여부는 반드시 true 또는 false
-    if (command.agreements().values().stream().anyMatch(agreed -> agreed == null)) {
+    // null은 명시적인 동의 또는 미동의로 취급하지 않음
+    if (requestedAgreements.values().stream().anyMatch(agreed -> agreed == null)) {
       throw new InvalidRequestException("약관 동의 여부를 확인해 주세요.");
     }
 
-    // DB에서 필수로 설정한 약관은 반드시 동의해야 함
-    boolean hasMissingRequiredAgreement =
+    // 필수 약관은 반드시 true여야 함
+    boolean missingRequiredAgreement =
         currentAgreements.stream()
             .filter(Agreement::isRequired)
             .anyMatch(
-                agreement -> !Boolean.TRUE.equals(command.agreements().get(agreement.getCode())));
+                agreement -> !Boolean.TRUE.equals(requestedAgreements.get(agreement.getCode())));
 
-    if (hasMissingRequiredAgreement) {
+    if (missingRequiredAgreement) {
       throw new InvalidRequestException("필수 약관과 동의 항목을 확인해 주세요.");
     }
 
-    emailVerificationService.validateVerificationToken(
-        normalizedEmail, EmailVerificationPurpose.SIGNUP, command.emailVerificationToken());
+    return agreementsByCode;
+  }
 
-    if (passwordBlocklistRepository.existsByWordAndMatchTypeAndEnabledTrue(
-        command.password(), BlocklistMatchType.EXACT)) {
-      throw new InvalidRequestException("쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.");
-    }
-
-    // 회원가입 직전 닉네임 형식, 금칙어 및 중복 확인
-    if (!isNicknameAvailable(command.nickname())) {
+  /**
+   * 닉네임의 사용 가능 여부를 검사하고 중복이면 예외를 발생시킵니다.
+   *
+   * @param nickname 확인할 닉네임
+   */
+  private void validateNicknameAvailability(String nickname) {
+    if (!isNicknameAvailable(nickname)) {
       throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
     }
+  }
 
-    String encodedPassword = passwordEncoder.encode(command.password());
+  /**
+   * 회원과 기본 권한 및 약관 동의 정보를 저장합니다.
+   *
+   * <p>이 메서드는 LOCAL·GOOGLE 모두 사용하며 별도 public 트랜잭션 메서드 안에서 실행합니다.
+   *
+   * @param member 저장할 회원
+   * @param requestedAgreements 약관 코드별 동의 여부
+   * @param agreementsByCode 검증한 현재 약관 정보
+   * @return 저장된 회원
+   */
+  private Member saveMemberWithAgreements(
+      Member member,
+      Map<String, Boolean> requestedAgreements,
+      Map<String, Agreement> agreementsByCode) {
 
-    Member member = Member.createLocal(normalizedEmail, encodedPassword, command.nickname());
-
-    // 생성된 회원 정보를 DB에 저장
     Member savedMember;
 
     try {
+      // INSERT를 즉시 실행해 UNIQUE 제약 위반을 확인
       savedMember = memberRepository.save(member);
-
-      // INSERT를 즉시 실행하여 UNIQUE 제약 위반을 여기에서 확인
       memberRepository.flush();
 
     } catch (DataIntegrityViolationException exception) {
@@ -215,55 +322,62 @@ public class SignupService {
 
           String constraintName = constraintException.getConstraintName();
 
-          // 이메일 + 가입 방식 UNIQUE 제약 위반 (기존 및 정규화 기준)
-          if ("uk_member_email_provider".equalsIgnoreCase(constraintName)
-              || "uk_member_email_provider_normalized".equalsIgnoreCase(constraintName)) {
-            throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
-          }
+          if (constraintName != null) {
 
-          // 닉네임 UNIQUE 제약 위반
-          if ("uk_member_nickname_normalized".equalsIgnoreCase(constraintName)) {
-            throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+            // 닉네임 중복은 LOCAL과 GOOGLE에 동일하게 적용
+            if ("uk_member_nickname_normalized".equalsIgnoreCase(constraintName)) {
+              throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+            }
+
+            // Google 고유 ID 중복 또는 GOOGLE 이메일 중복
+            if ("uk_member_provider_user_id".equalsIgnoreCase(constraintName)) {
+              throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+            }
+
+            // 이메일 중복은 회원가입 방식에 맞는 오류로 변환
+            if ("uk_member_email_provider".equalsIgnoreCase(constraintName)
+                || "uk_member_email_provider_normalized".equalsIgnoreCase(constraintName)) {
+
+              if (member.getProvider() == MemberProvider.GOOGLE) {
+                throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+              }
+
+              throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
+            }
           }
         }
 
         cause = cause.getCause();
       }
 
-      // 그 외 DB 제약 위반은 기존 예외를 유지
+      // 처리하지 않은 DB 제약 위반은 원래 예외 그대로 전파
       throw exception;
     }
 
-    // 신규 회원에게 부여할 기본 USER 권한 식별자 조회
+    // 신규 회원에게 기본 USER 권한 부여
     Integer userRoleId =
         memberRoleRepository
             .findRoleIdByName(DEFAULT_ROLE_NAME)
             .orElseThrow(() -> new IllegalStateException("USER 권한 정보가 없습니다."));
 
-    // 회원과 USER 권한 연결 정보 저장
     memberRoleRepository.save(MemberRole.create(savedMember.getId(), userRoleId));
 
-    // 약관 코드를 실제 agreement_id로 변환해서 동의 정보 저장
-    command
-        .agreements()
-        .forEach(
-            (code, agreed) -> {
-              Integer agreementId = agreementsByCode.get(code).getId();
+    // 동의한 약관 코드와 실제 agreement_id를 연결해 저장
+    requestedAgreements.forEach(
+        (code, agreed) -> {
+          Integer agreementId = agreementsByCode.get(code).getId();
 
-              memberAgreementRepository.save(
-                  MemberAgreement.create(agreementId, savedMember.getId(), agreed));
-            });
-
-    // 회원가입에 사용한 이메일 인증 토큰 재사용 방지를 위해 삭제
-    invalidateVerificationTokenAfterCommit(command.emailVerificationToken());
+          memberAgreementRepository.save(
+              MemberAgreement.create(agreementId, savedMember.getId(), agreed));
+        });
 
     return savedMember;
   }
 
   /**
-   * DB 커밋이 성공한 이후 이메일 인증 토큰을 무효화합니다.
+   * DB 커밋 후 LOCAL 이메일 인증 토큰을 무효화합니다.
    *
-   * @param verificationToken 이메일 인증 토큰
+   * @param verificationToken 이메일 인증 완료 토큰
    */
   private void invalidateVerificationTokenAfterCommit(String verificationToken) {
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -275,7 +389,7 @@ public class SignupService {
         new EmailVerificationTokenCleanupService(emailVerificationService, verificationToken));
   }
 
-  /** 트랜잭션 커밋 완료 후 인증 토큰을 정리합니다. */
+  /** LOCAL 회원가입 커밋 후 이메일 인증 토큰을 정리합니다. */
   private static final class EmailVerificationTokenCleanupService
       implements TransactionSynchronization {
 

@@ -41,6 +41,9 @@ public enum MemberErrorCode implements ErrorCode {
       "Google 회원가입 인증 정보가 만료되었거나 유효하지 않습니다.",
       ErrorStatus.BAD_REQUEST),
 
+  GOOGLE_ACCOUNT_ALREADY_EXISTS(
+      "GOOGLE_ACCOUNT_ALREADY_EXISTS", "이미 가입된 Google 계정입니다.", ErrorStatus.CONFLICT),
+
   GOOGLE_AUTHENTICATION_FAILED(
       "GOOGLE_AUTHENTICATION_FAILED", "Google 인증에 실패했습니다.", ErrorStatus.UNAUTHORIZED),
 
