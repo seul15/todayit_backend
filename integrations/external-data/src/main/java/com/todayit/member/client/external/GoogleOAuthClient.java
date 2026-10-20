@@ -51,21 +51,45 @@ public class GoogleOAuthClient {
       String clientSecret,
       String redirectUri) {
 
+    // 운영 환경에서는 Google 공개키를 사용하는 JWT 검증기 생성
+    this(webClientBuilder, clientId, clientSecret, redirectUri, createJwtDecoder());
+  }
+
+  /**
+   * 테스트에서 JWT 검증기를 주입할 수 있도록 제공하는 생성자입니다.
+   *
+   * <p>패키지 내부에서만 사용할 수 있습니다.
+   */
+  GoogleOAuthClient(
+      WebClient.Builder webClientBuilder,
+      String clientId,
+      String clientSecret,
+      String redirectUri,
+      JwtDecoder jwtDecoder) {
+
     this.webClient = webClientBuilder.build();
     this.clientId = clientId;
     this.clientSecret = clientSecret;
     this.redirectUri = redirectUri;
+    this.jwtDecoder = jwtDecoder;
+  }
 
-    // Google 공개키 조회에도 타임아웃 적용
+  /**
+   * Google 공개키를 사용해 ID Token을 검증할 JWT Decoder를 생성합니다.
+   *
+   * @return Google 공개키 기반 JWT 검증기
+   */
+  private static JwtDecoder createJwtDecoder() {
+
+    // Google 공개키 서버의 연결 및 응답 대기 시간 제한
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
 
     requestFactory.setConnectTimeout(Duration.ofSeconds(3));
     requestFactory.setReadTimeout(REQUEST_TIMEOUT);
 
-    this.jwtDecoder =
-        NimbusJwtDecoder.withJwkSetUri(JWK_SET_URL)
-            .restOperations(new RestTemplate(requestFactory))
-            .build();
+    return NimbusJwtDecoder.withJwkSetUri(JWK_SET_URL)
+        .restOperations(new RestTemplate(requestFactory))
+        .build();
   }
 
   /**
