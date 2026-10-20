@@ -138,7 +138,7 @@ public interface AuthApiDocs {
                 })),
     @ApiResponse(
         responseCode = "400",
-        description = "요청 필수값 누락 또는 Google 이메일 미인증",
+        description = "Google 인가 코드 또는 Redirect URI 누락",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -147,29 +147,41 @@ public interface AuthApiDocs {
                     @ExampleObject(
                         value =
                             """
-                                            {
-                                              "success": false,
-                                              "code": "GOOGLE_EMAIL_NOT_VERIFIED",
-                                              "message": "Google 이메일이 인증되지 않았습니다."
-                                            }
-                                            """))),
+                                          {
+                                            "success": false,
+                                            "code": "INVALID_REQUEST",
+                                            "message": "Google 인가 코드는 필수입니다."
+                                          }
+                                          """))),
     @ApiResponse(
         responseCode = "401",
-        description = "Google 인가 코드 또는 ID Token 인증 실패",
+        description = "Google 인증 실패 또는 이메일 미인증",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            """
-                                            {
-                                              "success": false,
-                                              "code": "GOOGLE_AUTHENTICATION_FAILED",
-                                              "message": "Google 인증에 실패했습니다."
-                                            }
-                                            """))),
+                examples = {
+                  @ExampleObject(
+                      name = "Google 인증 실패",
+                      value =
+                          """
+                                                  {
+                                                    "success": false,
+                                                    "code": "GOOGLE_AUTHENTICATION_FAILED",
+                                                    "message": "Google 인증에 실패했습니다."
+                                                  }
+                                                  """),
+                  @ExampleObject(
+                      name = "Google 이메일 미인증",
+                      value =
+                          """
+                                                  {
+                                                    "success": false,
+                                                    "code": "GOOGLE_EMAIL_NOT_VERIFIED",
+                                                    "message": "인증된 Google 이메일이 필요합니다."
+                                                  }
+                                                  """)
+                })),
     @ApiResponse(
         responseCode = "500",
         description = "Google 인증 서버 통신 장애",

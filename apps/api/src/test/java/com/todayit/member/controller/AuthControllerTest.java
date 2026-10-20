@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.GlobalExceptionHandler;
 import com.todayit.member.dto.request.EmailVerificationConfirmRequest;
 import com.todayit.member.dto.request.EmailVerificationRequest;
@@ -19,6 +20,7 @@ import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
+import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.GoogleLoginService;
 import com.todayit.member.service.LoginFacade;
@@ -819,5 +821,38 @@ class AuthControllerTest {
                 command ->
                     command.provider() == MemberProvider.GOOGLE
                         && "google-signup-token".equals(command.signupToken())));
+  }
+
+  @Test
+  @DisplayName("Google 이메일이 인증되지 않았으면 401을 반환한다")
+  void rejectsUnverifiedGoogleEmail() throws Exception {
+
+    // Given
+    String redirectUri = "http://localhost:3000/oauth/google/callback";
+
+    when(googleLoginService.login("google-code", redirectUri))
+        .thenThrow(new BusinessException(MemberErrorCode.GOOGLE_EMAIL_NOT_VERIFIED));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/google")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "google-code",
+                                      "redirectUri": "http://localhost:3000/oauth/google/callback"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("GOOGLE_EMAIL_NOT_VERIFIED"))
+        .andExpect(jsonPath("$.message").value("인증된 Google 이메일이 필요합니다."));
+
+    verify(googleLoginService).login("google-code", redirectUri);
   }
 }
