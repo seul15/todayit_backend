@@ -50,7 +50,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"example-refresh-token\",\"expiresIn\":3600,\"member\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"nickname\":\"오늘\",\"coupleConnected\":false,\"roles\":[\"USER\"]}}}"))),
+                            "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"example-refresh-token\",\"expiresIn\":3600,\"member\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"nickname\":\"유저\",\"coupleConnected\":false,\"roles\":[\"USER\"]}}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "이메일 또는 비밀번호 누락",
@@ -116,7 +116,7 @@ public interface AuthApiDocs {
                                                         "expiresIn": 1800,
                                                         "member": {
                                                           "memberId": "123e4567-e89b-12d3-a456-426614174000",
-                                                          "nickname": "오늘",
+                                                          "nickname": "유저",
                                                           "coupleConnected": false,
                                                           "roles": ["USER"]
                                                         }
@@ -304,7 +304,7 @@ public interface AuthApiDocs {
                                                     "email": "user@example.com",
                                                     "emailVerificationToken": "example-verification-token",
                                                     "password": "ExamplePassword123!",
-                                                    "nickname": "오늘이",
+                                                    "nickname": "유저",
                                                     "agreements": {
                                                       "TOS": true,
                                                       "ACCOUNT_PRIVACY": true,
@@ -320,7 +320,7 @@ public interface AuthApiDocs {
                                                   {
                                                     "provider": "GOOGLE",
                                                     "signupToken": "example-signup-token",
-                                                    "nickname": "오늘이",
+                                                    "nickname": "유저",
                                                     "agreements": {
                                                       "TOS": true,
                                                       "ACCOUNT_PRIVACY": true,
@@ -340,7 +340,7 @@ public interface AuthApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
+                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"유저\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "필수 입력, 약관 동의, 이메일 인증 또는 Google 가입 토큰 오류",
