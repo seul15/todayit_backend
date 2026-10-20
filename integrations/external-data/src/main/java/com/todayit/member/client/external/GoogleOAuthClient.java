@@ -1,5 +1,6 @@
 package com.todayit.member.client.external;
 
+import com.nimbusds.jose.RemoteKeySourceException;
 import com.todayit.member.client.external.GoogleOAuthException.Reason;
 import java.time.Duration;
 import java.util.List;
@@ -100,8 +101,12 @@ public class GoogleOAuthClient {
       jwt = jwtDecoder.decode(idToken);
 
     } catch (JwtException exception) {
-      // JWT 검증 오류를 Google 인증용 커스텀 예외로 변환
-      // 원인 예외를 함께 전달해 문제 발생 시 원인 추적이 가능하도록 함
+      // Google 공개키 조회 실패라면 외부 서비스 장애로 처리
+      if (isJwkSetRetrievalFailure(exception)) {
+        throw new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE, exception);
+      }
+
+      // 서명 오류, 토큰 만료 등은 기존과 동일하게 인증 실패 처리
       throw new GoogleOAuthException(Reason.INVALID_ID_TOKEN, exception);
     }
 
@@ -143,6 +148,30 @@ public class GoogleOAuthClient {
     boolean emailVerified = Boolean.TRUE.equals(jwt.getClaim("email_verified"));
 
     return new GoogleIdentity(providerUserId, email, emailVerified);
+  }
+
+  /**
+   * JWT 검증 실패의 원인이 Google 공개키 조회 오류인지 확인합니다.
+   *
+   * @param exception JWT 검증 과정에서 발생한 예외
+   * @return 공개키 조회 실패이면 true
+   */
+  static boolean isJwkSetRetrievalFailure(Throwable exception) {
+    // Spring Security가 예외를 여러 단계로 감싸 전달할 수 있음
+    Throwable cause = exception;
+
+    while (cause != null) {
+
+      // Google 공개키를 가져오는 과정에서 발생한 오류
+      if (cause instanceof RemoteKeySourceException) {
+        return true;
+      }
+
+      // 가장 안쪽 원인 예외까지 확인
+      cause = cause.getCause();
+    }
+
+    return false;
   }
 
   /**

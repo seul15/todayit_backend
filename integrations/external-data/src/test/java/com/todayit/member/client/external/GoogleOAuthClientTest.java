@@ -1,12 +1,17 @@
 package com.todayit.member.client.external;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.nimbusds.jose.RemoteKeySourceException;
 import com.todayit.member.client.external.GoogleOAuthException.Reason;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.BadJwtException;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -62,5 +67,37 @@ class GoogleOAuthClientTest {
 
     // Then
     assertEquals(Reason.INVALID_AUTHORIZATION_CODE, exception.getReason());
+  }
+
+  @Test
+  @DisplayName("Google 공개키 조회 실패를 외부 서비스 장애로 구분한다")
+  void detectsJwkSetRetrievalFailure() {
+
+    // Given
+    // Spring Security가 공개키 조회 실패를 JwtException으로 감싼 상황
+    JwtException exception =
+        new JwtException(
+            "JWT 검증 실패",
+            new RemoteKeySourceException("Google 공개키 조회 실패", new RuntimeException("연결 시간 초과")));
+
+    // When
+    boolean result = GoogleOAuthClient.isJwkSetRetrievalFailure(exception);
+
+    // Then
+    assertTrue(result);
+  }
+
+  @Test
+  @DisplayName("일반 JWT 검증 오류는 공개키 조회 장애로 분류하지 않는다")
+  void doesNotClassifyInvalidJwtAsProviderFailure() {
+
+    // Given
+    JwtException exception = new BadJwtException("JWT 서명이 올바르지 않습니다.");
+
+    // When
+    boolean result = GoogleOAuthClient.isJwkSetRetrievalFailure(exception);
+
+    // Then
+    assertFalse(result);
   }
 }
