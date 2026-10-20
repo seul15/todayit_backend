@@ -343,7 +343,7 @@ public interface AuthApiDocs {
                             "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"오늘\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "필수 입력, 약관 동의 또는 이메일 인증 정보 오류",
+        description = "필수 입력, 약관 동의, 이메일 인증 또는 Google 가입 토큰 오류",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -354,7 +354,7 @@ public interface AuthApiDocs {
                             "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_TOKEN_INVALID\",\"message\":\"이메일 인증 정보가 유효하지 않습니다.\"}"))),
     @ApiResponse(
         responseCode = "409",
-        description = "이메일 또는 닉네임 중복",
+        description = "이메일, 닉네임 또는 Google 계정 중복",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -367,7 +367,11 @@ public interface AuthApiDocs {
                   @ExampleObject(
                       name = "닉네임 중복",
                       value =
-                          "{\"success\":false,\"code\":\"NICKNAME_ALREADY_EXISTS\",\"message\":\"이미 사용 중인 닉네임입니다.\"}")
+                          "{\"success\":false,\"code\":\"NICKNAME_ALREADY_EXISTS\",\"message\":\"이미 사용 중인 닉네임입니다.\"}"),
+                  @ExampleObject(
+                      name = "Google 계정 중복",
+                      value =
+                          "{\"success\":false,\"code\":\"GOOGLE_ACCOUNT_ALREADY_EXISTS\",\"message\":\"이미 가입된 Google 계정입니다.\"}")
                 }))
   })
   ResponseEntity<CommonResponse<SignupResponse>> signup(SignupRequest request);

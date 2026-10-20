@@ -177,7 +177,7 @@ public class SignupService {
     // 회원, USER 권한, 약관 동의를 하나의 DB 트랜잭션으로 저장
     Member savedMember = saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
 
-    // 기존과 동일하게 DB 커밋 성공 후 이메일 인증 토큰 무효화
+    // DB 커밋 성공 후 이메일 인증 토큰을 무효화하도록 등록
     invalidateVerificationTokenAfterCommit(command.emailVerificationToken());
 
     return savedMember;
@@ -186,7 +186,8 @@ public class SignupService {
   /**
    * 검증된 Google 계정 정보로 GOOGLE 회원을 생성합니다.
    *
-   * <p>Google 인증 정보는 상위 Facade가 DB 트랜잭션 밖에서 조회한 뒤 전달해야 합니다. 이 메서드에서는 회원, 권한, 약관 동의 정보를 함께 저장합니다.
+   * <p>상위 Facade에서 Redis 가입 토큰을 검증하고 Google 인증 정보를 조회한 뒤 전달합니다. 회원, 권한, 약관 동의 정보는 하나의 DB 트랜잭션으로
+   * 저장합니다.
    *
    * @param command GOOGLE 회원가입 정보
    * @param identity Google에서 인증된 계정 정보
