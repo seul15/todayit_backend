@@ -16,12 +16,14 @@ import com.todayit.member.dto.request.LoginRequest;
 import com.todayit.member.dto.request.SignupRequest;
 import com.todayit.member.entity.EmailVerificationPurpose;
 import com.todayit.member.entity.Member;
+import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.exception.LoginFailedException;
 import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.GoogleLoginService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
+import com.todayit.member.service.SignupFacade;
 import com.todayit.member.service.SignupService;
 import com.todayit.member.service.TokenRefreshService;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
@@ -59,6 +61,8 @@ class AuthControllerTest {
 
   @Mock private GoogleLoginService googleLoginService;
 
+  @Mock private SignupFacade signupFacade;
+
   private MockMvc mockMvc;
   private ObjectMapper objectMapper;
 
@@ -71,7 +75,8 @@ class AuthControllerTest {
             signupService,
             emailVerificationService,
             tokenRefreshService,
-            googleLoginService);
+            googleLoginService,
+            signupFacade);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(authController)
@@ -343,7 +348,7 @@ class AuthControllerTest {
 
     Member member = Member.createLocal("test@test.com", "encoded-password", "테스트");
 
-    when(signupService.createLocalMember(any())).thenReturn(member);
+    when(signupFacade.signup(any())).thenReturn(member);
 
     // When
     ResultActions response =
@@ -362,7 +367,7 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.data.coupleConnected").value(false))
         .andExpect(jsonPath("$.data.createdAt").exists());
 
-    verify(signupService).createLocalMember(any());
+    verify(signupFacade).signup(any());
   }
 
   @Test
@@ -395,7 +400,7 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.message").value("이메일 인증 토큰은 필수입니다."));
 
-    verify(signupService, never()).createLocalMember(any());
+    verify(signupFacade, never()).signup(any());
   }
 
   @Test
@@ -548,7 +553,7 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.message").value("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요."));
 
-    verify(signupService, never()).createLocalMember(any());
+    verify(signupFacade, never()).signup(any());
   }
 
   @Test
@@ -643,7 +648,7 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.message").value("이메일은 100자 이하로 입력해 주세요."));
 
-    verify(signupService, never()).createLocalMember(any());
+    verify(signupFacade, never()).signup(any());
   }
 
   @Test
@@ -770,5 +775,49 @@ class AuthControllerTest {
 
     // 입력값이 유효하지 않으면 Google 인증 서비스 자체를 호출하지 않음
     verify(googleLoginService, never()).login(any(), any());
+  }
+
+  @Test
+  @DisplayName("GOOGLE 회원가입에 성공하면 회원 정보와 201 응답을 반환한다")
+  void returnsCreatedGoogleMemberAfterSignup() throws Exception {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            MemberProvider.GOOGLE,
+            null,
+            null,
+            null,
+            "google-signup-token",
+            "구글회원",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    Member member = Member.createGoogle("google@test.com", "google-user-123", "구글회원");
+
+    when(signupFacade.signup(any())).thenReturn(member);
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)));
+
+    // Then
+    response
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.memberId").value(member.getId()))
+        .andExpect(jsonPath("$.data.email").value("google@test.com"))
+        .andExpect(jsonPath("$.data.nickname").value("구글회원"));
+
+    // Controller가 GOOGLE 가입 정보를 Facade에 전달했는지 확인
+    verify(signupFacade)
+        .signup(
+            org.mockito.ArgumentMatchers.argThat(
+                command ->
+                    command.provider() == MemberProvider.GOOGLE
+                        && "google-signup-token".equals(command.signupToken())));
   }
 }

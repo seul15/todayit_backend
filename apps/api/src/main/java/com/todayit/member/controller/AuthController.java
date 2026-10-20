@@ -23,6 +23,7 @@ import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.GoogleLoginService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
+import com.todayit.member.service.SignupFacade;
 import com.todayit.member.service.SignupService;
 import com.todayit.member.service.TokenRefreshService;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
@@ -51,6 +52,7 @@ public class AuthController implements AuthApiDocs {
   private final EmailVerificationService emailVerificationService;
   private final TokenRefreshService tokenRefreshService;
   private final GoogleLoginService googleLoginService;
+  private final SignupFacade signupFacade;
 
   /**
    * 인증과 회원가입 처리에 필요한 서비스를 받습니다.
@@ -61,6 +63,7 @@ public class AuthController implements AuthApiDocs {
    * @param emailVerificationService 이메일 인증 처리 Service
    * @param tokenRefreshService 토큰 갱신 처리 Service
    * @param googleLoginService Google 로그인 처리 Service
+   * @param signupFacade LOCAL·GOOGLE 통합 회원가입 Facade
    */
   public AuthController(
       LoginFacade loginFacade,
@@ -68,13 +71,15 @@ public class AuthController implements AuthApiDocs {
       SignupService signupService,
       EmailVerificationService emailVerificationService,
       TokenRefreshService tokenRefreshService,
-      GoogleLoginService googleLoginService) {
+      GoogleLoginService googleLoginService,
+      SignupFacade signupFacade) {
     this.loginFacade = loginFacade;
     this.logoutService = logoutService;
     this.signupService = signupService;
     this.emailVerificationService = emailVerificationService;
     this.tokenRefreshService = tokenRefreshService;
     this.googleLoginService = googleLoginService;
+    this.signupFacade = signupFacade;
   }
 
   /**
@@ -170,7 +175,7 @@ public class AuthController implements AuthApiDocs {
   }
 
   /**
-   * 이메일 인증을 완료한 사용자를 로컬 회원으로 가입시킵니다.
+   * LOCAL 또는 GOOGLE 회원가입을 처리합니다.
    *
    * @param request 회원가입 요청
    * @return 생성된 회원 정보
@@ -181,8 +186,8 @@ public class AuthController implements AuthApiDocs {
     // 회원가입 필수 입력값 확인
     request.validate();
 
-    // 회원 생성과 기본 권한 및 약관 동의 정보 저장
-    Member member = signupService.createLocalMember(request.toCommand());
+    // LOCAL 또는 GOOGLE 회원가입 방식에 따라 처리
+    Member member = signupFacade.signup(request.toCommand());
 
     // 회원가입 성공 응답 반환
     return ResponseEntity.status(HttpStatus.CREATED)

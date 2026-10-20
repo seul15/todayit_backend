@@ -267,38 +267,57 @@ public interface AuthApiDocs {
    * @return 생성된 회원 정보
    */
   @Operation(
-      summary = "회원가입",
+      summary = "회원가입 (LOCAL / GOOGLE)",
       description =
-          "이메일 인증 완료 토큰과 약관 동의 정보를 받아 로컬 회원을 생성합니다."
-              + " 필수 약관은 TOS, ACCOUNT_PRIVACY이며 동의값은 true여야 합니다."
-              + " PREFERENCE, PROFILE_IMAGE는 선택 약관입니다."
-              + " 프로필 이미지는 회원가입 이후 별도 API에서 등록합니다.",
+          "LOCAL은 이메일 인증 토큰과 비밀번호를 사용합니다. "
+              + "GOOGLE은 Google 로그인 API에서 발급한 signupToken을 사용합니다. "
+              + "필수 약관은 TOS, ACCOUNT_PRIVACY이며 동의값은 true여야 합니다. "
+              + "PREFERENCE, PROFILE_IMAGE는 선택 약관입니다. "
+              + "프로필 이미지는 가입 후 별도 API에서 등록합니다.",
       requestBody =
           @RequestBody(
               required = true,
-              description = "회원가입 정보 및 필수·선택 약관 동의 여부",
+              description = "가입 방식별 인증 정보, 닉네임 및 약관 동의 여부",
               content =
                   @Content(
                       mediaType = MediaType.APPLICATION_JSON_VALUE,
                       schema = @Schema(implementation = SignupRequest.class),
-                      examples =
-                          @ExampleObject(
-                              name = "회원가입 요청 예시",
-                              value =
-                                  """
-                                {
-                                  "email": "user@example.com",
-                                  "emailVerificationToken": "example-verification-token",
-                                  "password": "ExamplePassword123!",
-                                  "nickname": "오늘",
-                                  "agreements": {
-                                    "TOS": true,
-                                    "ACCOUNT_PRIVACY": true,
-                                    "PREFERENCE": false,
-                                    "PROFILE_IMAGE": false
-                                  }
-                                }
-                                """))))
+                      examples = {
+                        @ExampleObject(
+                            name = "LOCAL 회원가입",
+                            value =
+                                """
+                                                  {
+                                                    "provider": "LOCAL",
+                                                    "email": "user@example.com",
+                                                    "emailVerificationToken": "example-verification-token",
+                                                    "password": "ExamplePassword123!",
+                                                    "nickname": "오늘이",
+                                                    "agreements": {
+                                                      "TOS": true,
+                                                      "ACCOUNT_PRIVACY": true,
+                                                      "PREFERENCE": false,
+                                                      "PROFILE_IMAGE": false
+                                                    }
+                                                  }
+                                                  """),
+                        @ExampleObject(
+                            name = "GOOGLE 회원가입",
+                            value =
+                                """
+                                                  {
+                                                    "provider": "GOOGLE",
+                                                    "signupToken": "example-signup-token",
+                                                    "nickname": "오늘이",
+                                                    "agreements": {
+                                                      "TOS": true,
+                                                      "ACCOUNT_PRIVACY": true,
+                                                      "PREFERENCE": false,
+                                                      "PROFILE_IMAGE": false
+                                                    }
+                                                  }
+                                                  """)
+                      })))
   @ApiResponses({
     @ApiResponse(
         responseCode = "201",
