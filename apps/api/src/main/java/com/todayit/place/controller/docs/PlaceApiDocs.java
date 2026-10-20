@@ -6,10 +6,11 @@ import com.todayit.common.response.CommonResponse;
 import com.todayit.common.response.ErrorResponse;
 import com.todayit.course.dto.response.CourseResponse;
 import com.todayit.course.service.model.CourseSort;
+import com.todayit.place.dto.response.PlaceDetailResponse;
+import com.todayit.place.dto.response.PlaceFilterResponse;
 import com.todayit.place.dto.response.PlaceImageResponse;
 import com.todayit.place.dto.response.PlaceLikeResponse;
 import com.todayit.place.dto.response.PlaceLocationResponse;
-import com.todayit.place.dto.response.PlaceResponse;
 import com.todayit.place.dto.response.PlaceScrapResponse;
 import com.todayit.place.entity.Category;
 import com.todayit.place.service.model.PlaceSort;
@@ -31,21 +32,17 @@ import org.springframework.security.core.Authentication;
 /** 장소 조회와 스크랩 API 명세입니다. */
 @Tag(name = "장소", description = "장소 조회와 스크랩 API")
 public interface PlaceApiDocs {
-
   /**
-   * 장소 목록을 페이지 단위로 조회합니다.
+   * 활성화되고 삭제되지 않은 장소의 상세 정보와 요청 회원의 좋아요·스크랩 여부를 조회합니다.
    *
-   * @param region 단일 시·도·시·군·구 이름 또는 상위 지역부터 입력한 경로
-   * @param categories 장소 카테고리 목록
-   * @param page 페이지 번호
-   * @param size 페이지 크기
-   * @param sort 정렬 기준
-   * @return 장소 목록과 페이지 정보
+   * @param placeId 장소 식별자
+   * @param authentication 선택 인증 정보, 비회원이면 null
+   * @return 장소 기본 정보, 영업시간 목록, 이미지와 평균 체류 시간을 포함한 상세 응답
    */
   @Operation(
-      summary = "장소 필터 조회",
-      description =
-          "지역·카테고리로 활성 장소를 페이지 단위로 조회합니다. " + "지역은 단독 또는 상하위 조합으로 선택하며, 선택한 지역의 하위 지역도 포함합니다.")
+      summary = "장소 상세 조회",
+      description = "장소의 상세 정보와 좋아요·스크랩 여부를 조회합니다. 인증은 선택사항입니다.",
+      security = {@SecurityRequirement(), @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)})
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -56,7 +53,74 @@ public interface PlaceApiDocs {
                 examples =
                     @ExampleObject(
                         value =
-                            "{\"success\":true,\"data\":{\"content\":[{\"placeId\":1,\"name\":\"오늘의 식당\",\"latitude\":37.57000000,\"longitude\":126.98500000,\"address\":\"서울특별시 종로구 종로 1\",\"category\":\"RESTAURANT\",\"viewCount\":15,\"imageUrls\":[\"https://example.com/place.jpg\"]}],\"page\":0,\"size\":20,\"totalElements\":1,\"totalPages\":1}}"))),
+                            "{\"success\":true,\"data\":{\"placeId\":1,\"name\":\"오늘 카페\",\"category\":\"CAFE_DESSERT\",\"address\":\"서울특별시 종로구 종로 1\",\"location\":{\"latitude\":37.57,\"longitude\":126.985},\"description\":\"조용한 분위기의 카페입니다.\",\"openingHours\":[{\"openDate\":\"2026-10-16T00:00:00\",\"startAt\":\"2026-10-16T09:00:00\",\"endAt\":\"2026-10-16T18:00:00\",\"breakStartAt\":\"2026-10-16T12:00:00\",\"breakEndAt\":\"2026-10-16T13:00:00\"}],\"images\":[\"https://example.com/images/place-1.jpg\"],\"averageStayMinutes\":60,\"liked\":true,\"scrapped\":false}}"))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "장소 식별자의 형식이 올바르지 않음",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"요청값이 올바르지 않습니다.\"}"))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "장소가 없거나 비활성·삭제 상태",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"PLACE_NOT_FOUND\",\"message\":\"장소를 찾을 수 없습니다.\"}"))),
+    @ApiResponse(
+        responseCode = "500",
+        description = "서버 내부 오류",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"서버 내부 오류가 발생했습니다.\"}")))
+  })
+  ResponseEntity<CommonResponse<PlaceDetailResponse>> getPlaceDetail(
+      @Parameter(description = "장소 식별자입니다.", example = "1", required = true) int placeId,
+      @Parameter(hidden = true) Authentication authentication);
+
+  /**
+   * 장소 목록을 페이지 단위로 조회합니다.
+   *
+   * @param authentication 선택 인증 정보
+   * @param si 시·도 코드 2자리, 생략 가능
+   * @param gun 시·군 코드 3자리, 생략 가능
+   * @param gu 구 코드 3자리, 생략 가능
+   * @param categories 장소 카테고리 목록
+   * @param page 페이지 번호
+   * @param size 페이지 크기
+   * @param sort 정렬 기준
+   * @return 장소 목록과 페이지 정보
+   */
+  @Operation(
+      summary = "장소 필터 조회",
+      description =
+          "지역·카테고리로 활성 장소를 페이지 단위로 조회합니다. si·gun·gu 코드는 각각 선택사항이며, 전달된 조건을 모두 만족하는 지역의 장소를 조회합니다. 인증은 선택사항이며, 비회원의 liked는 false입니다.",
+      security = {@SecurityRequirement(), @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)})
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "조회 성공",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":true,\"data\":{\"content\":[{\"placeId\":1,\"name\":\"오늘의 식당\",\"latitude\":37.57000000,\"longitude\":126.98500000,\"address\":\"서울특별시 종로구 종로 1\",\"category\":\"RESTAURANT\",\"viewCount\":15,\"liked\":false,\"imageUrls\":[\"https://example.com/place.jpg\"]}],\"page\":0,\"size\":20,\"totalElements\":1,\"totalPages\":1}}"))),
     @ApiResponse(
         responseCode = "400",
         description = "잘못된 필터 또는 페이지 요청",
@@ -70,7 +134,7 @@ public interface PlaceApiDocs {
                       value =
                           "{\"success\":false,\"code\":\"INVALID_PLACE_CATEGORY\",\"message\":\"카테고리 필터 값이 올바르지 않습니다.\"}"),
                   @ExampleObject(
-                      name = "잘못된 지역 경로",
+                      name = "잘못된 지역 코드",
                       value =
                           "{\"success\":false,\"code\":\"INVALID_REGION_PATH\",\"message\":\"지역 필터 값이 올바르지 않습니다.\"}"),
                   @ExampleObject(
@@ -90,28 +154,27 @@ public interface PlaceApiDocs {
                         value =
                             "{\"success\":false,\"code\":\"INTERNAL_SERVER_ERROR\",\"message\":\"서버 내부 오류가 발생했습니다.\"}")))
   })
-  ResponseEntity<CommonResponse<PageResponse<PlaceResponse>>> findPlaces(
-      @Parameter(description = "지역 이름 또는 상하위 지역 경로입니다. 생략하면 전체 지역을 조회합니다.", example = "서울특별시 동대문구")
-          String region,
+  ResponseEntity<CommonResponse<PageResponse<PlaceFilterResponse>>> findPlaces(
+      @Parameter(description = "시·도 코드 2자리입니다. 생략 가능합니다.", example = "41") String si,
+      @Parameter(description = "시·군 코드 3자리입니다. 생략 가능합니다.", example = "110") String gun,
+      @Parameter(description = "구 코드 3자리입니다. 생략 가능합니다.", example = "111") String gu,
       @Parameter(
               description =
                   "카테고리를 복수 선택할 수 있습니다. 쉼표로 구분하며, 선택한 값 중 하나에 해당하는 장소를 조회합니다. 생략하면 전체 카테고리를 조회합니다.",
               examples = {
                 @ExampleObject(name = "음식점", value = "[\"RESTAURANT\"]"),
                 @ExampleObject(name = "카페·디저트", value = "[\"CAFE_DESSERT\"]"),
-                @ExampleObject(name = "술집", value = "[\"BAR\"]"),
-                @ExampleObject(name = "전시·문화", value = "[\"EXHIBITION_CULTURE\"]"),
-                @ExampleObject(name = "영화·공연", value = "[\"MOVIE_PERFORMANCE\"]"),
-                @ExampleObject(name = "체험·공방", value = "[\"EXPERIENCE_WORKSHOP\"]"),
-                @ExampleObject(name = "놀이·활동", value = "[\"PLAY_ACTIVITY\"]"),
+                @ExampleObject(name = "전시·박물관", value = "[\"EXHIBITION_MUSEUM\"]"),
+                @ExampleObject(name = "공연", value = "[\"PERFORMANCE\"]"),
+                @ExampleObject(name = "체험", value = "[\"EXPERIENCE\"]"),
+                @ExampleObject(name = "놀이·레저", value = "[\"PLAY_LEISURE\"]"),
                 @ExampleObject(name = "자연·산책", value = "[\"NATURE_WALK\"]"),
                 @ExampleObject(name = "쇼핑", value = "[\"SHOPPING\"]"),
                 @ExampleObject(name = "명소·전망", value = "[\"LANDMARK_VIEW\"]"),
-                @ExampleObject(name = "휴식·스파", value = "[\"RELAXATION_SPA\"]"),
                 @ExampleObject(name = "음식점 + 카페·디저트", value = "[\"RESTAURANT\",\"CAFE_DESSERT\"]"),
                 @ExampleObject(
-                    name = "전시·문화 + 영화·공연",
-                    value = "[\"EXHIBITION_CULTURE\",\"MOVIE_PERFORMANCE\"]"),
+                    name = "전시·박물관 + 공연",
+                    value = "[\"EXHIBITION_MUSEUM\",\"PERFORMANCE\"]"),
                 @ExampleObject(
                     name = "자연·산책 + 명소·전망",
                     value = "[\"NATURE_WALK\",\"LANDMARK_VIEW\"]")
@@ -134,7 +197,8 @@ public interface PlaceApiDocs {
                 @ExampleObject(name = "최신순", value = "LATEST"),
                 @ExampleObject(name = "조회수순", value = "POPULAR")
               })
-          PlaceSort sort);
+          PlaceSort sort,
+      @Parameter(hidden = true) Authentication authentication);
 
   /**
    * 장소의 지도 표시 정보를 조회합니다.

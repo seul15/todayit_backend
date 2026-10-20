@@ -14,15 +14,32 @@ import com.todayit.place.repository.PlaceScrapRepository;
 import com.todayit.place.service.model.PlaceLikeResult;
 import com.todayit.place.service.model.PlaceScrapResult;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 장소 좋아요와 스크랩 변경 업무를 검증합니다. */
 @ExtendWith(MockitoExtension.class)
 class PlaceCommandServiceTest {
+
+  private static final Logger LOG = LoggerFactory.getLogger(PlaceCommandServiceTest.class);
+
+  @BeforeEach
+  void logTestStart(TestInfo testInfo) {
+    LOG.info("테스트 시작: {}", testInfo.getDisplayName());
+  }
+
+  @AfterEach
+  void logTestEnd(TestInfo testInfo) {
+    LOG.info("테스트 종료: {}", testInfo.getDisplayName());
+  }
 
   @Mock private PlaceRepository placeRepository;
 

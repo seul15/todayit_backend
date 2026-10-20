@@ -2,6 +2,8 @@ package com.todayit.common.auth.config;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -21,7 +23,9 @@ import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.model.GoogleLoginResult;
 import com.todayit.member.service.model.LoginResult;
 import com.todayit.member.service.model.MemberLoginResult;
+import com.todayit.place.exception.PlaceNotFoundException;
 import com.todayit.place.service.PlaceCommandService;
+import com.todayit.place.service.PlaceDetailFacade;
 import com.todayit.place.service.PlaceQueryService;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -65,6 +69,8 @@ public class SecurityConfigTest {
 
   @MockitoBean private PlaceQueryService placeQueryService;
 
+  @MockitoBean private PlaceDetailFacade placeDetailFacade;
+
   @MockitoBean private PlaceCommandService placeCommandService;
 
   @MockitoBean private CoursePlaceQueryService coursePlaceQueryService;
@@ -74,6 +80,49 @@ public class SecurityConfigTest {
   @Autowired
   SecurityConfigTest(MockMvc mockMvc) {
     this.mockMvc = mockMvc;
+  }
+
+  @Test
+  @DisplayName("유효하지 않은 선택 토큰은 기존 정책에 따라 비회원으로 조회한다")
+  void treatsInvalidOptionalTokenAsAnonymousForPlaceDetail() throws Exception {
+    // Given
+    when(jwtTokenProvider.validateToken("invalid-token")).thenReturn(false);
+    doThrow(new PlaceNotFoundException()).when(placeDetailFacade).getPlaceDetail(1, null);
+    // When
+    ResultActions result =
+        mockMvc.perform(
+            get("/api/v1/places/1").header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"));
+
+    // Then
+    result.andExpect(status().isNotFound());
+    verify(placeDetailFacade).getPlaceDetail(1, null);
+  }
+
+  @Test
+  @DisplayName("장소 상세는 인증 없이 조회할 수 있다")
+  void allowsAnonymousPlaceDetailLookup() throws Exception {
+    // Given
+    doThrow(new PlaceNotFoundException()).when(placeDetailFacade).getPlaceDetail(1, null);
+    // When
+    ResultActions result = mockMvc.perform(get("/api/v1/places/1"));
+
+    // Then
+    result.andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("PLACE_NOT_FOUND"));
+    verify(placeDetailFacade).getPlaceDetail(1, null);
+  }
+
+  @Test
+  @DisplayName("인증한 회원의 식별자로 장소 상세를 조회한다")
+  @WithMockUser(username = "member-1")
+  void passesAuthenticatedMemberToPlaceDetail() throws Exception {
+    // Given
+    doThrow(new PlaceNotFoundException()).when(placeDetailFacade).getPlaceDetail(1, "member-1");
+    // When
+    ResultActions result = mockMvc.perform(get("/api/v1/places/1"));
+
+    // Then
+    result.andExpect(status().isNotFound());
+    verify(placeDetailFacade).getPlaceDetail(1, "member-1");
   }
 
   @Test

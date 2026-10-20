@@ -5,6 +5,8 @@ import com.todayit.course.entity.Course;
 import com.todayit.course.repository.CourseRepository;
 import com.todayit.course.service.model.CourseResult;
 import com.todayit.course.service.model.CourseSort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -15,7 +17,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CourseQueryService implements CoursePlaceQueryService {
 
+  private static final Logger LOG = LoggerFactory.getLogger(CourseQueryService.class);
+
   private final CourseRepository courseRepository;
+
+  /**
+   * 공개 여부와 관계없이 해당 장소가 포함된 활성 코스에서 0분을 제외한 체류 시간을 평균 내어 분 단위 정수로 반올림합니다.
+   *
+   * @param placeId 장소 식별자
+   * @return 평균 체류 시간(분), 0분을 제외한 체류 시간이 없으면 0
+   */
+  @Override
+  @Transactional(readOnly = true)
+  public long getAverageStayMinutes(int placeId) {
+    Double average = courseRepository.findAverageStayMinutes(placeId);
+    return average == null ? 0 : Math.round(average);
+  }
 
   /**
    * 코스 조회에 필요한 Repository를 받습니다.
@@ -46,6 +63,13 @@ public class CourseQueryService implements CoursePlaceQueryService {
     Page<Course> coursePage =
         courseRepository.findPublicActiveByPlaceId(placeId, PageRequest.of(page, size, order));
 
+    LOG.info(
+        "장소별 코스 조회: placeId={}, page={}, size={}, sort={}, resultCount={}",
+        placeId,
+        page,
+        size,
+        sort,
+        coursePage.getNumberOfElements());
     return new PageResult<>(
         coursePage.getContent().stream()
             .map(course -> CourseResult.from(course.getSnapshot()))

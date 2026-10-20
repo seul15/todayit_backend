@@ -32,6 +32,30 @@ class CourseQueryServiceTest {
   @Mock private Course course;
 
   @Test
+  @DisplayName("체류 시간 데이터가 없으면 평균 체류 시간을 0분으로 반환한다")
+  void returnsZeroWhenNoStayMinutesExist() {
+    // Given
+    when(courseRepository.findAverageStayMinutes(1)).thenReturn(null);
+    // When
+    long result = new CourseQueryService(courseRepository).getAverageStayMinutes(1);
+
+    // Then
+    assertThat(result).isZero();
+  }
+
+  @Test
+  @DisplayName("평균 체류 시간을 분 단위 정수로 반올림한다")
+  void roundsAverageStayMinutes() {
+    // Given
+    when(courseRepository.findAverageStayMinutes(1)).thenReturn(35.5);
+    // When
+    long result = new CourseQueryService(courseRepository).getAverageStayMinutes(1);
+
+    // Then
+    assertThat(result).isEqualTo(36);
+  }
+
+  @Test
   @DisplayName("장소를 포함한 코스를 최신순으로 페이지 조회한다")
   void findsLatestCoursesByPlace() {
     // Given

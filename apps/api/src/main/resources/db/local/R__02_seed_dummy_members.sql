@@ -39,9 +39,9 @@ FROM (
         )
 ) AS seed(member_id, email, password, nickname)
 CROSS JOIN region
-WHERE region.si = '서울특별시'
-  AND region.gun = '해당 없음'
-  AND region.gu = '종로구'
+WHERE region.si = '11'
+  AND region.gun = '000'
+  AND region.gu = '110'
   AND NOT EXISTS (
       SELECT 1
       FROM member

@@ -15,6 +15,7 @@ import java.util.List;
  * @param address 주소
  * @param category 카테고리
  * @param viewCount 조회수
+ * @param liked 요청 회원의 좋아요 여부, 비회원이면 false
  * @param imageUrls 장소 이미지 URL 목록
  */
 public record PlaceResult(
@@ -25,7 +26,8 @@ public record PlaceResult(
     String address,
     Category category,
     int viewCount,
-    List<String> imageUrls) {
+    List<String> imageUrls,
+    boolean liked) {
 
   /**
    * 장소 Entity의 조회 정보를 서비스 결과로 변환합니다.
@@ -42,6 +44,7 @@ public record PlaceResult(
         snapshot.address(),
         snapshot.category(),
         snapshot.viewCount(),
-        snapshot.imageUrls());
+        snapshot.imageUrls(),
+        false);
   }
 }

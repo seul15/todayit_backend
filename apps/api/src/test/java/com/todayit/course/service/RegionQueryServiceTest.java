@@ -2,7 +2,7 @@ package com.todayit.course.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.todayit.course.exception.InvalidRegionPathException;
@@ -16,117 +16,244 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class RegionQueryServiceTest {
-
   @Mock private RegionRepository regionRepository;
 
   @Test
-  @DisplayName("시·도만 선택하면 모든 하위 지역을 반환한다")
-  void findsAllRegionsInSi() {
+  @DisplayName("시도 코드만으로 조회한다")
+  void findsRegionsBySiOnly() {
     // Given
-    when(regionRepository.findIdsBySi("서울특별시")).thenReturn(List.of(1, 2));
+    when(regionRepository.findIdsByCodes("41", null, null)).thenReturn(List.of(1, 2));
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When
-    List<Integer> result = service.findRegionIds("서울특별시");
+    List<Integer> result = service.findRegionIds("41", null, null);
 
     // Then
     assertThat(result).containsExactly(1, 2);
-    verify(regionRepository).findIdsBySi("서울특별시");
   }
 
   @Test
-  @DisplayName("시·군만 선택하면 모든 하위 구를 반환한다")
-  void findsAllRegionsInGun() {
+  @DisplayName("시군 코드만으로 조회한다")
+  void findsRegionsByGunOnly() {
     // Given
-    when(regionRepository.findIdsBySi("수원시")).thenReturn(List.of());
-    when(regionRepository.findIdsByGun("수원시")).thenReturn(List.of(10, 11, 12, 13));
+    when(regionRepository.findIdsByCodes(null, "110", null)).thenReturn(List.of(1, 2));
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When
-    List<Integer> result = service.findRegionIds("수원시");
+    List<Integer> result = service.findRegionIds(null, "110", null);
 
     // Then
-    assertThat(result).containsExactly(10, 11, 12, 13);
-    verify(regionRepository).findIdsBySi("수원시");
-    verify(regionRepository).findIdsByGun("수원시");
+    assertThat(result).containsExactly(1, 2);
   }
 
   @Test
-  @DisplayName("구만 선택하면 동일한 이름의 구를 모두 반환한다")
-  void findsAllRegionsInGu() {
+  @DisplayName("구 코드만으로 조회한다")
+  void findsRegionsByGuOnly() {
     // Given
-    when(regionRepository.findIdsBySi("중구")).thenReturn(List.of());
-    when(regionRepository.findIdsByGun("중구")).thenReturn(List.of());
-    when(regionRepository.findIdsByGu("중구")).thenReturn(List.of(20, 21));
+    when(regionRepository.findIdsByCodes(null, null, "111")).thenReturn(List.of(1, 2));
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When
-    List<Integer> result = service.findRegionIds("중구");
+    List<Integer> result = service.findRegionIds(null, null, "111");
 
     // Then
-    assertThat(result).containsExactly(20, 21);
-    verify(regionRepository).findIdsBySi("중구");
-    verify(regionRepository).findIdsByGun("중구");
-    verify(regionRepository).findIdsByGu("중구");
+    assertThat(result).containsExactly(1, 2);
   }
 
   @Test
-  @DisplayName("시·도와 구를 선택하면 해당 하위 지역만 반환한다")
-  void findsRegionBySiAndSubdivision() {
+  @DisplayName("시도와 시군 코드를 함께 적용한다")
+  void findsRegionsBySiAndGun() {
     // Given
-    when(regionRepository.findIdsBySiAndSubdivision("서울특별시", "동대문구")).thenReturn(List.of(10));
+    when(regionRepository.findIdsByCodes("41", "110", null)).thenReturn(List.of(1, 2));
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When
-    List<Integer> result = service.findRegionIds(" 서울특별시   동대문구 ");
+    List<Integer> result = service.findRegionIds("41", "110", null);
 
     // Then
-    assertThat(result).containsExactly(10);
-    verify(regionRepository).findIdsBySiAndSubdivision("서울특별시", "동대문구");
+    assertThat(result).containsExactly(1, 2);
   }
 
   @Test
-  @DisplayName("시·군과 구만 선택해도 해당 지역을 반환한다")
-  void findsRegionByGunAndGu() {
+  @DisplayName("시도와 구 코드를 함께 적용한다")
+  void findsRegionsBySiAndGu() {
     // Given
-    when(regionRepository.findIdsBySiAndSubdivision("수원시", "팔달구")).thenReturn(List.of());
-    when(regionRepository.findIdsByGunAndGu("수원시", "팔달구")).thenReturn(List.of(15));
+    when(regionRepository.findIdsByCodes("41", null, "111")).thenReturn(List.of(1, 2));
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When
-    List<Integer> result = service.findRegionIds("수원시 팔달구");
+    List<Integer> result = service.findRegionIds("41", null, "111");
 
     // Then
-    assertThat(result).containsExactly(15);
-    verify(regionRepository).findIdsBySiAndSubdivision("수원시", "팔달구");
-    verify(regionRepository).findIdsByGunAndGu("수원시", "팔달구");
+    assertThat(result).containsExactly(1, 2);
   }
 
   @Test
-  @DisplayName("시·도, 시·군과 구를 순서대로 검증한다")
-  void findsRegionByFullPath() {
+  @DisplayName("시군과 구 코드를 함께 적용한다")
+  void findsRegionsByGunAndGu() {
     // Given
-    when(regionRepository.findIdsBySiAndGunAndGu("경기도", "수원시", "팔달구")).thenReturn(List.of(20));
+    when(regionRepository.findIdsByCodes(null, "110", "111")).thenReturn(List.of(1, 2));
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When
-    List<Integer> result = service.findRegionIds("경기도 수원시 팔달구");
+    List<Integer> result = service.findRegionIds(null, "110", "111");
 
     // Then
-    assertThat(result).containsExactly(20);
-    verify(regionRepository).findIdsBySiAndGunAndGu("경기도", "수원시", "팔달구");
+    assertThat(result).containsExactly(1, 2);
   }
 
   @Test
-  @DisplayName("존재하지 않는 상하위 지역 조합은 거부한다")
-  void rejectsInvalidRegionPath() {
+  @DisplayName("지역 코드 세 조건을 모두 적용한다")
+  void findsRegionsByAllCodes() {
     // Given
-    when(regionRepository.findIdsBySiAndSubdivision("서울특별시", "해운대구")).thenReturn(List.of());
+    when(regionRepository.findIdsByCodes("41", "110", "111")).thenReturn(List.of(1, 2));
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When
+    List<Integer> result = service.findRegionIds("41", "110", "111");
+
+    // Then
+    assertThat(result).containsExactly(1, 2);
+  }
+
+  @Test
+  @DisplayName("시도 코드가 2자리보다 짧으면 거부한다")
+  void rejectsShortSi() {
+    // Given
     RegionQueryService service = new RegionQueryService(regionRepository);
 
     // When & Then
-    assertThatThrownBy(() -> service.findRegionIds("서울특별시 해운대구"))
-        .isInstanceOf(InvalidRegionPathException.class)
-        .hasMessage("지역 필터 값이 올바르지 않습니다.");
+    assertThatThrownBy(() -> service.findRegionIds("1", null, null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("시도 코드가 2자리보다 길면 거부한다")
+  void rejectsLongSi() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds("411", null, null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("시도 코드가 숫자가 아니면 거부한다")
+  void rejectsNonNumericSi() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds("ab", null, null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("공백 시도 코드를 거부한다")
+  void rejectsBlankSi() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(" ", null, null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("빈 시도 코드를 거부한다")
+  void rejectsEmptySi() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds("", null, null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("시군 코드가 3자리보다 짧으면 거부한다")
+  void rejectsShortGun() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(null, "11", null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("시군 코드가 3자리보다 길면 거부한다")
+  void rejectsLongGun() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(null, "1100", null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("시군 코드가 숫자가 아니면 거부한다")
+  void rejectsNonNumericGun() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(null, "abc", null))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("구 코드가 3자리보다 짧으면 거부한다")
+  void rejectsShortGu() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(null, null, "11"))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("구 코드가 3자리보다 길면 거부한다")
+  void rejectsLongGu() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(null, null, "1111"))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("구 코드가 숫자가 아니면 거부한다")
+  void rejectsNonNumericGu() {
+    // Given
+    RegionQueryService service = new RegionQueryService(regionRepository);
+
+    // When & Then
+    assertThatThrownBy(() -> service.findRegionIds(null, null, "abc"))
+        .isInstanceOf(InvalidRegionPathException.class);
+    verifyNoInteractions(regionRepository);
+  }
+
+  @Test
+  @DisplayName("존재하지 않는 지역 코드 조합을 거부한다")
+  void rejectsUnknownCodeCombination() {
+    when(regionRepository.findIdsByCodes("41", "999", null)).thenReturn(List.of());
+    assertThatThrownBy(
+            () -> new RegionQueryService(regionRepository).findRegionIds("41", "999", null))
+        .isInstanceOf(InvalidRegionPathException.class);
   }
 }

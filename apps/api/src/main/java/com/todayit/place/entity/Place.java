@@ -40,6 +40,9 @@ public class Place {
   @Enumerated(EnumType.STRING)
   private Category category;
 
+  @Column(name = "description", columnDefinition = "text")
+  private String description;
+
   @Column(name = "view_count", nullable = false)
   private int viewCount;
 
@@ -68,6 +71,24 @@ public class Place {
   private List<PlaceMemberLike> memberLikes = new ArrayList<>();
 
   protected Place() {}
+
+  /**
+   * 장소 설명을 반환합니다.
+   *
+   * @return 장소 설명, 미등록 시 null
+   */
+  public String getDescription() {
+    return description;
+  }
+
+  /**
+   * 장소의 영업시간 목록을 반환합니다.
+   *
+   * @return 영업시간 목록
+   */
+  public List<Hours> getHours() {
+    return List.copyOf(hours);
+  }
 
   /**
    * 장소에 등록된 이미지를 반환합니다.

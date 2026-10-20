@@ -55,7 +55,8 @@ class MemberControllerTest {
             "서울특별시 종로구 종로 1",
             Category.RESTAURANT,
             10,
-            List.of("https://example.com/place.jpg"));
+            List.of("https://example.com/place.jpg"),
+            false);
     when(placeScrapQueryService.findScrappedPlaces("member-1", 1, 20, PlaceScrapSort.OLDEST))
         .thenReturn(new PageResult<>(List.of(place), 1, 20, 21));
 

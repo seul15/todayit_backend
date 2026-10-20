@@ -107,8 +107,8 @@ class RequestErrorIntegrationTest {
   }
 
   @Test
-  @DisplayName("인증된 요청의 경로에서 장소 식별자가 빠지면 404를 유지한다")
-  void preservesNotFoundForMissingPlaceIdWithValidAuthentication() throws Exception {
+  @DisplayName("인증된 요청에서 조회 경로에 POST를 보내면 405를 반환한다")
+  void returnsMethodNotAllowedForPostToPlaceDetailWithValidAuthentication() throws Exception {
     // Given
     authenticate();
     String path = "/api/v1/places/scrap";
@@ -117,7 +117,7 @@ class RequestErrorIntegrationTest {
     HttpResponse<String> response = send(path, "POST", true);
 
     // Then
-    assertThat(response.statusCode()).isEqualTo(404);
+    assertThat(response.statusCode()).isEqualTo(405);
   }
 
   @Test

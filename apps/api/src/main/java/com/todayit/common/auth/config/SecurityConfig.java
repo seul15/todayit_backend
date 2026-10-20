@@ -121,6 +121,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/members/nickname/check")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/places/*")
+                    .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/places")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/places/*/location")

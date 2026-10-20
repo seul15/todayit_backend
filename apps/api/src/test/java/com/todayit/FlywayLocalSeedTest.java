@@ -80,9 +80,9 @@ class FlywayLocalSeedTest {
     assertThat(regionCount).isEqualTo(expectedRegionCount);
     assertThat(placeCount).isPositive();
     assertThat(unmappedPlaceCount).isZero();
-    assertThat(hasRegion("서울특별시", "해당 없음", "종로구")).isTrue();
-    assertThat(hasRegion("경기도", "수원시", "팔달구")).isTrue();
-    assertThat(hasRegion("세종특별자치시", "해당 없음", "해당 없음")).isTrue();
+    assertThat(hasRegion("11", "000", "110")).isTrue();
+    assertThat(hasRegion("41", "110", "115")).isTrue();
+    assertThat(hasRegion("36", "110", "000")).isTrue();
   }
 
   @Test

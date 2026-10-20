@@ -10,68 +10,18 @@ import org.springframework.data.repository.query.Param;
 public interface RegionRepository extends JpaRepository<Region, Integer> {
 
   /**
-   * 시·도에 속한 모든 지역 식별자를 조회합니다.
+   * 전달된 코드만 AND 조건으로 적용하여 지역 식별자를 조회합니다.
    *
-   * @param si 시·도
-   * @return 시·도에 속한 지역 식별자 목록
-   */
-  @Query("select region.regionId from Region region where region.si = :si")
-  List<Integer> findIdsBySi(@Param("si") String si);
-
-  /**
-   * 시·군 이름이 일치하는 모든 지역 식별자를 조회합니다.
-   *
-   * @param gun 시·군
-   * @return 시·군과 그 하위 구에 속한 지역 식별자 목록
-   */
-  @Query("select region.regionId from Region region where region.gun = :gun")
-  List<Integer> findIdsByGun(@Param("gun") String gun);
-
-  /**
-   * 구 이름이 일치하는 모든 지역 식별자를 조회합니다.
-   *
-   * @param gu 구
-   * @return 동일한 구 이름을 가진 지역 식별자 목록
-   */
-  @Query("select region.regionId from Region region where region.gu = :gu")
-  List<Integer> findIdsByGu(@Param("gu") String gu);
-
-  /**
-   * 시·도 안에서 시·군 또는 구가 일치하는 지역 식별자를 조회합니다.
-   *
-   * @param si 시·도
-   * @param subdivision 시·군 또는 구
-   * @return 상하위 경로가 일치하는 지역 식별자 목록
+   * @param si 시·도 코드, 생략 가능
+   * @param gun 시·군 코드, 생략 가능
+   * @param gu 구 코드, 생략 가능
+   * @return 조건에 해당하는 지역 식별자 목록
    */
   @Query(
       "select region.regionId from Region region "
-          + "where region.si = :si "
-          + "and (region.gun = :subdivision or region.gu = :subdivision)")
-  List<Integer> findIdsBySiAndSubdivision(
-      @Param("si") String si, @Param("subdivision") String subdivision);
-
-  /**
-   * 시·군과 구가 일치하는 지역 식별자를 조회합니다.
-   *
-   * @param gun 시·군
-   * @param gu 구
-   * @return 시·군과 구가 일치하는 지역 식별자 목록
-   */
-  @Query(
-      "select region.regionId from Region region " + "where region.gun = :gun and region.gu = :gu")
-  List<Integer> findIdsByGunAndGu(@Param("gun") String gun, @Param("gu") String gu);
-
-  /**
-   * 시·도, 시·군과 구가 모두 일치하는 지역 식별자를 조회합니다.
-   *
-   * @param si 시·도
-   * @param gun 시·군
-   * @param gu 구
-   * @return 전체 지역 경로가 일치하는 지역 식별자 목록
-   */
-  @Query(
-      "select region.regionId from Region region "
-          + "where region.si = :si and region.gun = :gun and region.gu = :gu")
-  List<Integer> findIdsBySiAndGunAndGu(
+          + "where (:si is null or region.si = :si) "
+          + "and (:gun is null or region.gun = :gun) "
+          + "and (:gu is null or region.gu = :gu)")
+  List<Integer> findIdsByCodes(
       @Param("si") String si, @Param("gun") String gun, @Param("gu") String gu);
 }

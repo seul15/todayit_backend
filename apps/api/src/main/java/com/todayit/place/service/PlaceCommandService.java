@@ -8,12 +8,16 @@ import com.todayit.place.repository.PlaceRepository;
 import com.todayit.place.repository.PlaceScrapRepository;
 import com.todayit.place.service.model.PlaceLikeResult;
 import com.todayit.place.service.model.PlaceScrapResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 장소 변경 업무를 처리하는 Command Service입니다. */
 @Service
 public class PlaceCommandService {
+
+  private static final Logger LOG = LoggerFactory.getLogger(PlaceCommandService.class);
 
   private final PlaceRepository placeRepository;
   private final PlaceMemberLikeRepository placeMemberLikeRepository;
@@ -46,6 +50,7 @@ public class PlaceCommandService {
    */
   @Transactional
   public PlaceScrapResult scrapPlace(int placeId, String memberId) {
+    LOG.info("장소 스크랩 요청: placeId={}", placeId);
     validatePlace(placeId);
     if (placeScrapRepository.existsByMemberIdAndPlacePlaceIdAndIsDeletedFalse(memberId, placeId)) {
       throw new PlaceAlreadyScrappedException();
@@ -55,7 +60,9 @@ public class PlaceCommandService {
       throw new PlaceAlreadyScrappedException();
     }
 
-    return new PlaceScrapResult(placeId, true, placeScrapRepository.countActiveByPlaceId(placeId));
+    long scrapCount = placeScrapRepository.countActiveByPlaceId(placeId);
+    LOG.info("장소 스크랩 처리: placeId={}, scrapCount={}", placeId, scrapCount);
+    return new PlaceScrapResult(placeId, true, scrapCount);
   }
 
   /**
@@ -68,10 +75,17 @@ public class PlaceCommandService {
    */
   @Transactional
   public PlaceScrapResult cancelPlaceScrap(int placeId, String memberId) {
+    LOG.info("장소 스크랩 취소 요청: placeId={}", placeId);
     validatePlace(placeId);
-    placeScrapRepository.cancelByMemberIdAndPlaceId(memberId, placeId);
+    int cancelledCount = placeScrapRepository.cancelByMemberIdAndPlaceId(memberId, placeId);
 
-    return new PlaceScrapResult(placeId, false, placeScrapRepository.countActiveByPlaceId(placeId));
+    long scrapCount = placeScrapRepository.countActiveByPlaceId(placeId);
+    LOG.info(
+        "장소 스크랩 취소 처리: placeId={}, cancelledCount={}, scrapCount={}",
+        placeId,
+        cancelledCount,
+        scrapCount);
+    return new PlaceScrapResult(placeId, false, scrapCount);
   }
 
   /**
@@ -85,13 +99,16 @@ public class PlaceCommandService {
    */
   @Transactional
   public PlaceLikeResult likePlace(int placeId, String memberId) {
+    LOG.info("장소 좋아요 요청: placeId={}", placeId);
     validatePlace(placeId);
     int insertedCount = placeMemberLikeRepository.insertIfAbsent(memberId, placeId);
     if (insertedCount == 0) {
       throw new PlaceAlreadyLikedException();
     }
 
-    return new PlaceLikeResult(placeId, true, placeMemberLikeRepository.countByPlaceId(placeId));
+    long likeCount = placeMemberLikeRepository.countByPlaceId(placeId);
+    LOG.info("장소 좋아요 처리: placeId={}, likeCount={}", placeId, likeCount);
+    return new PlaceLikeResult(placeId, true, likeCount);
   }
 
   private void validatePlace(int placeId) {

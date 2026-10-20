@@ -1,9 +1,9 @@
 name: 개발 컨테이너 이미지 게시
 
 on:
-#  push:
-#    branches:
-#      - develop
+  push:
+    branches:
+      - develop
 
   workflow_dispatch:
 

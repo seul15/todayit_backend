@@ -7,6 +7,7 @@ import com.todayit.place.entity.Place;
 import com.todayit.place.entity.PlaceImage;
 import com.todayit.place.exception.PlaceNotFoundException;
 import com.todayit.place.repository.PlaceImageRepository;
+import com.todayit.place.repository.PlaceMemberLikeRepository;
 import com.todayit.place.repository.PlaceRepository;
 import com.todayit.place.repository.PlaceScrapRepository;
 import com.todayit.place.service.model.PlaceImageResult;
@@ -17,7 +18,10 @@ import com.todayit.place.service.model.PlaceSort;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -28,6 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PlaceQueryService implements PlaceScrapQueryService {
 
+  private static final Logger LOG = LoggerFactory.getLogger(PlaceQueryService.class);
+
+  private final PlaceMemberLikeRepository placeMemberLikeRepository;
   private final PlaceRepository placeRepository;
   private final PlaceImageRepository placeImageRepository;
   private final PlaceScrapRepository placeScrapRepository;
@@ -36,16 +43,19 @@ public class PlaceQueryService implements PlaceScrapQueryService {
   /**
    * 장소 조회에 필요한 Repository를 받습니다.
    *
+   * @param placeMemberLikeRepository 장소 좋아요 Repository
    * @param placeRepository 장소 Repository
    * @param placeImageRepository 장소 이미지 Repository
    * @param placeScrapRepository 장소 스크랩 Repository
    * @param regionPlaceQueryService 장소 필터용 지역 조회 Service 계약
    */
   public PlaceQueryService(
+      PlaceMemberLikeRepository placeMemberLikeRepository,
       PlaceRepository placeRepository,
       PlaceImageRepository placeImageRepository,
       PlaceScrapRepository placeScrapRepository,
       RegionPlaceQueryService regionPlaceQueryService) {
+    this.placeMemberLikeRepository = placeMemberLikeRepository;
     this.placeRepository = placeRepository;
     this.placeImageRepository = placeImageRepository;
     this.placeScrapRepository = placeScrapRepository;
@@ -55,24 +65,34 @@ public class PlaceQueryService implements PlaceScrapQueryService {
   /**
    * 활성화되고 삭제되지 않은 장소를 페이지 단위로 조회합니다. 장소 이미지도 페이지 내 장소를 기준으로 일괄 조회하여 결과에 포함합니다.
    *
-   * @param region 단일 시·도·시·군·구 이름 또는 상위 지역부터 입력한 경로
+   * @param si 시·도 코드 2자리, 생략 가능
+   * @param gun 시·군 코드 3자리, 생략 가능
+   * @param gu 구 코드 3자리, 생략 가능
    * @param categories 장소 카테고리 목록
    * @param page 페이지 번호
    * @param size 페이지 크기
+   * @param memberId 선택 회원 식별자, 비회원이면 null
    * @param sort 정렬 기준
    * @return 장소 목록과 페이지 정보
    */
   @Transactional(readOnly = true)
   public PageResult<PlaceResult> findPlaces(
-      String region, List<Category> categories, int page, int size, PlaceSort sort) {
+      String si,
+      String gun,
+      String gu,
+      List<Category> categories,
+      int page,
+      int size,
+      PlaceSort sort,
+      String memberId) {
     Sort order =
         sort == PlaceSort.LATEST
             ? Sort.by(Sort.Direction.DESC, "createdAt")
             : Sort.by(Sort.Direction.DESC, "viewCount");
 
-    boolean regionFiltered = region != null;
+    boolean regionFiltered = si != null || gun != null || gu != null;
     List<Integer> regionIds =
-        regionFiltered ? regionPlaceQueryService.findRegionIds(region) : List.of(0);
+        regionFiltered ? regionPlaceQueryService.findRegionIds(si, gun, gu) : List.of(0);
     boolean categoryFiltered = categories != null && !categories.isEmpty();
     List<Category> categoryFilters =
         categoryFiltered ? List.copyOf(categories) : Arrays.asList(Category.values());
@@ -85,9 +105,37 @@ public class PlaceQueryService implements PlaceScrapQueryService {
             PageRequest.of(page, size, order));
     List<Place> places = placePage.getContent();
     Map<Integer, List<String>> imageUrlsByPlaceId = findImageUrlsByPlaceId(places);
+    Set<Integer> likedPlaceIds =
+        memberId == null || places.isEmpty()
+            ? Set.of()
+            : placeMemberLikeRepository.findLikedPlaceIds(
+                memberId, places.stream().map(Place::getPlaceId).toList());
     List<PlaceResult> content =
-        places.stream().map(place -> toResult(place, imageUrlsByPlaceId)).toList();
+        places.stream()
+            .map(
+                place -> {
+                  PlaceResult result = toResult(place, imageUrlsByPlaceId);
+                  return new PlaceResult(
+                      result.placeId(),
+                      result.name(),
+                      result.latitude(),
+                      result.longitude(),
+                      result.address(),
+                      result.category(),
+                      result.viewCount(),
+                      result.imageUrls(),
+                      likedPlaceIds.contains(place.getPlaceId()));
+                })
+            .toList();
 
+    LOG.info(
+        "장소 목록 조회: regionFiltered={}, categoryFiltered={}, page={}, size={}, sort={}, resultCount={}",
+        regionFiltered,
+        categoryFiltered,
+        page,
+        size,
+        sort,
+        content.size());
     return new PageResult<>(
         content, placePage.getNumber(), placePage.getSize(), placePage.getTotalElements());
   }
@@ -106,6 +154,7 @@ public class PlaceQueryService implements PlaceScrapQueryService {
             .findByPlaceIdAndIsActiveTrueAndIsDeletedFalse(placeId)
             .orElseThrow(PlaceNotFoundException::new);
 
+    LOG.info("장소 위치 조회: placeId={}", placeId);
     return PlaceLocationResult.from(place.getSnapshot());
   }
 
@@ -145,6 +194,12 @@ public class PlaceQueryService implements PlaceScrapQueryService {
                 size,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("placeImageId"))));
 
+    LOG.info(
+        "장소 사진 조회: placeId={}, page={}, size={}, resultCount={}",
+        placeId,
+        page,
+        size,
+        imagePage.getNumberOfElements());
     return new PageResult<>(
         imagePage.getContent().stream()
             .map(image -> new PlaceImageResult(image.getPlaceImageId(), image.getImageUrl()))
@@ -176,6 +231,8 @@ public class PlaceQueryService implements PlaceScrapQueryService {
     List<PlaceResult> content =
         places.stream().map(place -> toResult(place, imageUrlsByPlaceId)).toList();
 
+    LOG.info(
+        "스크랩 장소 조회: page={}, size={}, sort={}, resultCount={}", page, size, sort, content.size());
     return new PageResult<>(
         content, placePage.getNumber(), placePage.getSize(), placePage.getTotalElements());
   }
