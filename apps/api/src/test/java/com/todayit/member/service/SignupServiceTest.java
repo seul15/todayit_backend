@@ -654,4 +654,55 @@ class SignupServiceTest {
     // 공백 제거된 값으로 중복을 검사했는지 확인
     verify(memberRepository).existsByNormalizedNickname("오늘이");
   }
+
+  @Test
+  @DisplayName("Google 고유 ID UNIQUE 위반은 계정 중복 오류로 변환한다")
+  void convertsGoogleUserIdUniqueViolationToBusinessException() {
+
+    // Given
+    GoogleIdentity identity = new GoogleIdentity("google-user-123", "google@test.com", true);
+
+    SignupCommand command =
+        new SignupCommand(
+            MemberProvider.GOOGLE,
+            null,
+            null,
+            null,
+            "signup-token",
+            "구글회원",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
+
+    when(memberRepository.save(any(Member.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    // 동시 가입 시 DB에서 발생할 수 있는 UNIQUE 제약 위반 재현
+    ConstraintViolationException constraintException =
+        new ConstraintViolationException(
+            "Google 계정 고유 ID 중복",
+            new SQLException("duplicate key", "23505"),
+            "uk_member_provider_user_id");
+
+    doThrow(new DataIntegrityViolationException("DB UNIQUE 위반", constraintException))
+        .when(memberRepository)
+        .flush();
+
+    // When & Then
+    assertThatThrownBy(() -> signupService.createGoogleMember(command, identity))
+        .isInstanceOf(BusinessException.class)
+        .satisfies(
+            exception ->
+                assertThat(((BusinessException) exception).getErrorCode())
+                    .isEqualTo(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS));
+
+    // 회원 저장 실패 후에는 권한과 약관 동의를 저장하지 않음
+    verify(memberRepository).flush();
+
+    verify(memberRoleRepository, never()).save(any(MemberRole.class));
+
+    verify(memberAgreementRepository, never()).save(any(MemberAgreement.class));
+  }
 }

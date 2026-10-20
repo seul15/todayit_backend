@@ -1,6 +1,7 @@
 package com.todayit.member.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -108,5 +110,25 @@ class MemberGoogleRepositoryTest {
 
     assertThat(savedMember).isPresent();
     assertThat(savedMember.map(Member::getId)).contains(member.getId());
+  }
+
+  @Test
+  @DisplayName("동일한 Google 사용자 ID는 중복 저장할 수 없다")
+  void rejectsDuplicateGoogleProviderUserId() {
+
+    // Given
+    String googleUserId = "google-duplicate-" + UUID.randomUUID();
+
+    Member firstMember = Member.createGoogle("first@example.com", googleUserId, "첫번째회원");
+
+    Member secondMember = Member.createGoogle("second@example.com", googleUserId, "두번째회원");
+
+    // 첫 번째 회원 저장
+    memberRepository.saveAndFlush(firstMember);
+
+    // When & Then
+    // 이메일과 닉네임이 달라도 동일한 Google ID라면 UNIQUE 제약 위반
+    assertThatThrownBy(() -> memberRepository.saveAndFlush(secondMember))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 }
