@@ -619,4 +619,39 @@ class SignupServiceTest {
 
     verify(memberRepository, never()).save(any());
   }
+
+  @Test
+  @DisplayName("서비스 직접 호출 시에도 비밀번호 필수 문자 조합을 검사한다")
+  void rejectsPasswordWithoutRequiredCharacters() {
+
+    // Given
+    SignupCommand command =
+        new SignupCommand(
+            "test@test.com", "verification-token", "abcdefghij", "오늘이", Map.of("TOS", true));
+
+    // When & Then
+    assertThatThrownBy(() -> signupService.createLocalMember(command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("비밀번호는 영문, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다.");
+
+    // 유효하지 않은 비밀번호는 DB에 저장하지 않음
+    verify(memberRepository, never()).save(any(Member.class));
+  }
+
+  @Test
+  @DisplayName("닉네임 중복 확인 시 앞뒤 공백을 제거한다")
+  void normalizesNicknameBeforeAvailabilityCheck() {
+
+    // When
+    boolean available = signupService.isNicknameAvailable("  오늘이  ");
+
+    // Then
+    assertThat(available).isTrue();
+
+    // 공백 제거된 값으로 금칙어를 검사했는지 확인
+    verify(nicknameBlocklistRepository).existsBlockedNickname("오늘이");
+
+    // 공백 제거된 값으로 중복을 검사했는지 확인
+    verify(memberRepository).existsByNormalizedNickname("오늘이");
+  }
 }

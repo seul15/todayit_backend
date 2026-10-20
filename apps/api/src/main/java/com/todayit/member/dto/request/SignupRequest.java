@@ -3,8 +3,8 @@ package com.todayit.member.dto.request;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.service.command.SignupCommand;
+import com.todayit.member.util.PasswordValidator;
 import io.swagger.v3.oas.annotations.media.Schema;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -29,22 +29,31 @@ public record SignupRequest(
         String email,
     @Schema(description = "LOCAL 회원가입 시 사용할 이메일 인증 완료 토큰입니다.") String emailVerificationToken,
     @Schema(
-            description = "LOCAL 회원가입 비밀번호입니다.",
+            description =
+                "LOCAL 회원가입 비밀번호입니다. 10~72자, UTF-8 72바이트 이하이며 영문·숫자·특수문자를 각각 1개 이상 포함해야 합니다.",
             format = "password",
             accessMode = Schema.AccessMode.WRITE_ONLY)
         String password,
     @Schema(description = "GOOGLE 인증 완료 후 발급받은 회원가입용 임시 토큰입니다.") String signupToken,
-    @Schema(description = "닉네임은 한글, 영문, 숫자 2~8자입니다.", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(
+            description = "닉네임은 앞뒤 공백 제거 후 한글, 영문, 숫자 2~8자입니다.",
+            requiredMode = Schema.RequiredMode.REQUIRED)
         String nickname,
     @Schema(
             description = "약관 코드별 동의 여부입니다. 필수 약관은 TOS, ACCOUNT_PRIVACY입니다.",
             requiredMode = Schema.RequiredMode.REQUIRED)
         Map<String, Boolean> agreements) {
 
-  /** 가입 방식이 생략된 기존 요청을 LOCAL 회원가입으로 처리합니다. */
+  /** 가입 방식 기본값을 설정하고 닉네임을 정규화합니다. */
   public SignupRequest {
+    // provider 생략 시 기존 LOCAL 회원가입으로 처리
     if (provider == null) {
       provider = MemberProvider.LOCAL;
+    }
+
+    // 회원가입 방식과 관계없이 닉네임 앞뒤 공백 제거
+    if (nickname != null) {
+      nickname = nickname.strip();
     }
   }
 
@@ -118,21 +127,11 @@ public record SignupRequest(
       throw new InvalidRequestException("이메일 인증 토큰은 필수입니다.");
     }
 
-    if (password == null || password.isBlank()) {
-      throw new InvalidRequestException("비밀번호는 필수입니다.");
-    }
+    // 공통 비밀번호 검증 수행
+    // 길이, 바이트 수, 영문·숫자·특수문자 필수 여부 확인
+    PasswordValidator.validate(password);
 
-    int passwordLength = password.codePointCount(0, password.length());
-
-    if (passwordLength < 10 || passwordLength > 72) {
-      throw new InvalidRequestException("비밀번호는 10자 이상 72자 이하로 입력해 주세요.");
-    }
-
-    if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
-      throw new InvalidRequestException("비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.");
-    }
-
-    // LOCAL 회원가입에서는 Google 가입 토큰을 사용할 수 없음
+    // LOCAL 회원가입에서 Google 임시 가입 토큰 사용 금지
     if (signupToken != null) {
       throw new InvalidRequestException("LOCAL 회원가입에는 signupToken을 사용할 수 없습니다.");
     }

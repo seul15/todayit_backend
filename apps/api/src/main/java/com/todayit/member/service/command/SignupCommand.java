@@ -24,6 +24,19 @@ public record SignupCommand(
     Map<String, Boolean> agreements) {
 
   /**
+   * 회원가입 서비스에 전달할 닉네임을 정규화합니다.
+   *
+   * <p>HTTP 요청을 거치지 않고 Command를 직접 생성하더라도 닉네임 앞뒤 공백을 제거합니다.
+   */
+  public SignupCommand {
+
+    // 닉네임이 null이 아닐 때만 앞뒤 공백 제거
+    if (nickname != null) {
+      nickname = nickname.strip();
+    }
+  }
+
+  /**
    * 기존 LOCAL 회원가입 서비스 테스트와의 호환성을 유지합니다.
    *
    * @param email 회원 이메일

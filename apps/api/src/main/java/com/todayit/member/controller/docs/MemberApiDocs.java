@@ -32,7 +32,8 @@ public interface MemberApiDocs {
   @Operation(
       summary = "닉네임 중복 확인",
       description =
-          "닉네임의 길이(2~8자), 허용 문자(한글·영문·숫자), 금칙어를 검사하고 사용 가능 여부를 반환합니다. "
+          "닉네임 앞뒤 공백을 제거한 후 길이(2~8자), 허용 문자(한글·영문·숫자), "
+              + "금칙어를 검사하고 사용 가능 여부를 반환합니다. "
               + "이미 사용 중인 닉네임은 오류가 아닌 available=false로 반환합니다.")
   @ApiResponses({
     @ApiResponse(

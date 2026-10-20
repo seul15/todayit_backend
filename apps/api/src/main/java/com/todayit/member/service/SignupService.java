@@ -20,6 +20,7 @@ import com.todayit.member.repository.NicknameBlocklistRepository;
 import com.todayit.member.repository.PasswordBlocklistRepository;
 import com.todayit.member.service.command.SignupCommand;
 import com.todayit.member.util.EmailNormalizer;
+import com.todayit.member.util.PasswordValidator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -104,23 +105,31 @@ public class SignupService {
    */
   @Transactional(readOnly = true)
   public boolean isNicknameAvailable(String nickname) {
+    // 닉네임 필수 입력 확인
     if (nickname == null || nickname.isBlank()) {
       throw new InvalidRequestException("닉네임은 필수입니다.");
     }
 
-    if (nickname.length() < 2 || nickname.length() > 8) {
+    // 앞뒤 공백을 제거한 뒤 검증
+    String normalizedNickname = nickname.strip();
+
+    // 닉네임 길이 확인
+    if (normalizedNickname.length() < 2 || normalizedNickname.length() > 8) {
       throw new InvalidRequestException("닉네임은 2자 이상 8자 이하이어야 합니다.");
     }
 
-    if (!nickname.matches("[가-힣A-Za-z0-9]+")) {
+    // 한글, 영문, 숫자 외 문자와 중간 공백은 거부
+    if (!normalizedNickname.matches("[가-힣A-Za-z0-9]+")) {
       throw new InvalidRequestException("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.");
     }
 
-    if (nicknameBlocklistRepository.existsBlockedNickname(nickname)) {
+    // 정규화된 닉네임으로 금칙어 검사
+    if (nicknameBlocklistRepository.existsBlockedNickname(normalizedNickname)) {
       throw new InvalidRequestException("사용할 수 없는 닉네임입니다.");
     }
 
-    return !memberRepository.existsByNormalizedNickname(nickname);
+    // 정규화된 닉네임으로 중복 확인
+    return !memberRepository.existsByNormalizedNickname(normalizedNickname);
   }
 
   /**
@@ -134,6 +143,9 @@ public class SignupService {
    */
   @Transactional
   public Member createLocalMember(SignupCommand command) {
+    // HTTP 요청을 거치지 않아도 비밀번호 정책을 검사
+    PasswordValidator.validate(command.password());
+
     String normalizedEmail = EmailNormalizer.normalize(command.email());
 
     // 동일한 LOCAL 이메일로 이미 가입했는지 검사
