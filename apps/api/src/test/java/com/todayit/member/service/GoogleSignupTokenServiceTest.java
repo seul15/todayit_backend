@@ -21,6 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
@@ -65,14 +67,7 @@ class GoogleSignupTokenServiceTest {
     verify(valueOperations)
         .set(keyCaptor.capture(), valueCaptor.capture(), eq(Duration.ofMinutes(30)));
 
-    String expectedHash =
-        Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(
-                MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8)));
-
-    assertThat(keyCaptor.getValue()).isEqualTo("auth:oauth-signup:google:" + expectedHash);
+    assertThat(keyCaptor.getValue()).isEqualTo(expectedRedisKey(token));
 
     GoogleIdentity storedIdentity =
         objectMapper.readValue(valueCaptor.getValue(), GoogleIdentity.class);
@@ -100,27 +95,18 @@ class GoogleSignupTokenServiceTest {
             ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), eq(Duration.ofMinutes(30)));
   }
 
-  @Test
-  @DisplayName("이메일이 인증되지 않은 Google 정보는 저장하지 않는다")
-  void rejectsUnverifiedEmail() {
+  @ParameterizedTest
+  @CsvSource({"google-user-123, false", "'', true"})
+  @DisplayName("인증되지 않았거나 사용자 ID가 없으면 가입 토큰을 발급하지 않는다")
+  void rejectsInvalidGoogleIdentity(String providerUserId, boolean emailVerified) {
+
     // Given
-    GoogleIdentity identity = new GoogleIdentity("google-user-123", "test@gmail.com", false);
+    GoogleIdentity identity = new GoogleIdentity(providerUserId, "test@gmail.com", emailVerified);
 
     // When & Then
     assertThatThrownBy(() -> service.issue(identity)).isInstanceOf(IllegalArgumentException.class);
 
-    verifyNoInteractions(redisTemplate);
-  }
-
-  @Test
-  @DisplayName("Google 사용자 고유 식별자가 없으면 토큰을 발급하지 않는다")
-  void rejectsMissingProviderUserId() {
-    // Given
-    GoogleIdentity identity = new GoogleIdentity("", "test@gmail.com", true);
-
-    // When & Then
-    assertThatThrownBy(() -> service.issue(identity)).isInstanceOf(IllegalArgumentException.class);
-
+    // 잘못된 인증 정보는 Redis에 저장하지 않음
     verifyNoInteractions(redisTemplate);
   }
 
@@ -179,17 +165,19 @@ class GoogleSignupTokenServiceTest {
     // Given
     String signupToken = "a".repeat(43);
 
-    String tokenHash =
-        Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(
-                MessageDigest.getInstance("SHA-256")
-                    .digest(signupToken.getBytes(StandardCharsets.UTF_8)));
-
     // When
     service.invalidate(signupToken);
 
     // Then
-    verify(redisTemplate).delete("auth:oauth-signup:google:" + tokenHash);
+    verify(redisTemplate).delete(expectedRedisKey(signupToken));
+  }
+
+  /** 가입 토큰으로 예상 Redis Key를 생성합니다. */
+  private String expectedRedisKey(String token) throws Exception {
+    byte[] hash =
+        MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+
+    return "auth:oauth-signup:google:"
+        + Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
   }
 }
