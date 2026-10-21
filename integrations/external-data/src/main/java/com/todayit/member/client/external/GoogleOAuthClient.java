@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
@@ -134,8 +135,8 @@ public class GoogleOAuthClient {
       throw new GoogleOAuthException(Reason.INVALID_ID_TOKEN, exception);
     }
 
-    // 토큰을 발급한 주체
-    String issuer = jwt.getIssuer() == null ? null : jwt.getIssuer().toString();
+    // Google issuer는 scheme이 없는 문자열도 허용하므로 문자열로 조회
+    String issuer = jwt.getClaimAsString(JwtClaimNames.ISS);
 
     // Google 발급자 확인
     if (!"https://accounts.google.com".equals(issuer) && !"accounts.google.com".equals(issuer)) {

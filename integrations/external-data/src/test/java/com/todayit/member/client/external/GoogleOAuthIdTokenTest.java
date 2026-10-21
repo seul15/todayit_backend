@@ -21,6 +21,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -121,20 +122,17 @@ class GoogleOAuthIdTokenTest {
    *
    * @return 유효한 JWT 문자열
    */
-  private String validIdToken() throws JOSEException {
+  private String validIdToken(String issuer) throws JOSEException {
     return signedIdToken(
-        trustedKeys,
-        "https://accounts.google.com",
-        CLIENT_ID,
-        CLIENT_ID,
-        Instant.now().plusSeconds(3600));
+        trustedKeys, issuer, CLIENT_ID, CLIENT_ID, Instant.now().plusSeconds(3600));
   }
 
-  @Test
-  @DisplayName("올바르게 서명된 Google ID Token은 인증에 성공한다")
-  void authenticatesValidGoogleIdToken() throws Exception {
+  @ParameterizedTest
+  @ValueSource(strings = {"https://accounts.google.com", "accounts.google.com"})
+  @DisplayName("Google에서 허용하는 두 issuer는 인증에 성공한다")
+  void authenticatesValidGoogleIdToken(String issuer) throws Exception {
     // Given
-    GoogleOAuthClient client = createClient(validIdToken());
+    GoogleOAuthClient client = createClient(validIdToken(issuer));
 
     // When
     GoogleIdentity identity = client.authenticate("authorization-code", REDIRECT_URI);
