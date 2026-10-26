@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.codec.CodecException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -229,7 +230,7 @@ public class GoogleOAuthClient {
 
             // Google 요청 제한(429)은 인가 코드 오류가 아닌 외부 서비스 장애로 처리
             .onStatus(
-                status -> status.value() == 429,
+                status -> status.value() == HttpStatus.TOO_MANY_REQUESTS.value(),
                 result -> Mono.error(new GoogleOAuthException(Reason.PROVIDER_UNAVAILABLE)))
 
             // 그 외 Google 4xx 응답은 인증 실패로 처리

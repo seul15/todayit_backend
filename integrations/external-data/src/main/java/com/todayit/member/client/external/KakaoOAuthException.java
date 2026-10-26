@@ -6,7 +6,10 @@ public class KakaoOAuthException extends RuntimeException {
   /** Kakao OAuth 실패 원인입니다. */
   public enum Reason {
     INVALID_AUTHORIZATION_CODE,
-    PROVIDER_UNAVAILABLE
+    INVALID_ACCESS_TOKEN,
+    INVALID_USER_INFO,
+    PROVIDER_UNAVAILABLE,
+    PROVIDER_REQUEST_REJECTED
   }
 
   private final Reason reason;
@@ -22,7 +25,7 @@ public class KakaoOAuthException extends RuntimeException {
   }
 
   /**
-   * 실제 원인한 원인 예외를 포함해 Google OAuth 오류를 생성합니다.
+   * 실제 원인한 원인 예외를 포함해 Kakao OAuth 오류를 생성합니다.
    *
    * @param reason 실패 원인
    * @param cause 실제 오류를 발생시킨 원인 예외

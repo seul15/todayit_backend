@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.codec.CodecException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.util.LinkedMultiValueMap;
@@ -14,10 +15,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientException;
 import reactor.core.publisher.Mono;
 
-/** Kakao OAuth 인가 코드를 Access Token으로 교환합니다. */
+/** Kakao OAuth 인가 코드 교환과 사용자 정보 조회를 담당합니다. */
 public class KakaoOAuthClient {
 
   private static final String TOKEN_URL = "https://kauth.kakao.com/oauth/token";
+
+  private static final String USER_INFO_URL = "https://kapi.kakao.com/v2/user/me";
 
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
 
@@ -89,7 +92,7 @@ public class KakaoOAuthClient {
             .bodyValue(form)
             .retrieve()
             .onStatus(
-                status -> status.value() == 429,
+                status -> status.value() == HttpStatus.TOO_MANY_REQUESTS.value(),
                 result -> Mono.error(new KakaoOAuthException(Reason.PROVIDER_UNAVAILABLE)))
             .onStatus(
                 HttpStatusCode::is4xxClientError,
@@ -119,5 +122,92 @@ public class KakaoOAuthClient {
     }
 
     return accessToken;
+  }
+
+  /**
+   * Kakao Access Token을 사용하여 사용자 정보를 조회합니다.
+   *
+   * @param accessToken Kakao Access Token
+   * @return Kakao 사용자 정보
+   * @throws KakaoOAuthException 토큰이 잘못되었거나 사용자 정보 조회에 실패한 경우
+   */
+  public KakaoIdentity getUserInfo(String accessToken) {
+    // Access Token 입력값 검증
+    if (accessToken == null || accessToken.isBlank()) {
+      throw new KakaoOAuthException(Reason.INVALID_ACCESS_TOKEN);
+    }
+
+    // Kakao 사용자 정보 조회 API 호출
+    Map<String, Object> response =
+        webClient
+            .get()
+            .uri(USER_INFO_URL)
+            .headers(headers -> headers.setBearerAuth(accessToken))
+            .retrieve()
+
+            // Access Token이 잘못되었거나 만료된 경우
+            .onStatus(
+                status -> status.value() == HttpStatus.UNAUTHORIZED.value(),
+                result -> Mono.error(new KakaoOAuthException(Reason.INVALID_ACCESS_TOKEN)))
+
+            // 요청 제한 및 Kakao 서버 장애
+            .onStatus(
+                status ->
+                    status.value() == HttpStatus.TOO_MANY_REQUESTS.value()
+                        || status.is5xxServerError(),
+                result -> Mono.error(new KakaoOAuthException(Reason.PROVIDER_UNAVAILABLE)))
+
+            // 그 외 잘못된 요청이나 권한 부족 등
+            .onStatus(
+                HttpStatusCode::is4xxClientError,
+                result -> Mono.error(new KakaoOAuthException(Reason.PROVIDER_REQUEST_REJECTED)))
+
+            // JSON 응답을 Map으로 변환
+            .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+
+            // 응답 대기 시간 제한
+            .timeout(REQUEST_TIMEOUT)
+
+            // 네트워크 및 응답 처리 오류
+            .onErrorMap(
+                WebClientException.class,
+                exception -> new KakaoOAuthException(Reason.PROVIDER_UNAVAILABLE, exception))
+            .onErrorMap(
+                CodecException.class,
+                exception -> new KakaoOAuthException(Reason.PROVIDER_UNAVAILABLE, exception))
+            .onErrorMap(
+                TimeoutException.class,
+                exception -> new KakaoOAuthException(Reason.PROVIDER_UNAVAILABLE, exception))
+            .block();
+
+    // Kakao 회원 고유 ID 검증
+    if (response == null
+        || !(response.get("id") instanceof Number kakaoId)
+        || kakaoId.longValue() <= 0) {
+      throw new KakaoOAuthException(Reason.INVALID_USER_INFO);
+    }
+
+    String email = null;
+    boolean emailVerified = false;
+
+    // Kakao 계정 정보 추출
+    Object kakaoAccount = response.get("kakao_account");
+
+    if (kakaoAccount instanceof Map<?, ?> account) {
+
+      // 이메일은 동의 및 계정 상태에 따라 없을 수 있음
+      Object rawEmail = account.get("email");
+
+      if (rawEmail instanceof String kakaoEmail && !kakaoEmail.isBlank()) {
+        email = kakaoEmail;
+      }
+
+      // 인증과 유효 여부가 모두 true일 때만 인정
+      emailVerified =
+          Boolean.TRUE.equals(account.get("is_email_verified"))
+              && Boolean.TRUE.equals(account.get("is_email_valid"));
+    }
+
+    return new KakaoIdentity(String.valueOf(kakaoId.longValue()), email, emailVerified);
   }
 }
