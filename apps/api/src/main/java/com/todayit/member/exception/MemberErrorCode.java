@@ -51,7 +51,10 @@ public enum MemberErrorCode implements ErrorCode {
       "GOOGLE_EMAIL_NOT_VERIFIED", "인증된 Google 이메일이 필요합니다.", ErrorStatus.UNAUTHORIZED),
 
   GOOGLE_AUTH_SERVER_ERROR(
-      "GOOGLE_AUTH_SERVER_ERROR", "Google 인증 서버에 연결할 수 없습니다.", ErrorStatus.INTERNAL_SERVER_ERROR);
+      "GOOGLE_AUTH_SERVER_ERROR", "Google 인증 서버에 연결할 수 없습니다.", ErrorStatus.INTERNAL_SERVER_ERROR),
+
+  KAKAO_SIGNUP_TOKEN_INVALID(
+      "KAKAO_SIGNUP_TOKEN_INVALID", "Kakao 회원가입 인증 정보가 만료되었거나 유효하지 않습니다.", ErrorStatus.BAD_REQUEST);
 
   private final String code;
   private final String message;
