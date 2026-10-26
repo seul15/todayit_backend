@@ -9,8 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.client.external.GoogleIdentity;
+import com.todayit.member.client.external.KakaoIdentity;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
 import com.todayit.member.service.command.SignupCommand;
@@ -29,6 +29,7 @@ class SignupFacadeTest {
 
   @Mock private SignupService signupService;
   @Mock private GoogleSignupTokenService googleSignupTokenService;
+  @Mock private KakaoSignupTokenService kakaoSignupTokenService;
 
   private SignupFacade signupFacade;
 
@@ -39,7 +40,8 @@ class SignupFacadeTest {
 
   @BeforeEach
   void setUp() {
-    signupFacade = new SignupFacade(signupService, googleSignupTokenService);
+    signupFacade =
+        new SignupFacade(signupService, googleSignupTokenService, kakaoSignupTokenService);
   }
 
   @Test
@@ -152,15 +154,57 @@ class SignupFacadeTest {
   }
 
   @Test
-  @DisplayName("아직 구현되지 않은 KAKAO 회원가입은 거부한다")
-  void rejectsUnsupportedProvider() {
+  @DisplayName("KAKAO 회원가입은 DB 저장 후 가입 토큰을 무효화한다")
+  void signsUpKakaoMember() {
+    // Given
+    String token = "kakao-signup-token";
+
     SignupCommand command =
-        new SignupCommand(
-            MemberProvider.KAKAO, null, null, null, "signup-token", "카카오회원", AGREEMENTS);
+        new SignupCommand(MemberProvider.KAKAO, null, null, null, token, "카카오회원", AGREEMENTS);
 
+    KakaoIdentity identity = new KakaoIdentity("123456789", null, false);
+
+    Member member = Member.createKakao(null, "123456789", "카카오회원");
+
+    when(kakaoSignupTokenService.getVerifiedIdentity(token)).thenReturn(identity);
+
+    when(signupService.createKakaoMember(command, identity)).thenReturn(member);
+
+    // When
+    Member result = signupFacade.signup(command);
+
+    // Then
+    assertThat(result).isSameAs(member);
+
+    InOrder inOrder = inOrder(kakaoSignupTokenService, signupService);
+
+    inOrder.verify(kakaoSignupTokenService).getVerifiedIdentity(token);
+
+    inOrder.verify(signupService).createKakaoMember(command, identity);
+
+    inOrder.verify(kakaoSignupTokenService).invalidate(token);
+  }
+
+  @Test
+  @DisplayName("KAKAO 회원가입 실패 시 임시 토큰을 삭제하지 않는다")
+  void preservesKakaoTokenWhenSignupFails() {
+    // Given
+    String token = "kakao-signup-token";
+
+    SignupCommand command =
+        new SignupCommand(MemberProvider.KAKAO, null, null, null, token, "카카오회원", AGREEMENTS);
+
+    KakaoIdentity identity = new KakaoIdentity("123456789", null, false);
+
+    when(kakaoSignupTokenService.getVerifiedIdentity(token)).thenReturn(identity);
+
+    when(signupService.createKakaoMember(command, identity))
+        .thenThrow(new IllegalStateException("DB 저장 실패"));
+
+    // When & Then
     assertThatThrownBy(() -> signupFacade.signup(command))
-        .isInstanceOf(InvalidRequestException.class);
+        .isInstanceOf(IllegalStateException.class);
 
-    verifyNoInteractions(signupService, googleSignupTokenService);
+    verify(kakaoSignupTokenService, never()).invalidate(token);
   }
 }

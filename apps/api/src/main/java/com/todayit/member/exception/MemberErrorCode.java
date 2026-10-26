@@ -60,7 +60,10 @@ public enum MemberErrorCode implements ErrorCode {
       "KAKAO_AUTHENTICATION_FAILED", "Kakao 인증에 실패했습니다.", ErrorStatus.UNAUTHORIZED),
 
   KAKAO_AUTH_SERVER_ERROR(
-      "KAKAO_AUTH_SERVER_ERROR", "Kakao 인증 서버에 연결할 수 없습니다.", ErrorStatus.INTERNAL_SERVER_ERROR);
+      "KAKAO_AUTH_SERVER_ERROR", "Kakao 인증 서버에 연결할 수 없습니다.", ErrorStatus.INTERNAL_SERVER_ERROR),
+
+  KAKAO_ACCOUNT_ALREADY_EXISTS(
+      "KAKAO_ACCOUNT_ALREADY_EXISTS", "이미 가입된 Kakao 계정입니다.", ErrorStatus.CONFLICT);
 
   private final String code;
   private final String message;

@@ -34,7 +34,7 @@ public record SignupRequest(
             format = "password",
             accessMode = Schema.AccessMode.WRITE_ONLY)
         String password,
-    @Schema(description = "GOOGLE 인증 완료 후 발급받은 회원가입용 임시 토큰입니다.") String signupToken,
+    @Schema(description = "GOOGLE 또는 KAKAO 인증 완료 후 발급받은 회원가입용 임시 토큰입니다.") String signupToken,
     @Schema(
             description = "닉네임은 앞뒤 공백 제거 후 한글, 영문, 숫자 2~8자입니다.",
             requiredMode = Schema.RequiredMode.REQUIRED)
@@ -86,26 +86,28 @@ public record SignupRequest(
   }
 
   /**
-   * 가입 방식에 따라 필수 입력값을 검증합니다.
+   * 회원가입 방식에 따라 필수 입력값을 검증합니다.
    *
    * @throws InvalidRequestException 입력값이 유효하지 않은 경우
    */
   public void validate() {
-
-    // LOCAL 회원은 이메일 인증과 비밀번호가 필요함
+    // LOCAL 회원가입
     if (provider == MemberProvider.LOCAL) {
       validateLocal();
 
-      // GOOGLE 회원은 Google 인증 완료 후 발급한 signupToken이 필요함
+      // GOOGLE 회원가입
     } else if (provider == MemberProvider.GOOGLE) {
       validateGoogle();
 
+      // KAKAO 회원가입
+    } else if (provider == MemberProvider.KAKAO) {
+      validateKakao();
+
     } else {
-      // KAKAO는 추후 별도 인증 흐름을 구현한 뒤 허용
       throw new InvalidRequestException("지원하지 않는 회원가입 방식입니다.");
     }
 
-    // 가입 방식과 무관하게 닉네임과 약관 정보는 필수
+    // 모든 가입 방식에서 닉네임과 약관 동의는 필수
     validateNickname();
 
     if (agreements == null || agreements.isEmpty()) {
@@ -149,6 +151,20 @@ public record SignupRequest(
     // 프론트가 임의로 전달한 이메일이나 비밀번호는 받지 않음
     if (email != null || emailVerificationToken != null || password != null) {
       throw new InvalidRequestException("GOOGLE 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.");
+    }
+  }
+
+  /** KAKAO 회원가입에 필요한 입력값을 검증합니다. */
+  private void validateKakao() {
+    // Kakao 인증 완료 후 발급받은 임시 가입 토큰 필수
+    if (signupToken == null || signupToken.isBlank()) {
+      throw new InvalidRequestException("Kakao 회원가입 토큰은 필수입니다.");
+    }
+
+    // 이메일은 Kakao에서 조회한 인증 정보를 사용
+    // 클라이언트가 임의로 이메일이나 비밀번호를 전달하지 않도록 차단
+    if (email != null || emailVerificationToken != null || password != null) {
+      throw new InvalidRequestException("KAKAO 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.");
     }
   }
 

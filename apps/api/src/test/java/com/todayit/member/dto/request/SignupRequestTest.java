@@ -103,4 +103,48 @@ class SignupRequestTest {
 
     assertThat(command.nickname()).isEqualTo("오늘이");
   }
+
+  @Test
+  @DisplayName("KAKAO 회원가입은 이메일 없이 signupToken으로 요청할 수 있다")
+  void acceptsKakaoSignupWithoutEmail() {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            MemberProvider.KAKAO,
+            null,
+            null,
+            null,
+            "kakao-signup-token",
+            "  카카오회원  ",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    // When
+    request.validate();
+
+    // Then
+    assertThat(request.nickname()).isEqualTo("카카오회원");
+    assertThat(request.toCommand().provider()).isEqualTo(MemberProvider.KAKAO);
+  }
+
+  @Test
+  @DisplayName("KAKAO 회원가입에서는 클라이언트가 전달한 이메일을 거부한다")
+  void rejectsClientProvidedKakaoEmail() {
+    // Given
+    SignupRequest request =
+        new SignupRequest(
+            MemberProvider.KAKAO,
+            "user@example.com",
+            null,
+            null,
+            "kakao-signup-token",
+            "카카오회원",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    // When & Then
+    assertThatThrownBy(request::validate).isInstanceOf(InvalidRequestException.class);
+  }
 }

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.client.external.GoogleIdentity;
+import com.todayit.member.client.external.KakaoIdentity;
 import com.todayit.member.entity.Agreement;
 import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
@@ -704,5 +705,84 @@ class SignupServiceTest {
     verify(memberRoleRepository, never()).save(any(MemberRole.class));
 
     verify(memberAgreementRepository, never()).save(any(MemberAgreement.class));
+  }
+
+  @Test
+  @DisplayName("이메일 없는 Kakao 회원을 권한 및 약관과 함께 저장한다")
+  void createsKakaoMemberWithoutEmail() {
+    // Given
+    KakaoIdentity identity = new KakaoIdentity("123456789", null, false);
+
+    SignupCommand command =
+        new SignupCommand(
+            MemberProvider.KAKAO,
+            null,
+            null,
+            null,
+            "signup-token",
+            "카카오회원",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
+
+    when(memberRepository.save(any(Member.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    when(memberRoleRepository.findRoleIdByName("USER")).thenReturn(Optional.of(1));
+
+    // When
+    Member member = signupService.createKakaoMember(command, identity);
+
+    // Then
+    assertThat(member.getProvider()).isEqualTo(MemberProvider.KAKAO);
+    assertThat(member.getEmail()).isNull();
+    assertThat(member.getPassword()).isNull();
+    assertThat(member.getProviderUserId()).isEqualTo("123456789");
+
+    verify(memberRepository).save(any(Member.class));
+    verify(memberRepository).flush();
+
+    verify(memberRoleRepository).save(any(MemberRole.class));
+    verify(memberAgreementRepository, times(2)).save(any(MemberAgreement.class));
+
+    // Kakao 회원가입에서는 자체 이메일 인증과 비밀번호 암호화 불필요
+    verify(passwordEncoder, never()).encode(any());
+    verify(emailVerificationService, never()).validateVerificationToken(any(), any(), any());
+  }
+
+  @Test
+  @DisplayName("이미 가입된 Kakao 사용자 ID는 중복 가입을 거부한다")
+  void rejectsDuplicateKakaoAccount() {
+    // Given
+    KakaoIdentity identity = new KakaoIdentity("123456789", null, false);
+
+    SignupCommand command =
+        new SignupCommand(
+            MemberProvider.KAKAO,
+            null,
+            null,
+            null,
+            "signup-token",
+            "카카오회원",
+            Map.of(
+                "TOS", true,
+                "ACCOUNT_PRIVACY", true));
+
+    Member existingMember = Member.createKakao(null, "123456789", "기존회원");
+
+    when(memberRepository.findByProviderAndProviderUserId(MemberProvider.KAKAO, "123456789"))
+        .thenReturn(Optional.of(existingMember));
+
+    // When & Then
+    assertThatThrownBy(() -> signupService.createKakaoMember(command, identity))
+        .isInstanceOf(BusinessException.class)
+        .satisfies(
+            exception ->
+                assertThat(((BusinessException) exception).getErrorCode())
+                    .isEqualTo(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS));
+
+    verify(memberRepository, never()).save(any(Member.class));
   }
 }

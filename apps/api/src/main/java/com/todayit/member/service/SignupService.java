@@ -3,6 +3,7 @@ package com.todayit.member.service;
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.member.client.external.GoogleIdentity;
+import com.todayit.member.client.external.KakaoIdentity;
 import com.todayit.member.entity.Agreement;
 import com.todayit.member.entity.BlocklistMatchType;
 import com.todayit.member.entity.EmailVerificationPurpose;
@@ -242,6 +243,68 @@ public class SignupService {
   }
 
   /**
+   * 검증된 Kakao 계정 정보로 KAKAO 회원을 생성합니다.
+   *
+   * <p>상위 Facade에서 Redis 임시 가입 토큰을 검증한 뒤 호출합니다. 이메일은 선택사항이며, 회원과 기본 권한 및 약관 동의를 하나의 DB 트랜잭션으로
+   * 저장합니다.
+   *
+   * @param command KAKAO 회원가입 정보
+   * @param identity Kakao에서 인증된 계정 정보
+   * @return 생성된 Kakao 회원
+   * @throws BusinessException 인증 정보가 유효하지 않거나 이미 가입된 계정인 경우
+   * @throws InvalidRequestException 닉네임이나 약관 동의가 유효하지 않은 경우
+   */
+  @Transactional
+  public Member createKakaoMember(SignupCommand command, KakaoIdentity identity) {
+    // Redis에서 복원한 Kakao 사용자 고유 ID 재검증
+    if (identity == null
+        || identity.providerUserId() == null
+        || identity.providerUserId().isBlank()
+        || identity.providerUserId().length() > 255) {
+      throw new BusinessException(MemberErrorCode.KAKAO_SIGNUP_TOKEN_INVALID);
+    }
+
+    // 이메일이 존재한다면 인증 상태와 길이 검증
+    String email = identity.email();
+
+    if (email != null && (email.isBlank() || email.length() > 100 || !identity.emailVerified())) {
+      throw new BusinessException(MemberErrorCode.KAKAO_SIGNUP_TOKEN_INVALID);
+    }
+
+    // 이메일이 없는 경우 null 유지
+    String normalizedEmail = email == null ? null : EmailNormalizer.normalize(email);
+
+    // Kakao 고유 ID로 중복 가입 여부 확인
+    boolean alreadyRegistered =
+        memberRepository
+            .findByProviderAndProviderUserId(MemberProvider.KAKAO, identity.providerUserId())
+            .isPresent();
+
+    if (alreadyRegistered) {
+      throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
+    }
+
+    // 이메일이 존재하는 경우에만 Kakao 회원 간 이메일 중복 확인
+    if (normalizedEmail != null
+        && memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.KAKAO)) {
+      throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
+    }
+
+    // 기존 회원가입과 동일한 약관 검증
+    Map<String, Agreement> agreementsByCode = validateAgreements(command.agreements());
+
+    // 닉네임 형식, 금칙어 및 중복 확인
+    validateNicknameAvailability(command.nickname());
+
+    // 비밀번호 없이 Kakao 회원 객체 생성
+    Member member =
+        Member.createKakao(normalizedEmail, identity.providerUserId(), command.nickname());
+
+    // 회원, USER 권한, 약관 동의를 하나의 트랜잭션으로 저장
+    return saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
+  }
+
+  /**
    * 가입 요청에 포함된 약관 동의를 현재 적용 중인 약관과 비교합니다.
    *
    * @param requestedAgreements 약관 코드별 동의 여부
@@ -332,7 +395,6 @@ public class SignupService {
 
       while (cause != null) {
         if (cause instanceof ConstraintViolationException constraintException) {
-
           String constraintName = constraintException.getConstraintName();
 
           if (constraintName != null) {
@@ -342,9 +404,15 @@ public class SignupService {
               throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
             }
 
-            // Google 고유 ID 중복 또는 GOOGLE 이메일 중복
+            // 소셜 제공자별 사용자 고유 ID 중복 처리
             if ("uk_member_provider_user_id".equalsIgnoreCase(constraintName)) {
-              throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+              if (member.getProvider() == MemberProvider.GOOGLE) {
+                throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+              }
+
+              if (member.getProvider() == MemberProvider.KAKAO) {
+                throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
+              }
             }
 
             // 이메일 중복은 회원가입 방식에 맞는 오류로 변환
@@ -353,6 +421,10 @@ public class SignupService {
 
               if (member.getProvider() == MemberProvider.GOOGLE) {
                 throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
+              }
+
+              if (member.getProvider() == MemberProvider.KAKAO) {
+                throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
               }
 
               throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
