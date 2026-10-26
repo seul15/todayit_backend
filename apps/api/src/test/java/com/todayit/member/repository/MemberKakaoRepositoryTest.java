@@ -1,6 +1,7 @@
 package com.todayit.member.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
@@ -69,5 +71,22 @@ class MemberKakaoRepositoryTest {
             "SELECT email FROM member WHERE member_id = ?", String.class, first.getId());
 
     assertThat(storedEmail).isNull();
+  }
+
+  @Test
+  @DisplayName("동일한 Kakao 사용자 ID는 중복 저장할 수 없다")
+  void rejectsDuplicateKakaoProviderUserId() {
+    // Given
+    String kakaoId = "123456789";
+
+    Member first = Member.createKakao(null, kakaoId, "카카오회원1");
+
+    Member second = Member.createKakao(null, kakaoId, "카카오회원2");
+
+    memberRepository.saveAndFlush(first);
+
+    // When & Then
+    assertThatThrownBy(() -> memberRepository.saveAndFlush(second))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 }

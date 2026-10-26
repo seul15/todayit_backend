@@ -202,9 +202,10 @@ public class KakaoOAuthClient {
         email = kakaoEmail;
       }
 
-      // 인증과 유효 여부가 모두 true일 때만 인정
+      // 이메일이 존재하고 인증 및 유효 여부가 모두 true일 때만 인정
       emailVerified =
-          Boolean.TRUE.equals(account.get("is_email_verified"))
+          email != null
+              && Boolean.TRUE.equals(account.get("is_email_verified"))
               && Boolean.TRUE.equals(account.get("is_email_valid"));
     }
 

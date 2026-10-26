@@ -25,7 +25,7 @@ public class KakaoOAuthException extends RuntimeException {
   }
 
   /**
-   * 실제 원인한 원인 예외를 포함해 Kakao OAuth 오류를 생성합니다.
+   * 원인 예외를 포함한 Kakao OAuth 오류를 생성합니다.
    *
    * @param reason 실패 원인
    * @param cause 실제 오류를 발생시킨 원인 예외
