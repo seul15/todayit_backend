@@ -17,7 +17,8 @@ public class Member {
   @Column(name = "member_id", length = 36)
   private String id;
 
-  @Column(name = "email", nullable = false, length = 100)
+  // 소셜 회원은 이메일이 제공되지 않을 수 있음
+  @Column(name = "email", length = 100)
   private String email;
 
   @Column(name = "password", length = 100)
@@ -101,6 +102,29 @@ public class Member {
         email,
         null,
         MemberProvider.GOOGLE,
+        nickname,
+        true,
+        LocalDateTime.now(),
+        providerUserId);
+  }
+
+  /**
+   * Kakao 인증을 완료한 사용자의 회원 정보를 생성합니다.
+   *
+   * <p>Kakao 회원은 자체 비밀번호를 저장하지 않으며, 이메일이 없어도 Kakao 계정 고유 ID로 식별합니다.
+   *
+   * @param email Kakao 계정 이메일. 제공되지 않았다면 null
+   * @param providerUserId Kakao 계정 고유 식별자
+   * @param nickname 사용자가 등록한 닉네임
+   * @return 생성된 Kakao 회원
+   */
+  public static Member createKakao(String email, String providerUserId, String nickname) {
+
+    return new Member(
+        UUID.randomUUID().toString(),
+        email,
+        null,
+        MemberProvider.KAKAO,
         nickname,
         true,
         LocalDateTime.now(),
