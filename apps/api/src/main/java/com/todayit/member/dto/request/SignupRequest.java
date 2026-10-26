@@ -8,20 +8,20 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.Map;
 
 /**
- * LOCAL 및 GOOGLE 회원가입 요청입니다.
+ * LOCAL, GOOGLE 및 KAKAO 회원가입 요청입니다.
  *
  * @param provider 회원가입 방식. 생략하면 LOCAL
  * @param email LOCAL 회원 이메일
  * @param emailVerificationToken LOCAL 이메일 인증 완료 토큰
  * @param password LOCAL 회원 비밀번호
- * @param signupToken GOOGLE 회원가입용 임시 토큰
+ * @param signupToken GOOGLE 또는 KAKAO 회원가입용 임시 토큰
  * @param nickname 회원 닉네임
  * @param agreements 약관 코드별 동의 여부
  */
-@Schema(description = "LOCAL 및 GOOGLE 통합 회원가입 요청")
+@Schema(description = "LOCAL, GOOGLE 및 KAKAO 통합 회원가입 요청")
 public record SignupRequest(
     @Schema(
-            description = "회원가입 방식입니다. LOCAL 또는 GOOGLE을 지원하며 생략 시 LOCAL입니다.",
+            description = "회원가입 방식입니다. LOCAL 또는 GOOGLE 및 KAKAO을 지원하며 생략 시 LOCAL입니다.",
             example = "LOCAL",
             defaultValue = "LOCAL")
         MemberProvider provider,

@@ -23,6 +23,7 @@ import com.todayit.member.exception.LoginLockedException;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.EmailVerificationService;
 import com.todayit.member.service.GoogleLoginService;
+import com.todayit.member.service.KakaoLoginService;
 import com.todayit.member.service.LoginFacade;
 import com.todayit.member.service.LogoutService;
 import com.todayit.member.service.SignupFacade;
@@ -30,6 +31,7 @@ import com.todayit.member.service.SignupService;
 import com.todayit.member.service.TokenRefreshService;
 import com.todayit.member.service.model.EmailVerificationConfirmResult;
 import com.todayit.member.service.model.GoogleLoginResult;
+import com.todayit.member.service.model.KakaoLoginResult;
 import com.todayit.member.service.model.LoginResult;
 import com.todayit.member.service.model.MemberLoginResult;
 import com.todayit.member.service.model.TokenRefreshResult;
@@ -63,6 +65,8 @@ class AuthControllerTest {
 
   @Mock private GoogleLoginService googleLoginService;
 
+  @Mock private KakaoLoginService kakaoLoginService;
+
   @Mock private SignupFacade signupFacade;
 
   private MockMvc mockMvc;
@@ -78,6 +82,7 @@ class AuthControllerTest {
             emailVerificationService,
             tokenRefreshService,
             googleLoginService,
+            kakaoLoginService,
             signupFacade);
 
     mockMvc =
@@ -854,5 +859,167 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("인증된 Google 이메일이 필요합니다."));
 
     verify(googleLoginService).login("google-code", redirectUri);
+  }
+
+  @Test
+  @DisplayName("신규 Kakao 사용자는 로그인 토큰 대신 signupToken을 반환한다")
+  void returnsSignupTokenForNewKakaoMember() throws Exception {
+    // Given
+    String redirectUri = "http://localhost:3000/oauth/kakao/callback";
+
+    when(kakaoLoginService.login("kakao-code", redirectUri))
+        .thenReturn(KakaoLoginResult.newMember("signup-token"));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "kakao-code",
+                                      "redirectUri": "http://localhost:3000/oauth/kakao/callback"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.isNewMember").value(true))
+        .andExpect(jsonPath("$.data.signupToken").value("signup-token"))
+        .andExpect(jsonPath("$.data.accessToken").doesNotExist())
+        .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+        .andExpect(jsonPath("$.data.member").doesNotExist());
+
+    verify(kakaoLoginService).login("kakao-code", redirectUri);
+  }
+
+  @Test
+  @DisplayName("기존 Kakao 회원에게 로그인 토큰과 회원 정보를 반환한다")
+  void returnsTokensForExistingKakaoMember() throws Exception {
+    // Given
+    String redirectUri = "http://localhost:3000/oauth/kakao/callback";
+
+    MemberLoginResult member = new MemberLoginResult("member-1", "카카오회원", false, List.of("USER"));
+
+    LoginResult loginResult = new LoginResult(member, "access-token", "refresh-token", 1800L);
+
+    when(kakaoLoginService.login("kakao-code", redirectUri))
+        .thenReturn(KakaoLoginResult.existingMember(loginResult));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "kakao-code",
+                                      "redirectUri": "http://localhost:3000/oauth/kakao/callback"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.isNewMember").value(false))
+        .andExpect(jsonPath("$.data.signupToken").doesNotExist())
+        .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+        .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
+        .andExpect(jsonPath("$.data.expiresIn").value(1800))
+        .andExpect(jsonPath("$.data.member.memberId").value("member-1"))
+        .andExpect(jsonPath("$.data.member.nickname").value("카카오회원"))
+        .andExpect(jsonPath("$.data.member.roles[0]").value("USER"));
+
+    verify(kakaoLoginService).login("kakao-code", redirectUri);
+  }
+
+  @Test
+  @DisplayName("Kakao 인가 코드가 없으면 400 오류를 반환한다")
+  void rejectsMissingKakaoAuthorizationCode() throws Exception {
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "",
+                                      "redirectUri": "http://localhost:3000/oauth/kakao/callback"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value("Kakao 인가 코드는 필수입니다."));
+
+    verify(kakaoLoginService, never()).login(any(), any());
+  }
+
+  @Test
+  @DisplayName("Kakao 인증 실패 시 커스텀 에러를 반환한다")
+  void returnsKakaoAuthenticationError() throws Exception {
+    // Given
+    String redirectUri = "http://localhost:3000/oauth/kakao/callback";
+
+    when(kakaoLoginService.login("invalid-code", redirectUri))
+        .thenThrow(new BusinessException(MemberErrorCode.KAKAO_AUTHENTICATION_FAILED));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "invalid-code",
+                                      "redirectUri": "http://localhost:3000/oauth/kakao/callback"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("KAKAO_AUTHENTICATION_FAILED"))
+        .andExpect(jsonPath("$.message").value("Kakao 인증에 실패했습니다."));
+  }
+
+  @Test
+  @DisplayName("Kakao 인증 서버 장애 시 500 커스텀 에러를 반환한다")
+  void returnsKakaoAuthServerError() throws Exception {
+    // Given
+    String redirectUri = "http://localhost:3000/oauth/kakao/callback";
+
+    when(kakaoLoginService.login("kakao-code", redirectUri))
+        .thenThrow(new BusinessException(MemberErrorCode.KAKAO_AUTH_SERVER_ERROR));
+
+    // When
+    ResultActions response =
+        mockMvc.perform(
+            post("/api/v1/auth/oauth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "authorizationCode": "kakao-code",
+                                      "redirectUri": "http://localhost:3000/oauth/kakao/callback"
+                                    }
+                                    """));
+
+    // Then
+    response
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("KAKAO_AUTH_SERVER_ERROR"));
   }
 }
