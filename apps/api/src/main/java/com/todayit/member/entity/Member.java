@@ -92,16 +92,15 @@ public class Member {
    *
    * <p>Google 회원은 자체 비밀번호를 저장하지 않고, Google 계정 고유 ID를 provider_user_id에 저장합니다.
    *
-   * @param email Google에서 인증된 이메일
    * @param providerUserId Google 계정 고유 식별자(sub)
    * @param nickname 사용자가 등록한 닉네임
    * @return 생성된 Google 회원
    */
-  public static Member createGoogle(String email, String providerUserId, String nickname) {
+  public static Member createGoogle(String providerUserId, String nickname) {
 
     return new Member(
         UUID.randomUUID().toString(),
-        email,
+        null,
         null,
         MemberProvider.GOOGLE,
         nickname,
@@ -115,16 +114,15 @@ public class Member {
    *
    * <p>Kakao 회원은 자체 비밀번호를 저장하지 않으며, 이메일이 없어도 Kakao 계정 고유 ID로 식별합니다.
    *
-   * @param email Kakao 계정 이메일. 제공되지 않았다면 null
    * @param providerUserId Kakao 계정 고유 식별자
    * @param nickname 사용자가 등록한 닉네임
    * @return 생성된 Kakao 회원
    */
-  public static Member createKakao(String email, String providerUserId, String nickname) {
+  public static Member createKakao(String providerUserId, String nickname) {
 
     return new Member(
         UUID.randomUUID().toString(),
-        email,
+        null,
         null,
         MemberProvider.KAKAO,
         nickname,

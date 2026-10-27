@@ -576,7 +576,7 @@ class SignupServiceTest {
                 "ACCOUNT_PRIVACY", true));
 
     // 같은 Google 계정의 회원이 이미 DB에 존재함
-    Member existingMember = Member.createGoogle("google@test.com", "google-user-123", "기존회원");
+    Member existingMember = Member.createGoogle("google-user-123", "기존회원");
 
     when(memberRepository.findByProviderAndProviderUserId(MemberProvider.GOOGLE, "google-user-123"))
         .thenReturn(Optional.of(existingMember));
@@ -770,7 +770,7 @@ class SignupServiceTest {
                 "TOS", true,
                 "ACCOUNT_PRIVACY", true));
 
-    Member existingMember = Member.createKakao(null, "123456789", "기존회원");
+    Member existingMember = Member.createKakao("123456789", "기존회원");
 
     when(memberRepository.findByProviderAndProviderUserId(MemberProvider.KAKAO, "123456789"))
         .thenReturn(Optional.of(existingMember));

@@ -79,7 +79,7 @@ class SignupFacadeTest {
 
     GoogleIdentity identity = new GoogleIdentity("google-123", "google@test.com", true);
 
-    Member member = Member.createGoogle("google@test.com", "google-123", "구글회원");
+    Member member = Member.createGoogle("google-123", "구글회원");
 
     when(googleSignupTokenService.getVerifiedIdentity(token)).thenReturn(identity);
 
@@ -136,7 +136,7 @@ class SignupFacadeTest {
 
     GoogleIdentity identity = new GoogleIdentity("google-123", "google@test.com", true);
 
-    Member member = Member.createGoogle("google@test.com", "google-123", "구글회원");
+    Member member = Member.createGoogle("google-123", "구글회원");
 
     when(googleSignupTokenService.getVerifiedIdentity(token)).thenReturn(identity);
 
@@ -164,7 +164,7 @@ class SignupFacadeTest {
 
     KakaoIdentity identity = new KakaoIdentity("123456789", null, false);
 
-    Member member = Member.createKakao(null, "123456789", "카카오회원");
+    Member member = Member.createKakao("123456789", "카카오회원");
 
     when(kakaoSignupTokenService.getVerifiedIdentity(token)).thenReturn(identity);
 

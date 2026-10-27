@@ -224,7 +224,7 @@ public class SignupService {
     validateNicknameAvailability(command.nickname());
 
     // Google 회원은 이메일 없이 고유 ID로 식별
-    Member member = Member.createGoogle(null, identity.providerUserId(), command.nickname());
+    Member member = Member.createGoogle(identity.providerUserId(), command.nickname());
 
     // 회원, USER 권한, 약관 동의를 동일한 방식으로 저장
     return saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
@@ -269,7 +269,7 @@ public class SignupService {
     validateNicknameAvailability(command.nickname());
 
     // Kakao 회원은 이메일 없이 고유 ID로 식별
-    Member member = Member.createKakao(null, identity.providerUserId(), command.nickname());
+    Member member = Member.createKakao(identity.providerUserId(), command.nickname());
 
     // 회원, USER 권한, 약관 동의를 하나의 트랜잭션으로 저장
     return saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
@@ -386,18 +386,9 @@ public class SignupService {
               }
             }
 
-            // 이메일 중복은 회원가입 방식에 맞는 오류로 변환
+            // LOCAL 회원 이메일 UNIQUE 제약 위반 처리
             if ("uk_member_email_provider".equalsIgnoreCase(constraintName)
                 || "uk_member_email_provider_normalized".equalsIgnoreCase(constraintName)) {
-
-              if (member.getProvider() == MemberProvider.GOOGLE) {
-                throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
-              }
-
-              if (member.getProvider() == MemberProvider.KAKAO) {
-                throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
-              }
-
               throw new BusinessException(MemberErrorCode.EMAIL_ALREADY_EXISTS);
             }
           }

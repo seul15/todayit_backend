@@ -170,10 +170,8 @@ public class GoogleOAuthClient {
       throw new GoogleOAuthException(Reason.INVALID_ID_TOKEN);
     }
 
-    String email = jwt.getClaimAsString("email");
-    boolean emailVerified = Boolean.TRUE.equals(jwt.getClaim("email_verified"));
-
-    return new GoogleIdentity(providerUserId, email, emailVerified);
+    // 검증된 Google 고유 ID만 회원 식별에 사용
+    return new GoogleIdentity(providerUserId, null, false);
   }
 
   /**

@@ -800,7 +800,7 @@ class AuthControllerTest {
                 "TOS", true,
                 "ACCOUNT_PRIVACY", true));
 
-    Member member = Member.createGoogle("google@test.com", "google-user-123", "구글회원");
+    Member member = Member.createGoogle("google-user-123", "구글회원");
 
     when(signupFacade.signup(any())).thenReturn(member);
 

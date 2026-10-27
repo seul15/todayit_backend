@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Base64;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /** 신규 Kakao 사용자의 회원가입용 임시 토큰을 관리합니다. */
@@ -90,7 +91,13 @@ public class KakaoSignupTokenService {
     }
 
     // JSON을 Kakao 사용자 정보로 복원
-    KakaoIdentity identity = objectMapper.readValue(payload, KakaoIdentity.class);
+    KakaoIdentity identity;
+
+    try {
+      identity = objectMapper.readValue(payload, KakaoIdentity.class);
+    } catch (JacksonException exception) {
+      throw invalidSignupToken();
+    }
 
     // Redis에서 복원한 인증 정보의 유효성 재검증
     if (!isValidIdentity(identity)) {

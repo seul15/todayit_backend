@@ -374,7 +374,7 @@ public interface AuthApiDocs {
   ResponseEntity<CommonResponse<EmailAvailabilityResponse>> checkEmail(String email);
 
   /**
-   * 이메일 인증을 마친 회원을 JSON 요청으로 가입시킵니다.
+   * LOCAL·GOOGLE·KAKAO 회원가입을 처리합니다.
    *
    * @param request 회원가입 요청
    * @return 생성된 회원 정보
@@ -384,7 +384,7 @@ public interface AuthApiDocs {
       description =
           "LOCAL은 이메일 인증 토큰과 비밀번호를 사용합니다. "
               + "GOOGLE과 KAKAO는 각 소셜 로그인 API에서 발급한 signupToken을 사용합니다. "
-              + "KAKAO는 이메일 없이도 가입할 수 있습니다. "
+              + "GOOGLE과 KAKAO는 이메일을 저장하지 않고 제공자의 고유 ID로 회원을 식별합니다. "
               + "필수 약관은 TOS, ACCOUNT_PRIVACY이며 동의값은 true여야 합니다. "
               + "PREFERENCE, PROFILE_IMAGE는 선택 약관입니다. "
               + "프로필 이미지는 가입 후 별도 API에서 등록합니다.",
@@ -455,10 +455,38 @@ public interface AuthApiDocs {
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":true,\"data\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"email\":\"user@example.com\",\"nickname\":\"유저\",\"coupleConnected\":false,\"createdAt\":\"2026-10-11T09:00:00\"}}"))),
+                examples = {
+                  @ExampleObject(
+                      name = "LOCAL 회원가입 성공",
+                      value =
+                          """
+                                        {
+                                          "success": true,
+                                          "data": {
+                                            "memberId": "123e4567-e89b-12d3-a456-426614174000",
+                                            "email": "user@example.com",
+                                            "nickname": "유저",
+                                            "coupleConnected": false,
+                                            "createdAt": "2026-10-11T09:00:00"
+                                          }
+                                        }
+                                        """),
+                  @ExampleObject(
+                      name = "GOOGLE·KAKAO 회원가입 성공",
+                      value =
+                          """
+                                        {
+                                          "success": true,
+                                          "data": {
+                                            "memberId": "123e4567-e89b-12d3-a456-426614174000",
+                                            "email": null,
+                                            "nickname": "오늘이",
+                                            "coupleConnected": false,
+                                            "createdAt": "2026-10-11T09:00:00"
+                                          }
+                                        }
+                                        """)
+                })),
     @ApiResponse(
         responseCode = "400",
         description = "필수 입력, 약관 동의, 이메일 인증 또는 소셜 가입 토큰 오류",

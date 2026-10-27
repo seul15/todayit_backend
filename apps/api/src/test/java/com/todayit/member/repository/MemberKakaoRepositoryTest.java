@@ -44,9 +44,9 @@ class MemberKakaoRepositoryTest {
     String firstKakaoId = "kakao-" + UUID.randomUUID();
     String secondKakaoId = "kakao-" + UUID.randomUUID();
 
-    Member first = Member.createKakao(null, firstKakaoId, "카카오회원1");
+    Member first = Member.createKakao(firstKakaoId, "카카오회원1");
 
-    Member second = Member.createKakao(null, secondKakaoId, "카카오회원2");
+    Member second = Member.createKakao(secondKakaoId, "카카오회원2");
 
     // When
     memberRepository.saveAndFlush(first);
@@ -79,9 +79,9 @@ class MemberKakaoRepositoryTest {
     // Given
     String kakaoId = "123456789";
 
-    Member first = Member.createKakao(null, kakaoId, "카카오회원1");
+    Member first = Member.createKakao(kakaoId, "카카오회원1");
 
-    Member second = Member.createKakao(null, kakaoId, "카카오회원2");
+    Member second = Member.createKakao(kakaoId, "카카오회원2");
 
     memberRepository.saveAndFlush(first);
 

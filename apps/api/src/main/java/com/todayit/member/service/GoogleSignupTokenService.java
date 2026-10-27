@@ -105,8 +105,7 @@ public class GoogleSignupTokenService {
       // JSON으로 저장했던 Google 계정 정보를 다시 객체로 변환
       identity = objectMapper.readValue(payload, GoogleIdentity.class);
     } catch (JacksonException exception) {
-      // 서버에 저장된 데이터가 손상된 경우 내부 오류로 처리
-      throw new IllegalStateException("Google 회원가입 인증 정보 복원에 실패했습니다.", exception);
+      throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
     }
 
     // 복원한 데이터가 정상적인 Google 인증 정보인지 재확인

@@ -93,7 +93,7 @@ class MemberGoogleRepositoryTest {
   @DisplayName("Google 회원은 비밀번호 없이 provider_user_id를 저장한다")
   void savesGoogleMember() {
     // Given
-    Member member = Member.createGoogle("new-google@example.com", "google-new-user-123", "구글테스트");
+    Member member = Member.createGoogle("google-new-user-123", "구글테스트");
 
     // When
     memberRepository.saveAndFlush(member);
@@ -127,9 +127,9 @@ class MemberGoogleRepositoryTest {
     // Given
     String googleUserId = "google-duplicate-" + UUID.randomUUID();
 
-    Member firstMember = Member.createGoogle("first@example.com", googleUserId, "첫번째회원");
+    Member firstMember = Member.createGoogle(googleUserId, "첫번째회원");
 
-    Member secondMember = Member.createGoogle("second@example.com", googleUserId, "두번째회원");
+    Member secondMember = Member.createGoogle(googleUserId, "두번째회원");
 
     // 첫 번째 회원 저장
     memberRepository.saveAndFlush(firstMember);

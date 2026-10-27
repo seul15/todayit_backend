@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.todayit.member.client.external.KakaoOAuthException.Reason;
 import org.junit.jupiter.api.DisplayName;
@@ -137,8 +136,8 @@ class KakaoOAuthClientTest {
 
     // Then
     assertEquals("123456789", identity.providerUserId());
-    assertEquals("test@example.com", identity.email());
-    assertTrue(identity.emailVerified());
+    assertNull(identity.email());
+    assertFalse(identity.emailVerified());
   }
 
   @Test

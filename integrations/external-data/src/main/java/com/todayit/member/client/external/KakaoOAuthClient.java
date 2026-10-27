@@ -187,28 +187,7 @@ public class KakaoOAuthClient {
       throw new KakaoOAuthException(Reason.INVALID_USER_INFO);
     }
 
-    String email = null;
-    boolean emailVerified = false;
-
-    // Kakao 계정 정보 추출
-    Object kakaoAccount = response.get("kakao_account");
-
-    if (kakaoAccount instanceof Map<?, ?> account) {
-
-      // 이메일은 동의 및 계정 상태에 따라 없을 수 있음
-      Object rawEmail = account.get("email");
-
-      if (rawEmail instanceof String kakaoEmail && !kakaoEmail.isBlank()) {
-        email = kakaoEmail;
-      }
-
-      // 이메일이 존재하고 인증 및 유효 여부가 모두 true일 때만 인정
-      emailVerified =
-          email != null
-              && Boolean.TRUE.equals(account.get("is_email_verified"))
-              && Boolean.TRUE.equals(account.get("is_email_valid"));
-    }
-
-    return new KakaoIdentity(String.valueOf(kakaoId.longValue()), email, emailVerified);
+    // 검증된 Kakao 고유 ID만 회원 식별에 사용
+    return new KakaoIdentity(String.valueOf(kakaoId.longValue()), null, false);
   }
 }
