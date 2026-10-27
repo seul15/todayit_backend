@@ -147,7 +147,7 @@ public record SignupRequest(
       throw new InvalidRequestException("Google 회원가입 토큰은 필수입니다.");
     }
 
-    // Google 이메일과 사용자 ID는 서버에 저장된 인증 정보에서 가져옴
+    // Google 고유 ID는 서버에 저장된 가입 토큰 정보에서 가져옴
     // 프론트가 임의로 전달한 이메일이나 비밀번호는 받지 않음
     if (email != null || emailVerificationToken != null || password != null) {
       throw new InvalidRequestException("GOOGLE 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.");
@@ -161,7 +161,7 @@ public record SignupRequest(
       throw new InvalidRequestException("Kakao 회원가입 토큰은 필수입니다.");
     }
 
-    // 이메일은 Kakao에서 조회한 인증 정보를 사용
+    // Kakao 고유 ID는 서버에 저장된 가입 토큰 정보에서 가져옴
     // 클라이언트가 임의로 이메일이나 비밀번호를 전달하지 않도록 차단
     if (email != null || emailVerificationToken != null || password != null) {
       throw new InvalidRequestException("KAKAO 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.");

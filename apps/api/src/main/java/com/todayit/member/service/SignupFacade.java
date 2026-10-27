@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
-/** LOCAL과 GOOGLE 회원가입 과정을 연결합니다. */
+/** LOCAL·GOOGLE·KAKAO 회원가입 과정을 연결합니다. */
 @Service
 public class SignupFacade {
   private static final Logger LOG = LoggerFactory.getLogger(SignupFacade.class);

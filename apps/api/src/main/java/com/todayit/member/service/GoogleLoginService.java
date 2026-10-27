@@ -49,7 +49,7 @@ public class GoogleLoginService {
    * @param authorizationCode Google 인가 코드
    * @param redirectUri Google 인증 요청에 사용한 Redirect URI
    * @return Google 로그인 또는 신규 회원가입 결과
-   * @throws BusinessException Google 인증 실패, 이메일 미인증 또는 비활성 회원인 경우
+   * @throws BusinessException Google 인증 실패, 비활성 회원인 경우
    * @throws IllegalStateException 기존 회원에게 유효한 권한이 없는 경우
    */
   public GoogleLoginResult login(String authorizationCode, String redirectUri) {
