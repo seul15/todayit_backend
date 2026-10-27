@@ -542,7 +542,7 @@ class SignupServiceTest {
 
     // Then
     assertThat(member.getProvider()).isEqualTo(MemberProvider.GOOGLE);
-    assertThat(member.getEmail()).isEqualTo("google@test.com");
+    assertThat(member.getEmail()).isNull();
     assertThat(member.getPassword()).isNull();
     assertThat(member.getProviderUserId()).isEqualTo("google-user-123");
     assertThat(member.getNickname()).isEqualTo("구글회원");

@@ -816,7 +816,7 @@ class AuthControllerTest {
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.memberId").value(member.getId()))
-        .andExpect(jsonPath("$.data.email").value("google@test.com"))
+        .andExpect(jsonPath("$.data.email").doesNotExist())
         .andExpect(jsonPath("$.data.nickname").value("구글회원"));
 
     // Controller가 GOOGLE 가입 정보를 Facade에 전달했는지 확인
@@ -826,39 +826,6 @@ class AuthControllerTest {
                 command ->
                     command.provider() == MemberProvider.GOOGLE
                         && "google-signup-token".equals(command.signupToken())));
-  }
-
-  @Test
-  @DisplayName("Google 이메일이 인증되지 않았으면 401을 반환한다")
-  void rejectsUnverifiedGoogleEmail() throws Exception {
-
-    // Given
-    String redirectUri = "http://localhost:3000/oauth/google/callback";
-
-    when(googleLoginService.login("google-code", redirectUri))
-        .thenThrow(new BusinessException(MemberErrorCode.GOOGLE_EMAIL_NOT_VERIFIED));
-
-    // When
-    ResultActions response =
-        mockMvc.perform(
-            post("/api/v1/auth/oauth/google")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    """
-                                    {
-                                      "authorizationCode": "google-code",
-                                      "redirectUri": "http://localhost:3000/oauth/google/callback"
-                                    }
-                                    """));
-
-    // Then
-    response
-        .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.code").value("GOOGLE_EMAIL_NOT_VERIFIED"))
-        .andExpect(jsonPath("$.message").value("인증된 Google 이메일이 필요합니다."));
-
-    verify(googleLoginService).login("google-code", redirectUri);
   }
 
   @Test

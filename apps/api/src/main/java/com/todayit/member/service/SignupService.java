@@ -199,19 +199,13 @@ public class SignupService {
   @Transactional
   public Member createGoogleMember(SignupCommand command, GoogleIdentity identity) {
 
-    // Redis에서 복원된 Google 인증 정보도 서비스 경계에서 다시 확인
+    // Redis에서 복원된 Google 사용자 고유 ID 검증
     if (identity == null
-        || !identity.emailVerified()
-        || identity.email() == null
-        || identity.email().isBlank()
-        || identity.email().length() > 100
         || identity.providerUserId() == null
         || identity.providerUserId().isBlank()
         || identity.providerUserId().length() > 255) {
       throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
     }
-
-    String normalizedEmail = EmailNormalizer.normalize(identity.email());
 
     // Google 고유 ID(sub)가 이미 가입된 계정에 연결되어 있는지 검사
     boolean alreadyRegistered =
@@ -223,20 +217,14 @@ public class SignupService {
       throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
     }
 
-    // 기존 GOOGLE 계정 이메일과의 중복도 확인
-    if (memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.GOOGLE)) {
-      throw new BusinessException(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS);
-    }
-
     // LOCAL 회원가입과 동일한 약관 검증 로직 사용
     Map<String, Agreement> agreementsByCode = validateAgreements(command.agreements());
 
     // LOCAL과 동일한 닉네임 형식, 금칙어 및 중복 기준 적용
     validateNicknameAvailability(command.nickname());
 
-    // GOOGLE 회원은 비밀번호 없이 provider_user_id로 식별
-    Member member =
-        Member.createGoogle(normalizedEmail, identity.providerUserId(), command.nickname());
+    // Google 회원은 이메일 없이 고유 ID로 식별
+    Member member = Member.createGoogle(null, identity.providerUserId(), command.nickname());
 
     // 회원, USER 권한, 약관 동의를 동일한 방식으로 저장
     return saveMemberWithAgreements(member, command.agreements(), agreementsByCode);
@@ -264,16 +252,6 @@ public class SignupService {
       throw new BusinessException(MemberErrorCode.KAKAO_SIGNUP_TOKEN_INVALID);
     }
 
-    // 이메일이 존재한다면 인증 상태와 길이 검증
-    String email = identity.email();
-
-    if (email != null && (email.isBlank() || email.length() > 100 || !identity.emailVerified())) {
-      throw new BusinessException(MemberErrorCode.KAKAO_SIGNUP_TOKEN_INVALID);
-    }
-
-    // 이메일이 없는 경우 null 유지
-    String normalizedEmail = email == null ? null : EmailNormalizer.normalize(email);
-
     // Kakao 고유 ID로 중복 가입 여부 확인
     boolean alreadyRegistered =
         memberRepository
@@ -284,21 +262,14 @@ public class SignupService {
       throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
     }
 
-    // 이메일이 존재하는 경우에만 Kakao 회원 간 이메일 중복 확인
-    if (normalizedEmail != null
-        && memberRepository.existsByEmailAndProvider(normalizedEmail, MemberProvider.KAKAO)) {
-      throw new BusinessException(MemberErrorCode.KAKAO_ACCOUNT_ALREADY_EXISTS);
-    }
-
     // 기존 회원가입과 동일한 약관 검증
     Map<String, Agreement> agreementsByCode = validateAgreements(command.agreements());
 
     // 닉네임 형식, 금칙어 및 중복 확인
     validateNicknameAvailability(command.nickname());
 
-    // 비밀번호 없이 Kakao 회원 객체 생성
-    Member member =
-        Member.createKakao(normalizedEmail, identity.providerUserId(), command.nickname());
+    // Kakao 회원은 이메일 없이 고유 ID로 식별
+    Member member = Member.createKakao(null, identity.providerUserId(), command.nickname());
 
     // 회원, USER 권한, 약관 동의를 하나의 트랜잭션으로 저장
     return saveMemberWithAgreements(member, command.agreements(), agreementsByCode);

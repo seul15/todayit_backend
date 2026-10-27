@@ -63,7 +63,10 @@ public class GoogleSignupTokenService {
     String payload;
 
     try {
-      payload = objectMapper.writeValueAsString(identity);
+      // Google 고유 ID만 Redis에 저장
+      GoogleIdentity signupIdentity = new GoogleIdentity(identity.providerUserId(), null, false);
+
+      payload = objectMapper.writeValueAsString(signupIdentity);
     } catch (JacksonException exception) {
       throw new IllegalStateException("Google 회원가입 정보 직렬화에 실패했습니다.", exception);
     }
@@ -111,7 +114,7 @@ public class GoogleSignupTokenService {
       throw new BusinessException(MemberErrorCode.GOOGLE_SIGNUP_TOKEN_INVALID);
     }
 
-    return identity;
+    return new GoogleIdentity(identity.providerUserId(), null, false);
   }
 
   /**
@@ -164,19 +167,15 @@ public class GoogleSignupTokenService {
   }
 
   /**
-   * Redis에 보관할 Google 사용자 정보가 유효한지 확인합니다.
+   * Google 사용자 고유 ID가 유효한지 확인합니다.
    *
    * @param identity Google 사용자 정보
-   * @return 필요한 인증 정보가 모두 유효하면 true
+   * @return 고유 ID가 유효하면 true
    */
   private boolean isValidIdentity(GoogleIdentity identity) {
     return identity != null
         && identity.providerUserId() != null
         && !identity.providerUserId().isBlank()
-        && identity.providerUserId().length() <= 255
-        && identity.email() != null
-        && !identity.email().isBlank()
-        && identity.email().length() <= 100
-        && identity.emailVerified();
+        && identity.providerUserId().length() <= 255;
   }
 }

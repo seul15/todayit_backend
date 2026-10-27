@@ -157,7 +157,7 @@ public interface AuthApiDocs {
                                           """))),
     @ApiResponse(
         responseCode = "401",
-        description = "Google 인증 실패 또는 이메일 미인증",
+        description = "Google 인증 실패",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -171,16 +171,6 @@ public interface AuthApiDocs {
                                                     "success": false,
                                                     "code": "GOOGLE_AUTHENTICATION_FAILED",
                                                     "message": "Google 인증에 실패했습니다."
-                                                  }
-                                                  """),
-                  @ExampleObject(
-                      name = "Google 이메일 미인증",
-                      value =
-                          """
-                                                  {
-                                                    "success": false,
-                                                    "code": "GOOGLE_EMAIL_NOT_VERIFIED",
-                                                    "message": "인증된 Google 이메일이 필요합니다."
                                                   }
                                                   """)
                 })),

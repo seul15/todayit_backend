@@ -47,9 +47,6 @@ public enum MemberErrorCode implements ErrorCode {
   GOOGLE_AUTHENTICATION_FAILED(
       "GOOGLE_AUTHENTICATION_FAILED", "Google 인증에 실패했습니다.", ErrorStatus.UNAUTHORIZED),
 
-  GOOGLE_EMAIL_NOT_VERIFIED(
-      "GOOGLE_EMAIL_NOT_VERIFIED", "인증된 Google 이메일이 필요합니다.", ErrorStatus.UNAUTHORIZED),
-
   GOOGLE_AUTH_SERVER_ERROR(
       "GOOGLE_AUTH_SERVER_ERROR", "Google 인증 서버에 연결할 수 없습니다.", ErrorStatus.INTERNAL_SERVER_ERROR),
 

@@ -119,25 +119,6 @@ class GoogleLoginServiceTest {
   }
 
   @Test
-  @DisplayName("Google 이메일이 인증되지 않았으면 로그인을 거부한다")
-  void rejectsUnverifiedGoogleEmail() {
-    // Given
-    GoogleIdentity identity = new GoogleIdentity("google-123", "test@gmail.com", false);
-
-    when(googleOAuthClient.authenticate("code", "redirect-uri")).thenReturn(identity);
-
-    // When
-    BusinessException exception =
-        assertThrows(BusinessException.class, () -> service.login("code", "redirect-uri"));
-
-    // Then
-    assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.GOOGLE_EMAIL_NOT_VERIFIED);
-
-    verify(memberRepository, never()).findByProviderAndProviderUserId(any(), any());
-    verify(googleSignupTokenService, never()).issue(any());
-  }
-
-  @Test
   @DisplayName("비활성 Google 회원은 로그인할 수 없다")
   void rejectsInactiveGoogleMember() {
     // Given

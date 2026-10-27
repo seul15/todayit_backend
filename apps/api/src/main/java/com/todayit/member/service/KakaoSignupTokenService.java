@@ -97,7 +97,7 @@ public class KakaoSignupTokenService {
       throw invalidSignupToken();
     }
 
-    return identity;
+    return normalizeIdentity(identity);
   }
 
   /**
@@ -114,16 +114,13 @@ public class KakaoSignupTokenService {
   }
 
   /**
-   * Kakao 인증 정보를 Redis 저장에 적합하도록 정리합니다.
-   *
-   * <p>이메일은 선택사항이며, 인증되지 않은 이메일은 저장하지 않습니다. 이메일이 없어도 사용자 고유 ID가 유효하면 허용합니다.
+   * Kakao 회원가입에 필요한 고유 ID만 남깁니다.
    *
    * @param identity Kakao 사용자 정보
-   * @return 정리된 Kakao 사용자 정보
-   * @throws IllegalArgumentException Kakao 사용자 ID가 유효하지 않은 경우
+   * @return 이메일을 제외한 인증 정보
    */
   private KakaoIdentity normalizeIdentity(KakaoIdentity identity) {
-    // Kakao 사용자 고유 ID는 반드시 필요
+    // Kakao 사용자 고유 ID 검증
     if (identity == null
         || identity.providerUserId() == null
         || identity.providerUserId().isBlank()
@@ -131,44 +128,21 @@ public class KakaoSignupTokenService {
       throw new IllegalArgumentException("유효한 Kakao 사용자 ID가 필요합니다.");
     }
 
-    String email = identity.email();
-
-    // 이메일이 존재하고 인증된 경우에만 보관
-    boolean hasVerifiedEmail =
-        email != null && !email.isBlank() && email.length() <= 100 && identity.emailVerified();
-
-    // 이메일이 없거나 인증되지 않았으면 null로 정리
-    if (!hasVerifiedEmail) {
-      return new KakaoIdentity(identity.providerUserId(), null, false);
-    }
-
-    return identity;
+    // 이메일은 저장하지 않고 고유 ID만 유지
+    return new KakaoIdentity(identity.providerUserId(), null, false);
   }
 
   /**
-   * Redis에서 복원한 Kakao 사용자 정보의 유효성을 확인합니다.
+   * Redis에서 가져온 Kakao 사용자 ID를 검증합니다.
    *
    * @param identity 복원한 Kakao 사용자 정보
    * @return 유효한 인증 정보이면 true
    */
   private boolean isValidIdentity(KakaoIdentity identity) {
-    // 사용자 고유 ID 검증
-    if (identity == null
-        || identity.providerUserId() == null
-        || identity.providerUserId().isBlank()
-        || identity.providerUserId().length() > 255) {
-      return false;
-    }
-
-    // 이메일이 없는 Kakao 계정도 허용
-    if (identity.email() == null) {
-      return !identity.emailVerified();
-    }
-
-    // 이메일이 있다면 유효한 길이와 인증 상태 필요
-    return !identity.email().isBlank()
-        && identity.email().length() <= 100
-        && identity.emailVerified();
+    return identity != null
+        && identity.providerUserId() != null
+        && !identity.providerUserId().isBlank()
+        && identity.providerUserId().length() <= 255;
   }
 
   /**

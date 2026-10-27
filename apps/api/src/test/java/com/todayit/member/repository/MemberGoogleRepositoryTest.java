@@ -102,6 +102,14 @@ class MemberGoogleRepositoryTest {
     assertThat(member.getProvider()).isEqualTo(MemberProvider.GOOGLE);
     assertThat(member.getPassword()).isNull();
     assertThat(member.getProviderUserId()).isEqualTo("google-new-user-123");
+    assertThat(member.getEmail()).isNull();
+
+    // 실제 DB에도 이메일이 NULL로 저장되었는지 확인
+    String storedEmail =
+        jdbcTemplate.queryForObject(
+            "SELECT email FROM member WHERE member_id = ?", String.class, member.getId());
+
+    assertThat(storedEmail).isNull();
 
     // 저장한 Google 계정이 기존 로그인 조회 조건으로 검색되는지 검증
     var savedMember =

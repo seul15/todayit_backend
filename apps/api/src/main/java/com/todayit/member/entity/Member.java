@@ -17,7 +17,7 @@ public class Member {
   @Column(name = "member_id", length = 36)
   private String id;
 
-  // 소셜 회원은 이메일이 제공되지 않을 수 있음
+  // LOCAL 회원만 이메일 저장, 소셜 회원은 null
   @Column(name = "email", length = 100)
   private String email;
 
@@ -54,7 +54,9 @@ public class Member {
       String providerUserId) {
 
     this.id = id;
-    this.email = email;
+    // LOCAL 회원만 이메일을 저장
+    // Google·Kakao 회원은 고유 ID로 식별
+    this.email = provider == MemberProvider.LOCAL ? email : null;
     this.password = password;
     this.provider = provider;
     this.nickname = nickname;

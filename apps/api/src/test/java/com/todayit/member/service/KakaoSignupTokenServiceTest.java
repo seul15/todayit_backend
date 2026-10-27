@@ -77,8 +77,8 @@ class KakaoSignupTokenServiceTest {
   }
 
   @Test
-  @DisplayName("인증된 이메일은 Kakao 가입 정보에 함께 저장한다")
-  void storesVerifiedEmail() {
+  @DisplayName("Kakao 이메일이 인증되어 있어도 Redis에 저장하지 않는다")
+  void excludesVerifiedKakaoEmail() {
     // Given
     KakaoIdentity identity = new KakaoIdentity("123456789", "test@example.com", true);
 
@@ -95,7 +95,7 @@ class KakaoSignupTokenServiceTest {
     KakaoIdentity savedIdentity =
         objectMapper.readValue(payloadCaptor.getValue(), KakaoIdentity.class);
 
-    assertThat(savedIdentity).isEqualTo(identity);
+    assertThat(savedIdentity).isEqualTo(new KakaoIdentity("123456789", null, false));
   }
 
   @Test
