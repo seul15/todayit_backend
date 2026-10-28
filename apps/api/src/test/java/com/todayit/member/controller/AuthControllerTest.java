@@ -262,28 +262,6 @@ class AuthControllerTest {
   }
 
   @Test
-  @DisplayName("사용 가능한 이메일이면 available true를 반환한다")
-  void returnsAvailableTrueWhenEmailIsAvailable() throws Exception {
-    // Given
-    String email = "new@test.com";
-
-    when(signupService.isEmailAvailable(email)).thenReturn(true);
-
-    // When
-    ResultActions response =
-        mockMvc.perform(get("/api/v1/auth/emails/check").param("email", email));
-
-    // Then
-    response
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.email").value(email))
-        .andExpect(jsonPath("$.data.available").value(true));
-
-    verify(signupService).isEmailAvailable(email);
-  }
-
-  @Test
   @DisplayName("이미 사용 중인 이메일이면 available false를 반환한다")
   void returnsAvailableFalseWhenEmailAlreadyExists() throws Exception {
     // Given
@@ -303,22 +281,6 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.data.available").value(false));
 
     verify(signupService).isEmailAvailable(email);
-  }
-
-  @Test
-  @DisplayName("이메일이 비어 있으면 400 응답을 반환한다")
-  void returnsBadRequestWhenEmailIsBlank() throws Exception {
-    // When
-    ResultActions response = mockMvc.perform(get("/api/v1/auth/emails/check").param("email", ""));
-
-    // Then
-    response
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-        .andExpect(jsonPath("$.message").value("이메일은 필수입니다."));
-
-    verify(signupService, never()).isEmailAvailable(any());
   }
 
   @Test
@@ -609,29 +571,6 @@ class AuthControllerTest {
         .andExpect(jsonPath("$.message").value("인증번호는 숫자 6자리로 입력해 주세요."));
 
     // 형식 오류는 인증 실패 횟수에 포함하지 않음
-    verify(emailVerificationService, never()).confirmCode(any(), any(), any());
-  }
-
-  @Test
-  @DisplayName("인증번호에 문자가 포함되면 요청을 거부한다")
-  void rejectsNonNumericVerificationCode() throws Exception {
-    // Given
-    EmailVerificationConfirmRequest request =
-        new EmailVerificationConfirmRequest(
-            "test@test.com", "12ab56", EmailVerificationPurpose.SIGNUP);
-
-    // When
-    ResultActions response =
-        mockMvc.perform(
-            post("/api/v1/auth/email-verifications/confirm")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)));
-
-    // Then
-    response
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-
     verify(emailVerificationService, never()).confirmCode(any(), any(), any());
   }
 

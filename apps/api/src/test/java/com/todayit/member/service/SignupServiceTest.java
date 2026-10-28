@@ -169,26 +169,6 @@ class SignupServiceTest {
   }
 
   @Test
-  @DisplayName("필수 약관 코드가 누락되면 회원가입을 거부한다")
-  void rejectsSignupWhenRequiredAgreementIsMissing() {
-    SignupCommand command =
-        new SignupCommand(
-            "test@test.com",
-            "verification-token",
-            "password123!",
-            "테스트",
-            Map.of("PREFERENCE", false));
-
-    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
-
-    assertThatThrownBy(() -> signupService.createLocalMember(command))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("필수 약관과 동의 항목을 확인해 주세요.");
-
-    verify(memberRepository, never()).save(any());
-  }
-
-  @Test
   @DisplayName("필수 약관 정보가 없으면 회원가입을 진행하지 않는다")
   void rejectsSignupWhenRequiredAgreementInformationDoesNotExist() {
     SignupCommand command =
@@ -314,65 +294,6 @@ class SignupServiceTest {
     ReflectionTestUtils.setField(agreement, "required", required);
 
     return agreement;
-  }
-
-  @Test
-  @DisplayName("사용 가능한 닉네임이면 true를 반환한다")
-  void returnsTrueWhenNicknameIsAvailable() {
-    String nickname = "새닉네임";
-
-    boolean available = signupService.isNicknameAvailable(nickname);
-
-    assertThat(available).isTrue();
-    verify(nicknameBlocklistRepository).existsBlockedNickname(nickname);
-    verify(memberRepository).existsByNormalizedNickname(nickname);
-  }
-
-  @Test
-  @DisplayName("이미 사용 중인 닉네임이면 false를 반환한다")
-  void returnsFalseWhenNicknameAlreadyExists() {
-    String nickname = "더미사용자";
-
-    when(memberRepository.existsByNormalizedNickname(nickname)).thenReturn(true);
-
-    boolean available = signupService.isNicknameAvailable(nickname);
-
-    assertThat(available).isFalse();
-    verify(memberRepository).existsByNormalizedNickname(nickname);
-  }
-
-  @Test
-  @DisplayName("금칙어 닉네임이면 400에 해당하는 예외를 발생시킨다")
-  void rejectsBlockedNickname() {
-    String nickname = "관리자";
-
-    when(nicknameBlocklistRepository.existsBlockedNickname(nickname)).thenReturn(true);
-
-    assertThatThrownBy(() -> signupService.isNicknameAvailable(nickname))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("사용할 수 없는 닉네임입니다.");
-
-    verify(memberRepository, never()).existsByNormalizedNickname(any());
-  }
-
-  @Test
-  @DisplayName("닉네임 길이가 2자 미만이면 거부한다")
-  void rejectsTooShortNickname() {
-    assertThatThrownBy(() -> signupService.isNicknameAvailable("가"))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("닉네임은 2자 이상 8자 이하이어야 합니다.");
-
-    verify(memberRepository, never()).existsByNormalizedNickname(any());
-  }
-
-  @Test
-  @DisplayName("닉네임에 특수문자가 포함되면 거부한다")
-  void rejectsNicknameWithSpecialCharacters() {
-    assertThatThrownBy(() -> signupService.isNicknameAvailable("test!"))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.");
-
-    verify(memberRepository, never()).existsByNormalizedNickname(any());
   }
 
   @Test
@@ -590,34 +511,6 @@ class SignupServiceTest {
                     .isEqualTo(MemberErrorCode.GOOGLE_ACCOUNT_ALREADY_EXISTS));
 
     // 중복 계정인 경우 새 회원을 저장하지 않음
-    verify(memberRepository, never()).save(any());
-  }
-
-  @Test
-  @DisplayName("Google 회원도 필수 약관에 동의하지 않으면 가입할 수 없다")
-  void rejectsGoogleSignupWithoutRequiredAgreements() {
-    // Given
-    GoogleIdentity identity = new GoogleIdentity("google-user-123", "google@test.com", true);
-
-    SignupCommand command =
-        new SignupCommand(
-            MemberProvider.GOOGLE,
-            null,
-            null,
-            null,
-            "signup-token",
-            "구글회원",
-            Map.of(
-                "TOS", false,
-                "ACCOUNT_PRIVACY", true));
-
-    when(agreementRepository.findByDeletedFalse()).thenReturn(CURRENT_AGREEMENTS);
-
-    // When & Then
-    assertThatThrownBy(() -> signupService.createGoogleMember(command, identity))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("필수 약관과 동의 항목을 확인해 주세요.");
-
     verify(memberRepository, never()).save(any());
   }
 

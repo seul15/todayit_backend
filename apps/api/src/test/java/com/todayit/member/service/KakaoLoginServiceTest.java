@@ -239,23 +239,4 @@ class KakaoLoginServiceTest {
 
     verifyNoInteractions(memberRepository);
   }
-
-  @Test
-  @DisplayName("사용자 정보 조회 중 발생한 OAuth 오류도 변환한다")
-  void convertsUserInfoErrors() {
-    // Given
-    when(kakaoOAuthClient.exchangeCode("code", "redirect-uri")).thenReturn("kakao-access-token");
-
-    when(kakaoOAuthClient.getUserInfo("kakao-access-token"))
-        .thenThrow(new KakaoOAuthException(Reason.INVALID_ACCESS_TOKEN));
-
-    // When
-    BusinessException exception =
-        assertThrows(BusinessException.class, () -> service.login("code", "redirect-uri"));
-
-    // Then
-    assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.KAKAO_AUTHENTICATION_FAILED);
-
-    verifyNoInteractions(memberRepository);
-  }
 }

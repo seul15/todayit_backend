@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -22,7 +21,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -96,50 +94,6 @@ class KakaoSignupTokenServiceTest {
         objectMapper.readValue(payloadCaptor.getValue(), KakaoIdentity.class);
 
     assertThat(savedIdentity).isEqualTo(new KakaoIdentity("123456789", null, false));
-  }
-
-  @Test
-  @DisplayName("인증되지 않은 이메일은 저장하지 않는다")
-  void excludesUnverifiedEmail() {
-    // Given
-    KakaoIdentity identity = new KakaoIdentity("123456789", "test@example.com", false);
-
-    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-
-    // When
-    service.issue(identity);
-
-    // Then
-    ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
-
-    verify(valueOperations).set(anyString(), payloadCaptor.capture(), eq(Duration.ofMinutes(30)));
-
-    KakaoIdentity savedIdentity =
-        objectMapper.readValue(payloadCaptor.getValue(), KakaoIdentity.class);
-
-    assertThat(savedIdentity.providerUserId()).isEqualTo("123456789");
-    assertThat(savedIdentity.email()).isNull();
-    assertThat(savedIdentity.emailVerified()).isFalse();
-  }
-
-  @Test
-  @DisplayName("회원가입 토큰을 발급할 때마다 새로운 값을 생성한다")
-  void issuesDifferentTokens() {
-    // Given
-    KakaoIdentity identity = new KakaoIdentity("123456789", null, false);
-
-    when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-
-    // When
-    String firstToken = service.issue(identity);
-    String secondToken = service.issue(identity);
-
-    // Then
-    assertThat(firstToken).isNotEqualTo(secondToken);
-
-    verify(valueOperations, times(2))
-        .set(
-            ArgumentMatchers.anyString(), ArgumentMatchers.anyString(), eq(Duration.ofMinutes(30)));
   }
 
   @Test

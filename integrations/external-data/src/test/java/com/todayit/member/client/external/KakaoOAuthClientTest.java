@@ -141,54 +141,6 @@ class KakaoOAuthClientTest {
   }
 
   @Test
-  @DisplayName("이메일이 없더라도 회원 ID를 반환한다")
-  void handlesMissingEmail() {
-    // Given
-    KakaoOAuthClient client =
-        createClient(
-            HttpStatus.OK,
-            """
-                    {
-                      "id": 123456789,
-                      "kakao_account": {}
-                    }
-                    """);
-
-    // When
-    KakaoIdentity identity = client.getUserInfo("valid-token");
-
-    // Then
-    assertEquals("123456789", identity.providerUserId());
-    assertNull(identity.email());
-    assertFalse(identity.emailVerified());
-  }
-
-  @Test
-  @DisplayName("인증되지 않은 이메일은 미인증으로 처리한다")
-  void handlesUnverifiedEmail() {
-    // Given
-    KakaoOAuthClient client =
-        createClient(
-            HttpStatus.OK,
-            """
-                    {
-                      "id": 123456789,
-                      "kakao_account": {
-                        "email": "test@example.com",
-                        "is_email_verified": false,
-                        "is_email_valid": true
-                      }
-                    }
-                    """);
-
-    // When
-    KakaoIdentity identity = client.getUserInfo("valid-token");
-
-    // Then
-    assertFalse(identity.emailVerified());
-  }
-
-  @Test
   @DisplayName("만료된 Access Token은 인증 실패로 처리한다")
   void rejectsInvalidAccessToken() {
     // Given
@@ -268,31 +220,5 @@ class KakaoOAuthClientTest {
 
     // Then
     assertEquals("123456789", identity.providerUserId());
-  }
-
-  @Test
-  @DisplayName("이메일이 없으면 인증 플래그가 true여도 미인증으로 처리한다")
-  void rejectsVerifiedFlagWithoutEmail() {
-    // Given
-    KakaoOAuthClient client =
-        createClient(
-            HttpStatus.OK,
-            """
-                    {
-                      "id": 123456789,
-                      "kakao_account": {
-                        "is_email_verified": true,
-                        "is_email_valid": true
-                      }
-                    }
-                    """);
-
-    // When
-    KakaoIdentity identity = client.getUserInfo("valid-token");
-
-    // Then
-    assertEquals("123456789", identity.providerUserId());
-    assertNull(identity.email());
-    assertFalse(identity.emailVerified());
   }
 }

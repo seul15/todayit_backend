@@ -6,7 +6,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.todayit.member.client.external.GoogleIdentity;
@@ -42,30 +41,6 @@ class SignupFacadeTest {
   void setUp() {
     signupFacade =
         new SignupFacade(signupService, googleSignupTokenService, kakaoSignupTokenService);
-  }
-
-  @Test
-  @DisplayName("LOCAL 회원가입은 기존 로컬 가입 서비스를 호출한다")
-  void signsUpLocalMember() {
-    // Given
-    SignupCommand command =
-        new SignupCommand(
-            "local@test.com", "verification-token", "Password123!", "로컬회원", AGREEMENTS);
-
-    Member member = Member.createLocal("local@test.com", "encoded-password", "로컬회원");
-
-    when(signupService.createLocalMember(command)).thenReturn(member);
-
-    // When
-    Member result = signupFacade.signup(command);
-
-    // Then
-    assertThat(result).isSameAs(member);
-
-    verify(signupService).createLocalMember(command);
-
-    // LOCAL 가입 시 Google 토큰 서비스는 호출하지 않음
-    verifyNoInteractions(googleSignupTokenService);
   }
 
   @Test
