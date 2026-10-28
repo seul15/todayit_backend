@@ -437,7 +437,7 @@ class SignupServiceTest {
   @DisplayName("Google 회원가입 시 비밀번호 없이 회원과 권한 및 약관을 저장한다")
   void createsGoogleMemberWithAgreements() {
     // Given
-    GoogleIdentity identity = new GoogleIdentity("google-user-123", null, true);
+    GoogleIdentity identity = new GoogleIdentity("google-user-123", null, false);
 
     SignupCommand command =
         new SignupCommand(

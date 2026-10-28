@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-/** LOCAL 및 GOOGLE 회원가입과 공통 회원 정보 저장을 처리합니다. */
+/** LOCAL·GOOGLE·KAKAO 회원가입과 공통 회원 정보 저장을 처리합니다. */
 @Service
 public class SignupService {
 
@@ -233,7 +233,7 @@ public class SignupService {
   /**
    * 검증된 Kakao 계정 정보로 KAKAO 회원을 생성합니다.
    *
-   * <p>상위 Facade에서 Redis 임시 가입 토큰을 검증한 뒤 호출합니다. 이메일은 선택사항이며, 회원과 기본 권한 및 약관 동의를 하나의 DB 트랜잭션으로
+   * <p>상위 Facade에서 Redis 임시 가입 토큰을 검증한 뒤 호출합니다. 이메일은 저장하지 않으며 회원과 기본 권한 및 약관 동의를 하나의 DB 트랜잭션으로
    * 저장합니다.
    *
    * @param command KAKAO 회원가입 정보
@@ -341,7 +341,7 @@ public class SignupService {
   /**
    * 회원과 기본 권한 및 약관 동의 정보를 저장합니다.
    *
-   * <p>이 메서드는 LOCAL·GOOGLE 모두 사용하며 별도 public 트랜잭션 메서드 안에서 실행합니다.
+   * <p>이 메서드는 LOCAL·GOOGLE·KAKAO 모두 사용하며 별도 public 트랜잭션 메서드 안에서 실행합니다.
    *
    * @param member 저장할 회원
    * @param requestedAgreements 약관 코드별 동의 여부

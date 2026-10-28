@@ -69,7 +69,7 @@ public class AuthController implements AuthApiDocs {
    * @param tokenRefreshService 토큰 갱신 처리 Service
    * @param googleLoginService Google 로그인 처리 Service
    * @param kakaoLoginService Kakao 로그인 처리 Service
-   * @param signupFacade LOCAL·GOOGLE 통합 회원가입 Facade
+   * @param signupFacade LOCAL·GOOGLE·KAKAO 통합 회원가입 Facade
    */
   public AuthController(
       LoginFacade loginFacade,

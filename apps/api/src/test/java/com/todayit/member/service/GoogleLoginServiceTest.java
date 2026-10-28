@@ -96,7 +96,7 @@ class GoogleLoginServiceTest {
   @DisplayName("신규 Google 사용자는 회원을 생성하지 않고 임시 가입 토큰을 발급받는다")
   void issuesSignupTokenForNewGoogleUser() {
     // Given
-    GoogleIdentity identity = new GoogleIdentity("google-new", null, true);
+    GoogleIdentity identity = new GoogleIdentity("google-new", null, false);
 
     when(googleOAuthClient.authenticate("code", "redirect-uri")).thenReturn(identity);
 

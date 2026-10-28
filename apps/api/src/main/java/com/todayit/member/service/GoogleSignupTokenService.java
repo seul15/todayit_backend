@@ -48,7 +48,7 @@ public class GoogleSignupTokenService {
    * @throws IllegalStateException 토큰 생성 또는 정보 직렬화에 실패한 경우
    */
   public String issue(GoogleIdentity identity) {
-    // Google 계정 식별자, 이메일 및 인증 여부 확인
+    // Google 계정 고유 ID 검증
     if (!isValidIdentity(identity)) {
       throw new IllegalArgumentException("유효한 Google 인증 정보가 필요합니다.");
     }
@@ -84,7 +84,6 @@ public class GoogleSignupTokenService {
    * @param signupToken Google 로그인에서 발급한 임시 가입 토큰
    * @return Google에서 인증된 사용자 정보
    * @throws BusinessException 토큰이 만료되었거나 유효하지 않은 경우
-   * @throws IllegalStateException 저장된 Google 인증 정보 복원에 실패한 경우
    */
   public GoogleIdentity getVerifiedIdentity(String signupToken) {
 
