@@ -41,6 +41,12 @@ public class Member {
   @Column(name = "created_at", nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
+  @Column(name = "profile_image", nullable = false, length = 2048)
+  private String profileImage = DEFAULT_PROFILE_IMAGE;
+
+  @Column(name = "updated_at")
+  private LocalDateTime updatedAt;
+
   protected Member() {}
 
   private Member(
@@ -65,6 +71,30 @@ public class Member {
 
     // Google 등 소셜 서비스에서 발급한 사용자 고유 식별자
     this.providerUserId = providerUserId;
+  }
+
+  // 모든 회원이 공통으로 사용하는 기본 프로필 이미지
+  private static final String DEFAULT_PROFILE_IMAGE =
+      "https://res.cloudinary.com/xmb52jrp/image/upload/v1793191339/default_profile.png";
+
+  /**
+   * 회원의 프로필 이미지와 수정 시각을 변경합니다.
+   *
+   * @param profileImage 변경할 이미지 URL
+   * @param updatedAt 변경 시각
+   */
+  public void changeProfileImage(String profileImage, LocalDateTime updatedAt) {
+    this.profileImage = profileImage;
+    this.updatedAt = updatedAt;
+  }
+
+  /**
+   * 회원의 프로필 이미지를 기본 이미지로 복원합니다.
+   *
+   * @param updatedAt 변경 시각
+   */
+  public void resetProfileImage(LocalDateTime updatedAt) {
+    changeProfileImage(DEFAULT_PROFILE_IMAGE, updatedAt);
   }
 
   /**
@@ -161,5 +191,13 @@ public class Member {
 
   public boolean isActive() {
     return active;
+  }
+
+  public String getProfileImage() {
+    return profileImage;
+  }
+
+  public LocalDateTime getUpdatedAt() {
+    return updatedAt;
   }
 }
