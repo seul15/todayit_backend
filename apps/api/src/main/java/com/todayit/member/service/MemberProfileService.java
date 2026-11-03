@@ -3,6 +3,7 @@ package com.todayit.member.service;
 import com.todayit.common.exception.BusinessException;
 import com.todayit.member.entity.Member;
 import com.todayit.member.exception.MemberErrorCode;
+import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.time.Clock;
@@ -14,15 +15,21 @@ import org.springframework.transaction.annotation.Transactional;
 /** 회원 프로필 이미지 변경을 처리하는 Command Service입니다. */
 @Service
 public class MemberProfileService {
+  private static final String PROFILE_IMAGE_AGREEMENT_CODE = "PROFILE_IMAGE";
+
   private final MemberRepository memberRepository;
+  private final MemberAgreementRepository memberAgreementRepository;
 
   /**
    * 회원 프로필 변경에 필요한 Repository를 받습니다.
    *
    * @param memberRepository 회원 Repository
+   * @param memberAgreementRepository 회원 약관 동의 Repository
    */
-  public MemberProfileService(MemberRepository memberRepository) {
+  public MemberProfileService(
+      MemberRepository memberRepository, MemberAgreementRepository memberAgreementRepository) {
     this.memberRepository = memberRepository;
+    this.memberAgreementRepository = memberAgreementRepository;
   }
 
   /**
@@ -50,5 +57,22 @@ public class MemberProfileService {
 
     // JPA 변경 감지로 트랜잭션 커밋 시 UPDATE
     return new MemberProfileResult(member.getId(), member.getProfileImage(), member.getUpdatedAt());
+  }
+
+  /**
+   * 프로필 이미지 등록을 위한 약관 동의 여부를 확인합니다.
+   *
+   * @param memberId 회원 식별자
+   * @throws BusinessException 약관에 동의하지 않은 경우
+   */
+  @Transactional(readOnly = true)
+  public void validateProfileImageConsent(String memberId) {
+    boolean agreed =
+        memberAgreementRepository.existsAgreedActiveAgreement(
+            memberId, PROFILE_IMAGE_AGREEMENT_CODE);
+
+    if (!agreed) {
+      throw new BusinessException(MemberErrorCode.PROFILE_IMAGE_CONSENT_REQUIRED);
+    }
   }
 }

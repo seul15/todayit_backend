@@ -1,6 +1,7 @@
 package com.todayit.member.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.todayit.common.exception.BusinessException;
 import com.todayit.member.entity.Member;
 import com.todayit.member.exception.MemberErrorCode;
+import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.time.Clock;
@@ -28,12 +30,13 @@ class MemberProfileServiceTest {
   private static final String PROFILE_IMAGE_URL = "https://example.com/profile.png";
 
   @Mock private MemberRepository memberRepository;
+  @Mock private MemberAgreementRepository memberAgreementRepository;
 
   private MemberProfileService service;
 
   @BeforeEach
   void setUp() {
-    service = new MemberProfileService(memberRepository);
+    service = new MemberProfileService(memberRepository, memberAgreementRepository);
   }
 
   @Test
@@ -100,5 +103,36 @@ class MemberProfileServiceTest {
         .changeProfileImage(
             org.mockito.ArgumentMatchers.anyString(),
             org.mockito.ArgumentMatchers.any(LocalDateTime.class));
+  }
+
+  @Test
+  @DisplayName("프로필 이미지 약관에 동의한 회원은 검증을 통과한다")
+  void acceptsProfileImageConsent() {
+    // Given
+    String memberId = "member-123";
+
+    when(memberAgreementRepository.existsAgreedActiveAgreement(memberId, "PROFILE_IMAGE"))
+        .thenReturn(true);
+
+    // When & Then
+    assertThatCode(() -> service.validateProfileImageConsent(memberId)).doesNotThrowAnyException();
+  }
+
+  @Test
+  @DisplayName("프로필 이미지 약관에 동의하지 않은 회원은 등록할 수 없다")
+  void rejectsMissingProfileImageConsent() {
+    // Given
+    String memberId = "member-123";
+
+    when(memberAgreementRepository.existsAgreedActiveAgreement(memberId, "PROFILE_IMAGE"))
+        .thenReturn(false);
+
+    // When & Then
+    assertThatThrownBy(() -> service.validateProfileImageConsent(memberId))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(MemberErrorCode.PROFILE_IMAGE_CONSENT_REQUIRED));
   }
 }

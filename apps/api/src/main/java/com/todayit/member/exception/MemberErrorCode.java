@@ -62,7 +62,10 @@ public enum MemberErrorCode implements ErrorCode {
   KAKAO_ACCOUNT_ALREADY_EXISTS(
       "KAKAO_ACCOUNT_ALREADY_EXISTS", "이미 가입된 Kakao 계정입니다.", ErrorStatus.CONFLICT),
 
-  MEMBER_NOT_FOUND("MEMBER_NOT_FOUND", "회원을 찾을 수 없습니다.", ErrorStatus.NOT_FOUND);
+  MEMBER_NOT_FOUND("MEMBER_NOT_FOUND", "회원을 찾을 수 없습니다.", ErrorStatus.NOT_FOUND),
+
+  PROFILE_IMAGE_CONSENT_REQUIRED(
+      "PROFILE_IMAGE_CONSENT_REQUIRED", "프로필 이미지 등록을 위한 약관 동의가 필요합니다.", ErrorStatus.BAD_REQUEST);
 
   private final String code;
   private final String message;
