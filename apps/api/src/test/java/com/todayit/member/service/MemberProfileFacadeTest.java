@@ -2,7 +2,9 @@ package com.todayit.member.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -13,12 +15,14 @@ import static org.mockito.Mockito.when;
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.file.entity.FileRelatedType;
+import com.todayit.common.file.exception.FileErrorCode;
+import com.todayit.common.file.exception.FileException;
 import com.todayit.common.file.service.FileManagementService;
-import com.todayit.common.file.service.model.FileResult;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,25 +59,17 @@ class MemberProfileFacadeTest {
     // Given
     MockMultipartFile file = createFile();
 
-    FileResult uploadedFile =
-        new FileResult(
-            1L,
-            FileRelatedType.MEMBER_PROFILE,
-            MEMBER_ID,
-            "profile.png",
-            "image/profile-123",
-            "image/png",
-            3L,
-            LocalDateTime.now());
-
     MemberProfileResult expected =
         new MemberProfileResult(MEMBER_ID, PROFILE_IMAGE_URL, LocalDateTime.now());
 
-    when(fileManagementService.upload(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(file)))
-        .thenReturn(List.of(uploadedFile));
-
-    when(fileManagementService.getAccessUrl(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, 1L))
-        .thenReturn(PROFILE_IMAGE_URL);
+    when(fileManagementService.uploadWithReferenceUpdate(
+            eq(FileRelatedType.MEMBER_PROFILE), eq(MEMBER_ID), eq(List.of(file)), any()))
+        .thenAnswer(
+            invocation -> {
+              Consumer<List<String>> callback = invocation.getArgument(3);
+              callback.accept(List.of(PROFILE_IMAGE_URL));
+              return List.of();
+            });
 
     when(memberProfileService.changeProfileImage(MEMBER_ID, PROFILE_IMAGE_URL))
         .thenReturn(expected);
@@ -88,14 +84,12 @@ class MemberProfileFacadeTest {
         inOrder(activeMemberValidationService, memberProfileService, fileManagementService);
 
     order.verify(activeMemberValidationService).validateActiveMember(MEMBER_ID);
-
     order.verify(memberProfileService).validateProfileImageConsent(MEMBER_ID);
 
     order
         .verify(fileManagementService)
-        .upload(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(file));
-
-    order.verify(fileManagementService).getAccessUrl(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, 1L);
+        .uploadWithReferenceUpdate(
+            eq(FileRelatedType.MEMBER_PROFILE), eq(MEMBER_ID), eq(List.of(file)), any());
 
     order.verify(memberProfileService).changeProfileImage(MEMBER_ID, PROFILE_IMAGE_URL);
   }
@@ -158,12 +152,14 @@ class MemberProfileFacadeTest {
     // Given
     MockMultipartFile file = createFile();
 
-    when(fileManagementService.upload(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(file)))
-        .thenThrow(new IllegalStateException("파일 업로드 실패"));
+    FileException failure = new FileException(FileErrorCode.STORAGE_FAILED);
+
+    when(fileManagementService.uploadWithReferenceUpdate(
+            eq(FileRelatedType.MEMBER_PROFILE), eq(MEMBER_ID), eq(List.of(file)), any()))
+        .thenThrow(failure);
 
     // When & Then
-    assertThatThrownBy(() -> facade.uploadProfileImage(MEMBER_ID, file))
-        .isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(() -> facade.uploadProfileImage(MEMBER_ID, file)).isSameAs(failure);
 
     verify(memberProfileService, never()).changeProfileImage(anyString(), anyString());
   }

@@ -3,9 +3,9 @@ package com.todayit.member.service;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.file.entity.FileRelatedType;
 import com.todayit.common.file.service.FileManagementService;
-import com.todayit.common.file.service.model.FileResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -35,7 +35,7 @@ public class MemberProfileFacade {
   /**
    * 회원의 프로필 이미지를 등록하거나 교체합니다.
    *
-   * <p>공용 파일 서비스가 트랜잭션 밖에서 실행되도록 Facade에는 트랜잭션을 적용하지 않습니다.
+   * <p>파일 메타데이터 등록과 회원 프로필 이미지 변경을 동일한 DB 트랜잭션에서 처리합니다. 외부 파일 업로드는 DB 트랜잭션 밖에서 수행합니다.
    *
    * @param memberId 인증된 회원 식별자
    * @param file 업로드할 프로필 이미지
@@ -55,18 +55,20 @@ public class MemberProfileFacade {
     // 프로필 이미지 약관 동의 여부 검증
     memberProfileService.validateProfileImageConsent(memberId);
 
-    // Cloudinary 업로드 및 파일 메타데이터 저장
-    List<FileResult> uploadedFiles =
-        fileManagementService.upload(FileRelatedType.MEMBER_PROFILE, memberId, List.of(file));
+    AtomicReference<MemberProfileResult> profileResult = new AtomicReference<>();
 
-    // 업로드된 이미지의 접근 URL 조회
-    FileResult uploadedFile = uploadedFiles.get(0);
+    // 파일 메타데이터와 회원정보를 동일한 DB 트랜잭션에서 갱신
+    fileManagementService.uploadWithReferenceUpdate(
+        FileRelatedType.MEMBER_PROFILE,
+        memberId,
+        List.of(file),
+        urls -> {
+          MemberProfileResult result =
+              memberProfileService.changeProfileImage(memberId, urls.get(0));
 
-    String profileImageUrl =
-        fileManagementService.getAccessUrl(
-            FileRelatedType.MEMBER_PROFILE, memberId, uploadedFile.fileId());
+          profileResult.set(result);
+        });
 
-    // 회원 프로필 이미지 URL 변경
-    return memberProfileService.changeProfileImage(memberId, profileImageUrl);
+    return profileResult.get();
   }
 }
