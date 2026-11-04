@@ -14,7 +14,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.todayit.common.exception.BusinessException;
 import com.todayit.common.file.client.FileStorage;
+import com.todayit.common.file.entity.File;
 import com.todayit.common.file.entity.FileRelatedType;
 import com.todayit.common.file.exception.FileErrorCode;
 import com.todayit.common.file.exception.FileException;
@@ -23,13 +25,17 @@ import com.todayit.common.file.service.model.FileRegistrationResult;
 import com.todayit.common.file.service.model.FileResult;
 import com.todayit.common.file.service.model.ValidatedFile;
 import com.todayit.common.file.validation.FileExtension;
+import com.todayit.member.exception.MemberErrorCode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.web.multipart.MultipartFile;
 
 @DisplayName("공용 파일 서비스")
 class FileServiceTest {
@@ -314,5 +320,104 @@ class FileServiceTest {
         "image/png",
         1,
         LocalDateTime.of(2026, 1, 1, 0, 0));
+  }
+
+  @Test
+  @DisplayName("후속 DB 변경 작업에 등록된 파일 URL을 전달한다")
+  void passesUploadedFileUrlToReferenceUpdate() {
+    // given
+    MultipartFile image = mock(MultipartFile.class);
+    String expectedUrl = "https://example.com/profile.png";
+
+    when(validation.validate(eq(FileRelatedType.MEMBER_PROFILE), anyList()))
+        .thenReturn(List.of(new ValidatedFile("profile.png", FileExtension.PNG, new byte[] {1})));
+
+    when(storage.accessUrl(anyString(), eq("image/png"), eq(FileRelatedType.MEMBER_PROFILE)))
+        .thenReturn(expectedUrl);
+
+    when(metadata.registerWithCallback(
+            eq(FileRelatedType.MEMBER_PROFILE), eq("23"), anyList(), any()))
+        .thenAnswer(
+            invocation -> {
+              List<File> additions = invocation.getArgument(2);
+              Consumer<List<FileResult>> callback = invocation.getArgument(3);
+
+              String storedName = additions.get(0).getSnapshot().storedName();
+
+              FileResult registered = file(2, FileRelatedType.MEMBER_PROFILE, storedName);
+
+              callback.accept(List.of(registered));
+
+              return new FileRegistrationResult(
+                  List.of(registered), List.of(file(1, FileRelatedType.MEMBER_PROFILE, "old-key")));
+            });
+
+    AtomicReference<List<String>> receivedUrls = new AtomicReference<>();
+
+    // when
+    List<FileResult> result =
+        service.uploadWithReferenceUpdate(
+            FileRelatedType.MEMBER_PROFILE, "23", List.of(image), receivedUrls::set);
+
+    // then
+    assertThat(result).hasSize(1);
+    assertThat(receivedUrls.get()).containsExactly(expectedUrl);
+
+    verify(storage).delete("old-key", "image/png", FileRelatedType.MEMBER_PROFILE);
+  }
+
+  @Test
+  @DisplayName("후속 DB 변경 실패 시 새 업로드 파일만 정리한다")
+  void compensatesNewFileWhenReferenceUpdateFails() {
+    // given
+    MultipartFile image = mock(MultipartFile.class);
+    AtomicReference<String> newStoredName = new AtomicReference<>();
+
+    when(validation.validate(eq(FileRelatedType.MEMBER_PROFILE), anyList()))
+        .thenReturn(List.of(new ValidatedFile("profile.png", FileExtension.PNG, new byte[] {1})));
+
+    when(storage.accessUrl(anyString(), eq("image/png"), eq(FileRelatedType.MEMBER_PROFILE)))
+        .thenReturn("https://example.com/profile.png");
+
+    when(metadata.registerWithCallback(
+            eq(FileRelatedType.MEMBER_PROFILE), eq("23"), anyList(), any()))
+        .thenAnswer(
+            invocation -> {
+              List<File> additions = invocation.getArgument(2);
+              Consumer<List<FileResult>> callback = invocation.getArgument(3);
+
+              String storedName = additions.get(0).getSnapshot().storedName();
+
+              newStoredName.set(storedName);
+
+              callback.accept(List.of(file(2, FileRelatedType.MEMBER_PROFILE, storedName)));
+
+              return null;
+            });
+
+    BusinessException failure = new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND);
+
+    // when
+    Throwable thrown =
+        catchThrowable(
+            () ->
+                service.uploadWithReferenceUpdate(
+                    FileRelatedType.MEMBER_PROFILE,
+                    "23",
+                    List.of(image),
+                    urls -> {
+                      throw failure;
+                    }));
+
+    // then
+    assertThat(thrown).isSameAs(failure);
+
+    assertThat(((BusinessException) thrown).getErrorCode())
+        .isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND);
+
+    verify(storage)
+        .delete(eq(newStoredName.get()), eq("image/png"), eq(FileRelatedType.MEMBER_PROFILE));
+
+    verify(storage, never()).delete(eq("old-key"), anyString(), eq(FileRelatedType.MEMBER_PROFILE));
   }
 }

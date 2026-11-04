@@ -4,6 +4,7 @@ import com.todayit.common.file.entity.FileRelatedType;
 import com.todayit.common.file.exception.FileException;
 import com.todayit.common.file.service.model.FileResult;
 import java.util.List;
+import java.util.function.Consumer;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -22,6 +23,25 @@ public interface FileManagementService {
    * @throws FileException 대상 또는 파일 입력이 유효하지 않은 경우
    */
   List<FileResult> upload(FileRelatedType type, String relatedId, List<MultipartFile> files);
+
+  /**
+   * 파일을 업로드하고 이를 참조하는 DB 정보를 동일한 트랜잭션에서 갱신합니다.
+   *
+   * <p>후속 작업은 DB 변경만 수행해야 하며 외부 저장소 호출을 포함하지 않습니다.
+   *
+   * @param type 파일 사용처
+   * @param relatedId 연결 대상 식별자
+   * @param files 업로드할 파일 목록
+   * @param updateReferences 등록된 파일 URL을 사용하는 DB 변경 작업
+   * @return 등록된 파일 메타데이터
+   * @throws FileException 파일 입력 또는 등록이 유효하지 않은 경우
+   * @throws IllegalArgumentException 후속 DB 변경 작업이 없는 경우
+   */
+  List<FileResult> uploadWithReferenceUpdate(
+      FileRelatedType type,
+      String relatedId,
+      List<MultipartFile> files,
+      Consumer<List<String>> updateReferences);
 
   /**
    * 대상 파일 목록을 반환합니다. 접근 권한은 호출자가 검증해야 합니다.

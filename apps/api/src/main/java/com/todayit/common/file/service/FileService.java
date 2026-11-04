@@ -11,8 +11,11 @@ import com.todayit.common.file.service.model.FileRegistrationResult;
 import com.todayit.common.file.service.model.FileResult;
 import com.todayit.common.file.service.model.ValidatedFile;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -88,6 +91,117 @@ public class FileService implements FileManagementService {
       }
       return result.files();
     } finally {
+      if (!registered) {
+        compensate(attempted);
+      }
+    }
+  }
+
+  /**
+   * 파일 업로드와 해당 파일을 참조하는 DB 정보 변경을 함께 처리합니다.
+   *
+   * <p>외부 저장소 업로드와 접근 URL 생성은 DB 트랜잭션 밖에서 수행합니다. 파일 메타데이터와 후속 DB 정보 변경이 모두 성공한 뒤 이전 외부 파일을 정리합니다.
+   *
+   * <p>DB 변경에 실패하면 새로 업로드한 파일의 삭제를 시도합니다. 후속 작업은 별도의 트랜잭션을 시작하지 않아야 합니다.
+   *
+   * @param type 파일 사용처
+   * @param relatedId 연결 대상 식별자, 최대 36자
+   * @param files 업로드할 파일 목록
+   * @param updateReferences 등록된 파일 URL을 전달받아 DB 정보를 변경하는 작업
+   * @return 등록된 파일 메타데이터
+   * @throws FileException 대상 또는 파일 입력이 유효하지 않은 경우
+   * @throws IllegalArgumentException 후속 DB 변경 작업이 없는 경우
+   * @throws RuntimeException 외부 저장소 또는 후속 DB 작업에 실패한 경우
+   */
+  @Override
+  public List<FileResult> uploadWithReferenceUpdate(
+      FileRelatedType type,
+      String relatedId,
+      List<MultipartFile> files,
+      Consumer<List<String>> updateReferences) {
+
+    if (updateReferences == null) {
+      throw new IllegalArgumentException("후속 DB 변경 작업은 필수입니다.");
+    }
+
+    validateTarget(type, relatedId);
+
+    List<ValidatedFile> validated = validation.validate(type, files);
+    List<File> attempted = new ArrayList<>();
+    boolean registered = false;
+
+    try {
+      // 1. 기존 방식으로 파일을 검증된 외부 저장소에 업로드
+      for (ValidatedFile file : validated) {
+        boolean pdf = "application/pdf".equals(file.extension().mimeType());
+        String storedName = (pdf ? "pdf/" : "image/") + UUID.randomUUID();
+
+        if (pdf) {
+          storedName += ".pdf";
+        }
+
+        byte[] content = file.content();
+
+        File stored =
+            new File(
+                type,
+                relatedId,
+                file.originalName(),
+                storedName,
+                file.extension().mimeType(),
+                content.length);
+
+        attempted.add(stored);
+        storage.upload(storedName, file.extension().mimeType(), type, content);
+      }
+
+      // 2. DB 트랜잭션에 들어가기 전에 접근 URL 생성
+      Map<String, String> uploadedUrls = new HashMap<>();
+
+      for (File file : attempted) {
+        FileSnapshot snapshot = file.getSnapshot();
+
+        String url =
+            storage.accessUrl(snapshot.storedName(), snapshot.mimeType(), snapshot.relatedType());
+
+        uploadedUrls.put(snapshot.storedName(), url);
+      }
+
+      // 3. 파일 메타데이터와 참조 DB 정보를 동일한 트랜잭션에서 갱신
+      FileRegistrationResult result =
+          metadata.registerWithCallback(
+              type,
+              relatedId,
+              attempted,
+              saved -> {
+                List<String> urls =
+                    saved.stream()
+                        .map(
+                            file -> {
+                              String url = uploadedUrls.get(file.storedName());
+
+                              if (url == null) {
+                                throw new IllegalStateException("등록된 파일의 접근 URL을 찾을 수 없습니다.");
+                              }
+
+                              return url;
+                            })
+                        .toList();
+
+                updateReferences.accept(urls);
+              });
+
+      registered = true;
+
+      // 4. DB 커밋 성공 후 이전 외부 파일 정리
+      for (FileResult previous : result.replaced()) {
+        deleteUnusedFile(previous.storedName(), previous.mimeType(), previous.relatedType());
+      }
+
+      return result.files();
+
+    } finally {
+      // 5. DB 등록 실패 시 새로 업로드한 외부 파일 정리
       if (!registered) {
         compensate(attempted);
       }
