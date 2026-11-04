@@ -10,6 +10,7 @@ import com.todayit.common.file.repository.FileRepository;
 import com.todayit.common.file.service.model.FileRegistrationResult;
 import com.todayit.common.file.service.model.FileResult;
 import java.util.List;
+import java.util.function.Consumer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,6 +66,33 @@ public class FileMetadataService {
             .map(FileResult::from)
             .toList();
     return new FileRegistrationResult(saved, replaced);
+  }
+
+  /**
+   * 파일 메타데이터 등록과 후속 DB 작업을 동일한 트랜잭션에서 처리합니다.
+   *
+   * <p>후속 작업은 DB 변경만 수행해야 하며 외부 저장소 작업을 포함하지 않습니다.
+   *
+   * @param type 파일 사용처
+   * @param relatedId 연결 대상 식별자
+   * @param additions 업로드 완료 파일
+   * @param afterRegister 파일 등록 후 실행할 DB 작업
+   * @return 등록된 파일과 교체된 이전 파일 정보
+   * @throws FileException 파일 등록 조건을 위반한 경우
+   * @throws RuntimeException 후속 DB 작업에 실패한 경우
+   */
+  @Transactional
+  public FileRegistrationResult registerWithCallback(
+      FileRelatedType type,
+      String relatedId,
+      List<File> additions,
+      Consumer<List<FileResult>> afterRegister) {
+
+    FileRegistrationResult result = register(type, relatedId, additions);
+
+    afterRegister.accept(result.files());
+
+    return result;
   }
 
   /**

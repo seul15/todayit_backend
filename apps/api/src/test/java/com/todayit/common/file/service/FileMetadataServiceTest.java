@@ -1,6 +1,7 @@
 package com.todayit.common.file.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
@@ -16,6 +17,7 @@ import com.todayit.common.file.exception.FileException;
 import com.todayit.common.file.repository.FileRepository;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -161,5 +163,67 @@ class FileMetadataServiceTest {
     File file = new File(type, target, "photo.png", key, "image/png", bytes);
     ReflectionTestUtils.setField(file, "fileId", id);
     return file;
+  }
+
+  @Test
+  @DisplayName("파일 등록 이후 후속 DB 작업을 실행한다")
+  void executesCallbackAfterRegistration() {
+    // Given
+    File added = stored(2, FileRelatedType.MEMBER_PROFILE, "member", "new-key", 12);
+
+    when(files.findByRelatedTypeAndRelatedIdOrderByFileIdAsc(
+            FileRelatedType.MEMBER_PROFILE, "member"))
+        .thenReturn(List.of());
+
+    when(files.saveAllAndFlush(List.of(added))).thenReturn(List.of(added));
+
+    AtomicBoolean callbackExecuted = new AtomicBoolean(false);
+
+    // When
+    var result =
+        service.registerWithCallback(
+            FileRelatedType.MEMBER_PROFILE,
+            "member",
+            List.of(added),
+            saved -> {
+              assertThat(saved)
+                  .singleElement()
+                  .satisfies(file -> assertThat(file.storedName()).isEqualTo("new-key"));
+
+              callbackExecuted.set(true);
+            });
+
+    // Then
+    assertThat(callbackExecuted.get()).isTrue();
+    assertThat(result.files()).hasSize(1);
+
+    verify(files).saveAllAndFlush(List.of(added));
+  }
+
+  @Test
+  @DisplayName("후속 DB 작업이 실패하면 예외를 전파한다")
+  void propagatesCallbackFailure() {
+    // Given
+    File added = stored(2, FileRelatedType.MEMBER_PROFILE, "member", "new-key", 12);
+
+    when(files.findByRelatedTypeAndRelatedIdOrderByFileIdAsc(
+            FileRelatedType.MEMBER_PROFILE, "member"))
+        .thenReturn(List.of());
+
+    when(files.saveAllAndFlush(List.of(added))).thenReturn(List.of(added));
+
+    IllegalStateException failure = new IllegalStateException("회원정보 저장 실패");
+
+    // When & Then
+    assertThatThrownBy(
+            () ->
+                service.registerWithCallback(
+                    FileRelatedType.MEMBER_PROFILE,
+                    "member",
+                    List.of(added),
+                    saved -> {
+                      throw failure;
+                    }))
+        .isSameAs(failure);
   }
 }
