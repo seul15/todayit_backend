@@ -4,6 +4,7 @@ import com.todayit.common.openapi.OpenApiConfig;
 import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.response.CommonResponse;
 import com.todayit.common.response.ErrorResponse;
+import com.todayit.member.dto.response.MemberProfileImageResponse;
 import com.todayit.member.dto.response.NicknameAvailabilityResponse;
 import com.todayit.place.dto.response.PlaceResponse;
 import com.todayit.place.service.model.PlaceScrapSort;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.multipart.MultipartFile;
 
 /** 회원의 닉네임 확인과 스크랩 장소 조회 API 명세입니다. */
 @Tag(name = "회원", description = "닉네임 사용 가능 여부 및 내 스크랩 장소 조회 API")
@@ -115,4 +117,45 @@ public interface MemberApiDocs {
   })
   ResponseEntity<CommonResponse<PageResponse<PlaceResponse>>> findScrappedPlaces(
       int page, PlaceScrapSort sort, Authentication authentication);
+
+  /**
+   * 인증된 회원의 프로필 이미지를 등록하거나 교체합니다.
+   *
+   * @param file 업로드할 이미지 파일
+   * @param authentication 인증된 회원 정보
+   * @return 변경된 프로필 이미지 정보
+   */
+  @Operation(
+      summary = "프로필 이미지 등록 및 변경",
+      description =
+          "로그인한 회원의 프로필 이미지를 등록하거나 교체합니다. "
+              + "PROFILE_IMAGE 약관에 동의한 회원만 사용할 수 있습니다. "
+              + "이미 등록된 이미지가 있으면 새 이미지로 교체합니다.",
+      security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "프로필 이미지 등록 성공"),
+    @ApiResponse(
+        responseCode = "400",
+        description = "잘못된 파일 또는 프로필 이미지 약관 미동의",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "401",
+        description = "Access Token 인증 필요",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "회원을 찾을 수 없음",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  ResponseEntity<CommonResponse<MemberProfileImageResponse>> uploadProfileImage(
+      MultipartFile file, Authentication authentication);
 }

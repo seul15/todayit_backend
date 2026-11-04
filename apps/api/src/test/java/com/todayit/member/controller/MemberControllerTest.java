@@ -1,20 +1,28 @@
 package com.todayit.member.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.GlobalExceptionHandler;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.pagination.PageResult;
+import com.todayit.member.exception.MemberErrorCode;
+import com.todayit.member.service.MemberProfileFacade;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.place.entity.Category;
 import com.todayit.place.service.PlaceScrapQueryService;
 import com.todayit.place.service.model.PlaceResult;
 import com.todayit.place.service.model.PlaceScrapSort;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,22 +30,26 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.multipart.MultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class MemberControllerTest {
 
   @Mock private PlaceScrapQueryService placeScrapQueryService;
   @Mock private SignupService signupService;
+  @Mock private MemberProfileFacade memberProfileFacade;
 
   private MockMvc mockMvc;
 
   @BeforeEach
   void setUp() {
     mockMvc =
-        MockMvcBuilders.standaloneSetup(new MemberController(signupService, placeScrapQueryService))
+        MockMvcBuilders.standaloneSetup(
+                new MemberController(signupService, placeScrapQueryService, memberProfileFacade))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
@@ -108,5 +120,69 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
     verify(signupService).isNicknameAvailable(null);
+  }
+
+  @Test
+  @DisplayName("프로필 이미지를 업로드하면 변경된 회원 정보를 반환한다")
+  void uploadsProfileImage() throws Exception {
+    // Given
+    String memberId = "member-1";
+    String profileImageUrl = "https://example.com/profile.png";
+    LocalDateTime updatedAt = LocalDateTime.of(2026, 11, 4, 5, 0);
+
+    MockMultipartFile file =
+        new MockMultipartFile("file", "profile.png", "image/png", new byte[] {1, 2, 3});
+
+    MemberProfileResult result = new MemberProfileResult(memberId, profileImageUrl, updatedAt);
+
+    when(memberProfileFacade.uploadProfileImage(eq(memberId), any(MultipartFile.class)))
+        .thenReturn(result);
+
+    // When & Then
+    mockMvc
+        .perform(
+            multipart("/api/v1/members/me/profile-image")
+                .file(file)
+                .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.memberId").value(memberId))
+        .andExpect(jsonPath("$.data.profileImage").value(profileImageUrl))
+        .andExpect(jsonPath("$.data.updatedAt").value("2026-11-04T05:00:00"));
+
+    verify(memberProfileFacade).uploadProfileImage(eq(memberId), any(MultipartFile.class));
+  }
+
+  @Test
+  @DisplayName("프로필 이미지 약관에 동의하지 않으면 400을 반환한다")
+  void rejectsProfileImageWithoutConsent() throws Exception {
+    // Given
+    String memberId = "member-1";
+
+    MockMultipartFile file =
+        new MockMultipartFile("file", "profile.png", "image/png", new byte[] {1, 2, 3});
+
+    when(memberProfileFacade.uploadProfileImage(eq(memberId), any(MultipartFile.class)))
+        .thenThrow(new BusinessException(MemberErrorCode.PROFILE_IMAGE_CONSENT_REQUIRED));
+
+    // When & Then
+    mockMvc
+        .perform(
+            multipart("/api/v1/members/me/profile-image")
+                .file(file)
+                .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("PROFILE_IMAGE_CONSENT_REQUIRED"));
+  }
+
+  @Test
+  @DisplayName("프로필 이미지 파일이 없으면 400을 반환한다")
+  void rejectsMissingProfileImage() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/members/me/profile-image")
+                .principal(new UsernamePasswordAuthenticationToken("member-1", null)))
+        .andExpect(status().isBadRequest());
   }
 }
