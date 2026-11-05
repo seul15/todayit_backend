@@ -27,6 +27,9 @@ public class Member {
   @Column(name = "nickname", nullable = false, length = 50)
   private String nickname;
 
+  @Column(name = "nickname_updated_at")
+  private LocalDateTime nicknameUpdatedAt;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "provider", nullable = false, length = 20)
   private MemberProvider provider;
@@ -95,6 +98,18 @@ public class Member {
    */
   public void resetProfileImage(LocalDateTime updatedAt) {
     changeProfileImage(DEFAULT_PROFILE_IMAGE, updatedAt);
+  }
+
+  /**
+   * 회원의 닉네임과 마지막 변경 시각을 갱신합니다.
+   *
+   * @param nickname 변경할 닉네임
+   * @param updatedAt 변경 시각
+   */
+  public void changeNickname(String nickname, LocalDateTime updatedAt) {
+    this.nickname = nickname;
+    this.nicknameUpdatedAt = updatedAt;
+    this.updatedAt = updatedAt;
   }
 
   /**
@@ -175,6 +190,10 @@ public class Member {
 
   public String getNickname() {
     return nickname;
+  }
+
+  public LocalDateTime getNicknameUpdatedAt() {
+    return nicknameUpdatedAt;
   }
 
   public MemberProvider getProvider() {
