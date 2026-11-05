@@ -59,10 +59,24 @@ public interface MemberApiDocs {
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 2자 이상 8자 이하이어야 합니다.\"}")))
+                examples = {
+                  @ExampleObject(
+                      name = "닉네임 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 길이 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 2자 이상 8자 이하이어야 합니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 형식 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "금칙어",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"사용할 수 없는 닉네임입니다.\"}")
+                }))
   })
   ResponseEntity<CommonResponse<NicknameAvailabilityResponse>> checkNickname(String nickname);
 
@@ -136,25 +150,84 @@ public interface MemberApiDocs {
     @ApiResponse(responseCode = "200", description = "프로필 이미지 등록 성공"),
     @ApiResponse(
         responseCode = "400",
-        description = "잘못된 파일 또는 프로필 이미지 약관 미동의",
+        description = "파일 검증 오류 또는 프로필 이미지 약관 미동의",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class))),
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                  @ExampleObject(
+                      name = "잘못된 multipart 요청",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"요청값이 올바르지 않습니다.\"}"),
+                  @ExampleObject(
+                      name = "약관 미동의",
+                      value =
+                          "{\"success\":false,\"code\":\"PROFILE_IMAGE_CONSENT_REQUIRED\",\"message\":\"프로필 이미지 등록을 위한 약관 동의가 필요합니다.\"}"),
+                  @ExampleObject(
+                      name = "파일명 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_INVALID_NAME\",\"message\":\"유효한 원본 파일명이 필요합니다.\"}"),
+                  @ExampleObject(
+                      name = "파일 크기 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_INVALID_SIZE\",\"message\":\"파일 크기가 허용 범위를 벗어났습니다.\"}"),
+                  @ExampleObject(
+                      name = "확장자 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_UNSUPPORTED_EXTENSION\",\"message\":\"허용 확장자는 jpg/jpeg/png/webp/pdf입니다.\"}"),
+                  @ExampleObject(
+                      name = "프로필 PDF 업로드",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_PROFILE_IMAGE_REQUIRED\",\"message\":\"프로필에는 이미지만 업로드할 수 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "MIME 불일치",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_MIME_MISMATCH\",\"message\":\"확장자와 MIME이 일치하지 않습니다.\"}"),
+                  @ExampleObject(
+                      name = "실제 파일 형식 불일치",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_CONTENT_MISMATCH\",\"message\":\"파일의 실제 형식이 확장자 및 MIME과 일치하지 않습니다.\"}")
+                })),
     @ApiResponse(
         responseCode = "401",
         description = "Access Token 인증 필요",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class))),
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"AUTHENTICATION_REQUIRED\",\"message\":\"인증이 필요합니다.\"}"))),
     @ApiResponse(
         responseCode = "404",
         description = "회원을 찾을 수 없음",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = ErrorResponse.class)))
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"MEMBER_NOT_FOUND\",\"message\":\"회원을 찾을 수 없습니다.\"}"))),
+    @ApiResponse(
+        responseCode = "500",
+        description = "파일 저장소 처리 실패",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                  @ExampleObject(
+                      name = "파일 읽기 실패",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_READ_FAILED\",\"message\":\"업로드 파일을 읽을 수 없습니다.\"}"),
+                  @ExampleObject(
+                      name = "파일 저장소 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"FILE_STORAGE_FAILED\",\"message\":\"파일 저장소 작업에 실패했습니다.\"}")
+                }))
   })
   ResponseEntity<CommonResponse<MemberProfileImageResponse>> uploadProfileImage(
       MultipartFile file, Authentication authentication);

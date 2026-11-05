@@ -55,15 +55,25 @@ public interface AuthApiDocs {
                             "{\"success\":true,\"data\":{\"accessToken\":\"eyJ...\",\"refreshToken\":\"example-refresh-token\",\"expiresIn\":3600,\"member\":{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\",\"nickname\":\"유저\",\"coupleConnected\":false,\"roles\":[\"USER\"]}}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "이메일 또는 비밀번호 누락",
+        description = "이메일 또는 비밀번호 입력값 오류",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}"))),
+                examples = {
+                  @ExampleObject(
+                      name = "이메일 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "비밀번호 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"비밀번호는 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "비밀번호 72바이트 초과",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.\"}")
+                })),
     @ApiResponse(
         responseCode = "401",
         description = "로그인 실패 또는 로그인 잠금",
@@ -145,16 +155,16 @@ public interface AuthApiDocs {
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            """
-                                          {
-                                            "success": false,
-                                            "code": "INVALID_REQUEST",
-                                            "message": "Google 인가 코드는 필수입니다."
-                                          }
-                                          """))),
+                examples = {
+                  @ExampleObject(
+                      name = "Google 인가 코드 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Google 인가 코드는 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "Redirect URI 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Redirect URI는 필수입니다.\"}")
+                })),
     @ApiResponse(
         responseCode = "401",
         description = "Google 인증 실패",
@@ -256,16 +266,16 @@ public interface AuthApiDocs {
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            """
-                                            {
-                                              "success": false,
-                                              "code": "INVALID_REQUEST",
-                                              "message": "Kakao 인가 코드는 필수입니다."
-                                            }
-                                            """))),
+                examples = {
+                  @ExampleObject(
+                      name = "Kakao 인가 코드 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Kakao 인가 코드는 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "Redirect URI 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Redirect URI는 필수입니다.\"}")
+                })),
     @ApiResponse(
         responseCode = "401",
         description = "Kakao 인증 실패",
@@ -366,10 +376,28 @@ public interface AuthApiDocs {
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
-                examples =
-                    @ExampleObject(
-                        value =
-                            "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}")))
+                examples = {
+                  @ExampleObject(
+                      name = "이메일 누락",
+                      value =
+                          """
+                                                  {
+                                                    "success": false,
+                                                    "code": "INVALID_REQUEST",
+                                                    "message": "이메일은 필수입니다."
+                                                  }
+                                                  """),
+                  @ExampleObject(
+                      name = "이메일 100자 초과",
+                      value =
+                          """
+                                                  {
+                                                    "success": false,
+                                                    "code": "INVALID_REQUEST",
+                                                    "message": "이메일은 100자 이하로 입력해 주세요."
+                                                  }
+                                                  """)
+                }))
   })
   ResponseEntity<CommonResponse<EmailAvailabilityResponse>> checkEmail(String email);
 
@@ -489,25 +517,108 @@ public interface AuthApiDocs {
                 })),
     @ApiResponse(
         responseCode = "400",
-        description = "필수 입력, 약관 동의, 이메일 인증 또는 소셜 가입 토큰 오류",
+        description = "필수 입력, 형식, 약관 동의, 이메일 인증 또는 소셜 가입 토큰 오류",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
                 examples = {
                   @ExampleObject(
+                      name = "이메일 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "이메일 100자 초과",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 100자 이하로 입력해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "이메일 인증 토큰 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일 인증 토큰은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "비밀번호 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"비밀번호는 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "비밀번호 길이 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"비밀번호는 10자 이상 72자 이하로 입력해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "비밀번호 바이트 초과",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "비밀번호 형식 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"비밀번호는 영문, 숫자, 특수문자를 각각 1개 이상 포함해야 합니다.\"}"),
+                  @ExampleObject(
+                      name = "금칙어 비밀번호",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"쉽게 추측되거나 유출된 비밀번호입니다. 다른 비밀번호를 입력해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "LOCAL 가입에 소셜 토큰 입력",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"LOCAL 회원가입에는 signupToken을 사용할 수 없습니다.\"}"),
+                  @ExampleObject(
+                      name = "Google 가입 토큰 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Google 회원가입 토큰은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "Google 가입에 로컬 정보 입력",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"GOOGLE 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.\"}"),
+                  @ExampleObject(
+                      name = "Kakao 가입 토큰 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"Kakao 회원가입 토큰은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "Kakao 가입에 로컬 정보 입력",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"KAKAO 회원가입에는 이메일 인증 정보나 비밀번호를 입력할 수 없습니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 길이 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 2자 이상 8자 이하이어야 합니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 문자 형식 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 금칙어",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"사용할 수 없는 닉네임입니다.\"}"),
+                  @ExampleObject(
+                      name = "약관 동의 정보 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"약관 동의 정보는 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "알 수 없는 약관 코드",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"유효하지 않은 약관 코드가 포함되어 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "약관 동의값 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"약관 동의 여부를 확인해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "필수 약관 미동의",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"필수 약관과 동의 항목을 확인해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "이메일 인증 토큰 오류",
                       value =
                           "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_TOKEN_INVALID\",\"message\":\"이메일 인증 정보가 유효하지 않습니다.\"}"),
                   @ExampleObject(
+                      name = "Google 가입 토큰 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"GOOGLE_SIGNUP_TOKEN_INVALID\",\"message\":\"Google 회원가입 인증 정보가 만료되었거나 유효하지 않습니다.\"}"),
+                  @ExampleObject(
                       name = "Kakao 가입 토큰 오류",
                       value =
-                          """
-                                        {
-                                          "success": false,
-                                          "code": "KAKAO_SIGNUP_TOKEN_INVALID",
-                                          "message": "Kakao 회원가입 인증 정보가 만료되었거나 유효하지 않습니다."
-                                        }
-                                        """)
+                          "{\"success\":false,\"code\":\"KAKAO_SIGNUP_TOKEN_INVALID\",\"message\":\"Kakao 회원가입 인증 정보가 만료되었거나 유효하지 않습니다.\"}")
                 })),
     @ApiResponse(
         responseCode = "409",
@@ -565,12 +676,24 @@ public interface AuthApiDocs {
                             "{\"success\":true,\"data\":{\"email\":\"user@example.com\",\"purpose\":\"SIGNUP\",\"expiresIn\":1800,\"resendAvailableIn\":60}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "요청값 오류, 재발송 대기 시간 미경과 또는 발송 횟수 초과",
+        description = "요청값 오류, 재발송 대기 또는 발송 횟수 제한",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
                 examples = {
+                  @ExampleObject(
+                      name = "이메일 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "이메일 100자 초과",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 100자 이하로 입력해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "인증 목적 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"인증 목적은 필수입니다.\"}"),
                   @ExampleObject(
                       name = "1분 재발송 제한",
                       value =
@@ -617,16 +740,36 @@ public interface AuthApiDocs {
                             "{\"success\":true,\"data\":{\"verificationToken\":\"example-verification-token\",\"expiresIn\":1800}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "인증번호 오류, 만료 또는 필수 입력 누락",
+        description = "요청값 오류, 인증번호 오류·만료 또는 재발급 제한",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class),
                 examples = {
                   @ExampleObject(
+                      name = "이메일 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"이메일은 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "인증번호 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"인증번호는 필수입니다.\"}"),
+                  @ExampleObject(
+                      name = "인증번호 형식 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"인증번호는 숫자 6자리로 입력해 주세요.\"}"),
+                  @ExampleObject(
+                      name = "인증 목적 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\",\"message\":\"인증 목적은 필수입니다.\"}"),
+                  @ExampleObject(
                       name = "인증번호 오류",
                       value =
                           "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_CODE_INVALID\",\"message\":\"인증번호가 올바르지 않습니다.\",\"failureCount\":1,\"maxFailureCount\":3}"),
+                  @ExampleObject(
+                      name = "3회 실패 및 재발급",
+                      value =
+                          "{\"success\":false,\"code\":\"EMAIL_VERIFICATION_CODE_INVALID\",\"message\":\"인증번호가 올바르지 않습니다.\",\"failureCount\":3,\"maxFailureCount\":3}"),
                   @ExampleObject(
                       name = "인증번호 만료",
                       value =
