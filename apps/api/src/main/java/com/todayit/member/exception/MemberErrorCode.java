@@ -25,6 +25,9 @@ public enum MemberErrorCode implements ErrorCode {
 
   NICKNAME_ALREADY_EXISTS("NICKNAME_ALREADY_EXISTS", "이미 사용 중인 닉네임입니다.", ErrorStatus.CONFLICT),
 
+  NICKNAME_CHANGE_TOO_SOON(
+      "NICKNAME_CHANGE_TOO_SOON", "닉네임은 마지막 변경 후 90일이 지나야 다시 변경할 수 있습니다.", ErrorStatus.BAD_REQUEST),
+
   EMAIL_DELIVERY_FAILED(
       "EMAIL_DELIVERY_FAILED", "인증 이메일 발송에 실패했습니다.", ErrorStatus.INTERNAL_SERVER_ERROR),
 

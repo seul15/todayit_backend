@@ -31,12 +31,13 @@ class MemberProfileServiceTest {
 
   @Mock private MemberRepository memberRepository;
   @Mock private MemberAgreementRepository memberAgreementRepository;
+  @Mock private SignupService signupService;
 
   private MemberProfileService service;
 
   @BeforeEach
   void setUp() {
-    service = new MemberProfileService(memberRepository, memberAgreementRepository);
+    service = new MemberProfileService(memberRepository, memberAgreementRepository, signupService);
   }
 
   @Test
@@ -134,5 +135,31 @@ class MemberProfileServiceTest {
             exception ->
                 assertThat(exception.getErrorCode())
                     .isEqualTo(MemberErrorCode.PROFILE_IMAGE_CONSENT_REQUIRED));
+  }
+
+  @Test
+  @DisplayName("닉네임 변경 후 90일이 지나지 않으면 변경을 거부한다")
+  void rejectsNicknameChangeBeforeNinetyDays() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
+
+    String memberId = member.getId();
+
+    LocalDateTime changedAt = LocalDateTime.now(Clock.systemUTC()).minusDays(30);
+
+    member.changeNickname("기존닉네임", changedAt);
+
+    when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+
+    // When & Then
+    assertThatThrownBy(() -> service.changeNickname(memberId, "새닉네임"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(MemberErrorCode.NICKNAME_CHANGE_TOO_SOON));
+
+    assertThat(member.getNickname()).isEqualTo("기존닉네임");
+    assertThat(member.getNicknameUpdatedAt()).isEqualTo(changedAt);
   }
 }
