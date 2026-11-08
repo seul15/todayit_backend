@@ -4,9 +4,12 @@ import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.pagination.PaginationValidator;
 import com.todayit.common.response.CommonResponse;
 import com.todayit.member.controller.docs.MemberApiDocs;
+import com.todayit.member.dto.request.MemberProfileRequest;
 import com.todayit.member.dto.response.MemberProfileImageResponse;
+import com.todayit.member.dto.response.MemberProfileResponse;
 import com.todayit.member.dto.response.NicknameAvailabilityResponse;
 import com.todayit.member.service.MemberProfileFacade;
+import com.todayit.member.service.MemberProfileService;
 import com.todayit.member.service.SignupService;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.place.dto.response.PlaceResponse;
@@ -16,7 +19,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -34,21 +39,25 @@ public class MemberController implements MemberApiDocs {
   private final PlaceScrapQueryService placeScrapQueryService;
   private final SignupService signupService;
   private final MemberProfileFacade memberProfileFacade;
+  private final MemberProfileService memberProfileService;
 
   /**
    * 회원 관련 API에 필요한 서비스를 받습니다.
    *
    * @param signupService 회원가입 관련 서비스
-   * @param placeScrapQueryService 장소 스크랩 조회 Service 계약
-   * @param memberProfileFacade 회원 프로필 이미지 등록 서비스
+   * @param placeScrapQueryService 장소 스크랩 조회 서비스
+   * @param memberProfileFacade 프로필 이미지 등록 서비스
+   * @param memberProfileService 회원 프로필 변경 서비스
    */
   public MemberController(
       SignupService signupService,
       PlaceScrapQueryService placeScrapQueryService,
-      MemberProfileFacade memberProfileFacade) {
+      MemberProfileFacade memberProfileFacade,
+      MemberProfileService memberProfileService) {
     this.signupService = signupService;
     this.placeScrapQueryService = placeScrapQueryService;
     this.memberProfileFacade = memberProfileFacade;
+    this.memberProfileService = memberProfileService;
   }
 
   /**
@@ -106,5 +115,23 @@ public class MemberController implements MemberApiDocs {
 
     // 변경된 프로필 이미지 정보를 반환
     return ResponseEntity.ok(CommonResponse.success(MemberProfileImageResponse.from(result)));
+  }
+
+  /**
+   * 로그인한 회원의 닉네임과 선호 정보를 수정합니다.
+   *
+   * @param request 회원 프로필 수정 요청
+   * @param authentication 인증된 회원 정보
+   * @return 변경된 회원 프로필 정보
+   */
+  @PatchMapping("/me")
+  public ResponseEntity<CommonResponse<MemberProfileResponse>> updateProfile(
+      @RequestBody MemberProfileRequest request, Authentication authentication) {
+
+    request.validate();
+
+    var result = memberProfileService.updateProfile(authentication.getName(), request.toCommand());
+
+    return ResponseEntity.ok(CommonResponse.success(MemberProfileResponse.from(result)));
   }
 }

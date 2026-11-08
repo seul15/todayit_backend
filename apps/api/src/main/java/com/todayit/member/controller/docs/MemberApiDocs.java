@@ -4,7 +4,9 @@ import com.todayit.common.openapi.OpenApiConfig;
 import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.response.CommonResponse;
 import com.todayit.common.response.ErrorResponse;
+import com.todayit.member.dto.request.MemberProfileRequest;
 import com.todayit.member.dto.response.MemberProfileImageResponse;
+import com.todayit.member.dto.response.MemberProfileResponse;
 import com.todayit.member.dto.response.NicknameAvailabilityResponse;
 import com.todayit.place.dto.response.PlaceResponse;
 import com.todayit.place.service.model.PlaceScrapSort;
@@ -231,4 +233,90 @@ public interface MemberApiDocs {
   })
   ResponseEntity<CommonResponse<MemberProfileImageResponse>> uploadProfileImage(
       MultipartFile file, Authentication authentication);
+
+  /**
+   * 로그인한 회원의 프로필 정보를 수정합니다.
+   *
+   * @param request 회원 프로필 수정 요청
+   * @param authentication 인증된 회원 정보
+   * @return 변경된 회원 프로필 정보
+   */
+  @Operation(
+      summary = "회원 프로필 수정",
+      description =
+          "로그인한 회원의 닉네임, 선호 지역 및 선호 테마를 수정합니다. "
+              + "요청에서 생략한 항목은 유지합니다. "
+              + "선호 지역은 하나만 선택할 수 있으며, "
+              + "preferredRegion에 빈 객체를 전달하면 기존 지역을 해제합니다. "
+              + "preferredThemes에 빈 배열을 전달하면 선택한 테마를 모두 해제합니다. "
+              + "닉네임은 마지막 변경 이후 90일이 지나야 다시 변경할 수 있습니다.",
+      security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "회원 프로필 수정 성공",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":true,\"data\":"
+                                + "{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\","
+                                + "\"nickname\":\"새닉네임\","
+                                + "\"preferredRegionId\":1,"
+                                + "\"preferredThemes\":[\"QUIET\",\"ROMANTIC\"],"
+                                + "\"updatedAt\":\"2026-11-09T04:00:00\"}}"))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "입력값 오류, 잘못된 지역 또는 닉네임 변경 주기 위반",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples = {
+                  @ExampleObject(
+                      name = "수정 항목 누락",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"수정할 회원정보가 없습니다.\"}"),
+                  @ExampleObject(
+                      name = "잘못된 지역",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REGION_PATH\","
+                              + "\"message\":\"지역 필터 값이 올바르지 않습니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 변경 주기 위반",
+                      value =
+                          "{\"success\":false,\"code\":\"NICKNAME_CHANGE_TOO_SOON\","
+                              + "\"message\":\"닉네임은 마지막 변경 후 90일이 지나야 다시 변경할 수 있습니다.\"}")
+                })),
+    @ApiResponse(responseCode = "401", description = "Access Token 인증 필요"),
+    @ApiResponse(
+        responseCode = "404",
+        description = "회원을 찾을 수 없음",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"MEMBER_NOT_FOUND\","
+                                + "\"message\":\"회원을 찾을 수 없습니다.\"}"))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "닉네임 중복",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"NICKNAME_ALREADY_EXISTS\","
+                                + "\"message\":\"이미 사용 중인 닉네임입니다.\"}")))
+  })
+  ResponseEntity<CommonResponse<MemberProfileResponse>> updateProfile(
+      MemberProfileRequest request, Authentication authentication);
 }

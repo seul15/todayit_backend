@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,12 +16,16 @@ import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.pagination.PageResult;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.MemberProfileFacade;
+import com.todayit.member.service.MemberProfileService;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.command.MemberProfileCommand;
+import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.place.entity.Category;
 import com.todayit.place.service.PlaceScrapQueryService;
 import com.todayit.place.service.model.PlaceResult;
 import com.todayit.place.service.model.PlaceScrapSort;
+import com.todayit.theme.Theme;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,6 +48,7 @@ class MemberControllerTest {
   @Mock private PlaceScrapQueryService placeScrapQueryService;
   @Mock private SignupService signupService;
   @Mock private MemberProfileFacade memberProfileFacade;
+  @Mock private MemberProfileService memberProfileService;
 
   private MockMvc mockMvc;
 
@@ -49,7 +56,11 @@ class MemberControllerTest {
   void setUp() {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
-                new MemberController(signupService, placeScrapQueryService, memberProfileFacade))
+                new MemberController(
+                    signupService,
+                    placeScrapQueryService,
+                    memberProfileFacade,
+                    memberProfileService))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
   }
@@ -184,5 +195,72 @@ class MemberControllerTest {
             multipart("/api/v1/members/me/profile-image")
                 .principal(new UsernamePasswordAuthenticationToken("member-1", null)))
         .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("회원 프로필 수정 요청을 처리하고 변경 결과를 반환한다")
+  void updatesMemberProfile() throws Exception {
+    // Given
+    String memberId = "member-1";
+    LocalDateTime updatedAt = LocalDateTime.of(2026, 11, 9, 4, 0);
+
+    MemberProfileDetailsResult result =
+        new MemberProfileDetailsResult(
+            memberId, "새닉네임", 1, List.of(Theme.QUIET, Theme.ROMANTIC), updatedAt);
+
+    when(memberProfileService.updateProfile(eq(memberId), any(MemberProfileCommand.class)))
+        .thenReturn(result);
+
+    // When & Then
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "nickname": "새닉네임",
+                                      "preferredRegion": {
+                                        "sidoCode": "11",
+                                        "sigunguCode": "110"
+                                      },
+                                      "preferredThemes": ["QUIET", "ROMANTIC"]
+                                    }
+                                    """)
+                .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.nickname").value("새닉네임"))
+        .andExpect(jsonPath("$.data.preferredRegionId").value(1))
+        .andExpect(jsonPath("$.data.preferredThemes[0]").value("QUIET"))
+        .andExpect(jsonPath("$.data.preferredThemes[1]").value("ROMANTIC"));
+
+    verify(memberProfileService).updateProfile(eq(memberId), any(MemberProfileCommand.class));
+  }
+
+  @Test
+  @DisplayName("수정 항목이 없으면 400을 반환한다")
+  void rejectsEmptyMemberProfileRequest() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+                .principal(new UsernamePasswordAuthenticationToken("member-1", null)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
+  @DisplayName("잘못된 테마 코드를 전달하면 400을 반환한다")
+  void rejectsUnknownTheme() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"preferredThemes\":[\"UNKNOWN_THEME\"]}")
+                .principal(new UsernamePasswordAuthenticationToken("member-1", null)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
   }
 }

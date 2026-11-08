@@ -1,5 +1,6 @@
 package com.todayit.member.entity;
 
+import com.todayit.theme.Theme;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -7,7 +8,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 로그인에 필요한 회원 정보를 나타냅니다. */
 @Entity
@@ -29,6 +34,15 @@ public class Member {
 
   @Column(name = "nickname_updated_at")
   private LocalDateTime nicknameUpdatedAt;
+
+  // 회원이 선택한 선호 지역 ID (region 테이블 참조)
+  @Column(name = "preferred_region")
+  private Integer preferredRegionId;
+
+  // PostgreSQL 문자열 배열에 선호 테마 코드 저장
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  @Column(name = "preferred_theme", columnDefinition = "varchar(20)[]")
+  private String[] preferredThemeCodes;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "provider", nullable = false, length = 20)
@@ -109,6 +123,29 @@ public class Member {
   public void changeNickname(String nickname, LocalDateTime updatedAt) {
     this.nickname = nickname;
     this.nicknameUpdatedAt = updatedAt;
+    this.updatedAt = updatedAt;
+  }
+
+  /**
+   * 회원의 선호 지역을 변경합니다.
+   *
+   * @param regionId 선택한 지역 식별자, null이면 설정 해제
+   * @param updatedAt 변경 시각
+   */
+  public void changePreferredRegion(Integer regionId, LocalDateTime updatedAt) {
+    this.preferredRegionId = regionId;
+    this.updatedAt = updatedAt;
+  }
+
+  /**
+   * 회원의 선호 테마를 변경합니다.
+   *
+   * @param themes 변경할 선호 테마 목록, null이면 설정 해제
+   * @param updatedAt 변경 시각
+   */
+  public void changePreferredThemes(List<Theme> themes, LocalDateTime updatedAt) {
+    this.preferredThemeCodes =
+        themes == null ? null : themes.stream().map(Theme::name).toArray(String[]::new);
     this.updatedAt = updatedAt;
   }
 
@@ -218,5 +255,27 @@ public class Member {
 
   public LocalDateTime getUpdatedAt() {
     return updatedAt;
+  }
+
+  /**
+   * 회원이 선택한 선호 지역 식별자를 반환합니다.
+   *
+   * @return 선호 지역 식별자, 설정하지 않았으면 null
+   */
+  public Integer getPreferredRegionId() {
+    return preferredRegionId;
+  }
+
+  /**
+   * 회원이 선택한 선호 테마 목록을 반환합니다.
+   *
+   * @return 선호 테마 목록, 설정하지 않았으면 빈 목록
+   */
+  public List<Theme> getPreferredThemes() {
+    if (preferredThemeCodes == null) {
+      return List.of();
+    }
+
+    return Arrays.stream(preferredThemeCodes).map(Theme::valueOf).toList();
   }
 }
