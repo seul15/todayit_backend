@@ -23,8 +23,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
-/** 회원의 닉네임 확인과 스크랩 장소 조회 API 명세입니다. */
-@Tag(name = "회원", description = "닉네임 사용 가능 여부 및 내 스크랩 장소 조회 API")
+/** 회원의 닉네임, 스크랩 장소 및 프로필 관련 API 명세입니다. */
+@Tag(name = "회원", description = "닉네임 확인, 스크랩 장소 및 회원 프로필 API")
 public interface MemberApiDocs {
 
   /**
@@ -245,10 +245,10 @@ public interface MemberApiDocs {
       summary = "회원 프로필 수정",
       description =
           "로그인한 회원의 닉네임, 선호 지역 및 선호 테마를 수정합니다. "
-              + "요청에서 생략한 항목은 유지합니다. "
-              + "선호 지역은 하나만 선택할 수 있으며, "
-              + "preferredRegion에 빈 객체를 전달하면 기존 지역을 해제합니다. "
-              + "preferredThemes에 빈 배열을 전달하면 선택한 테마를 모두 해제합니다. "
+              + "요청에서 생략한 항목은 기존 값을 유지합니다. "
+              + "preferredRegions는 최대 3개까지 전달할 수 있으며, "
+              + "빈 배열을 전달하면 기존 선호 지역을 모두 해제합니다. "
+              + "preferredThemes에 빈 배열을 전달하면 선호 테마를 모두 해제합니다. "
               + "닉네임은 마지막 변경 이후 90일이 지나야 다시 변경할 수 있습니다.",
       security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
   @ApiResponses({
@@ -264,12 +264,13 @@ public interface MemberApiDocs {
                             "{\"success\":true,\"data\":"
                                 + "{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\","
                                 + "\"nickname\":\"새닉네임\","
-                                + "\"preferredRegionId\":1,"
+                                + "\"profileImage\":null,"
+                                + "\"preferredRegions\":[\"11-110\",\"41-135\"],"
                                 + "\"preferredThemes\":[\"QUIET\",\"ROMANTIC\"],"
                                 + "\"updatedAt\":\"2026-11-09T04:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "입력값 오류, 잘못된 지역 또는 닉네임 변경 주기 위반",
+        description = "입력값 오류, 선호 지역 개수 초과 또는 닉네임 변경 주기 위반",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -281,10 +282,10 @@ public interface MemberApiDocs {
                           "{\"success\":false,\"code\":\"INVALID_REQUEST\","
                               + "\"message\":\"수정할 회원정보가 없습니다.\"}"),
                   @ExampleObject(
-                      name = "잘못된 지역",
+                      name = "선호 지역 개수 초과",
                       value =
-                          "{\"success\":false,\"code\":\"INVALID_REGION_PATH\","
-                              + "\"message\":\"지역 필터 값이 올바르지 않습니다.\"}"),
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"선호 지역은 최대 3개까지 선택할 수 있습니다.\"}"),
                   @ExampleObject(
                       name = "닉네임 변경 주기 위반",
                       value =
@@ -319,4 +320,49 @@ public interface MemberApiDocs {
   })
   ResponseEntity<CommonResponse<MemberProfileResponse>> updateProfile(
       MemberProfileRequest request, Authentication authentication);
+
+  /**
+   * 로그인한 회원 본인의 프로필 정보를 조회합니다.
+   *
+   * @param authentication 인증된 회원 정보
+   * @return 회원 프로필 조회 응답
+   */
+  @Operation(
+      summary = "회원 프로필 조회",
+      description =
+          "로그인한 회원 본인의 프로필 정보를 조회합니다. "
+              + "이메일은 본인 조회에서만 반환하며, "
+              + "소셜 회원의 이메일은 null입니다. "
+              + "등록한 프로필 이미지가 없으면 null을 반환하고, "
+              + "선호 지역과 테마가 설정되지 않았으면 빈 배열을 반환합니다.",
+      security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "회원 프로필 조회 성공",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":true,\"data\":"
+                                + "{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\","
+                                + "\"email\":\"test@example.com\","
+                                + "\"nickname\":\"테스트회원\","
+                                + "\"profileImage\":null,"
+                                + "\"preferredRegions\":[],"
+                                + "\"preferredThemes\":[],"
+                                + "\"updatedAt\":\"2026-11-09T04:00:00\"}}"))),
+    @ApiResponse(responseCode = "401", description = "Access Token 인증 필요"),
+    @ApiResponse(
+        responseCode = "404",
+        description = "회원을 찾을 수 없음",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  ResponseEntity<CommonResponse<MemberProfileResponse.Query>> findProfile(
+      Authentication authentication);
 }

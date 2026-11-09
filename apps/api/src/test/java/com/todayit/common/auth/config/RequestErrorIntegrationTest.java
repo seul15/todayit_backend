@@ -201,4 +201,19 @@ class RequestErrorIntegrationTest {
     assertThat(jsonMapper.readTree(response.body()).get("code").asText())
         .isEqualTo("AUTHENTICATION_REQUIRED");
   }
+
+  @Test
+  @DisplayName("인증 없이 회원 프로필 조회 API를 호출하면 401을 반환한다")
+  void requiresAuthenticationForMemberProfileQuery() throws Exception {
+    // Given
+    String path = "/api/v1/members/me";
+
+    // When
+    HttpResponse<String> response = send(path, "GET", false);
+
+    // Then
+    assertThat(response.statusCode()).isEqualTo(401);
+    assertThat(jsonMapper.readTree(response.body()).get("code").asText())
+        .isEqualTo("AUTHENTICATION_REQUIRED");
+  }
 }

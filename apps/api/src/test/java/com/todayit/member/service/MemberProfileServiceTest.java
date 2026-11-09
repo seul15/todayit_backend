@@ -305,4 +305,23 @@ class MemberProfileServiceTest {
     assertThat(member.getNicknameUpdatedAt()).isNull();
     assertThat(member.getPreferredRegions()).containsExactly("11-110");
   }
+
+  @Test
+  @DisplayName("선호 지역을 4개 선택하면 변경을 거부한다")
+  void rejectsTooManyPreferredRegions() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
+
+    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+
+    MemberProfileCommand command =
+        new MemberProfileCommand(null, List.of("region1", "region2", "region3", "region4"), null);
+
+    // When & Then
+    assertThatThrownBy(() -> service.updateProfile(member.getId(), command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("선호 지역은 최대 3개까지 선택할 수 있습니다.");
+
+    assertThat(member.getPreferredRegions()).isEmpty();
+  }
 }
