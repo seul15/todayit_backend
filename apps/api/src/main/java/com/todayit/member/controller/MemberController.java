@@ -134,4 +134,19 @@ public class MemberController implements MemberApiDocs {
 
     return ResponseEntity.ok(CommonResponse.success(MemberProfileResponse.from(result)));
   }
+
+  /**
+   * 로그인한 회원 본인의 프로필 정보를 조회합니다.
+   *
+   * @param authentication 인증된 회원 정보
+   * @return 회원 프로필 조회 응답
+   */
+  @GetMapping("/me")
+  public ResponseEntity<CommonResponse<MemberProfileResponse.Query>> findProfile(
+      Authentication authentication) {
+
+    var result = memberProfileService.findProfile(authentication.getName());
+
+    return ResponseEntity.ok(CommonResponse.success(MemberProfileResponse.Query.from(result)));
+  }
 }

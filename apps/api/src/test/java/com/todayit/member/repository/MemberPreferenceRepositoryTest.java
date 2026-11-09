@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
@@ -25,8 +24,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @Transactional
 class MemberPreferenceRepositoryTest {
-  @Autowired private JdbcTemplate jdbcTemplate;
-
   @Container @ServiceConnection
   static final PostgreSQLContainer POSTGRESQL =
       new PostgreSQLContainer("postgres:17-alpine")
@@ -60,23 +57,9 @@ class MemberPreferenceRepositoryTest {
   }
 
   @Test
-  @DisplayName("기존 회원의 선호 지역과 테마 변경 사항을 DB에 저장한다")
+  @DisplayName("기존 회원의 선호 지역과 테마를 수정한 뒤 DB에서 다시 조회한다")
   void persistsUpdatedPreferences() {
     // Given
-    Integer regionId =
-        jdbcTemplate.queryForObject(
-            """
-                    INSERT INTO todayit.region (
-                        sido_code,
-                        sigungu_code,
-                        sido_name,
-                        sigungu_name
-                    )
-                    VALUES ('11', '110', '서울특별시', '종로구')
-                    RETURNING region_id
-                    """,
-            Integer.class);
-
     Member member =
         Member.createLocal("preference-update@example.com", "encoded-password", "선호수정검증");
 
@@ -88,7 +71,7 @@ class MemberPreferenceRepositoryTest {
 
     LocalDateTime now = LocalDateTime.now();
 
-    stored.changePreferredRegion(regionId, now);
+    stored.changePreferredRegions(List.of("11-110", "41-135"), now);
     stored.changePreferredThemes(List.of(Theme.QUIET, Theme.ROMANTIC), now);
 
     memberRepository.saveAndFlush(stored);
@@ -97,7 +80,7 @@ class MemberPreferenceRepositoryTest {
     // Then
     Member loaded = memberRepository.findById(member.getId()).orElseThrow();
 
-    assertThat(loaded.getPreferredRegionId()).isEqualTo(regionId);
+    assertThat(loaded.getPreferredRegions()).containsExactly("11-110", "41-135");
     assertThat(loaded.getPreferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
     assertThat(loaded.getNickname()).isEqualTo("선호수정검증");
   }

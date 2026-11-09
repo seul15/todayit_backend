@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -206,7 +207,13 @@ class MemberControllerTest {
 
     MemberProfileDetailsResult result =
         new MemberProfileDetailsResult(
-            memberId, "새닉네임", 1, List.of(Theme.QUIET, Theme.ROMANTIC), updatedAt);
+            memberId,
+            "test@example.com",
+            "새닉네임",
+            null,
+            List.of("11-110", "41-135"),
+            List.of(Theme.QUIET, Theme.ROMANTIC),
+            updatedAt);
 
     when(memberProfileService.updateProfile(eq(memberId), any(MemberProfileCommand.class)))
         .thenReturn(result);
@@ -220,20 +227,20 @@ class MemberControllerTest {
                     """
                                     {
                                       "nickname": "새닉네임",
-                                      "preferredRegion": {
-                                        "sidoCode": "11",
-                                        "sigunguCode": "110"
-                                      },
+                                      "preferredRegions": ["11-110", "41-135"],
                                       "preferredThemes": ["QUIET", "ROMANTIC"]
                                     }
                                     """)
                 .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.memberId").value(memberId))
         .andExpect(jsonPath("$.data.nickname").value("새닉네임"))
-        .andExpect(jsonPath("$.data.preferredRegionId").value(1))
+        .andExpect(jsonPath("$.data.preferredRegions[0]").value("11-110"))
+        .andExpect(jsonPath("$.data.preferredRegions[1]").value("41-135"))
         .andExpect(jsonPath("$.data.preferredThemes[0]").value("QUIET"))
-        .andExpect(jsonPath("$.data.preferredThemes[1]").value("ROMANTIC"));
+        .andExpect(jsonPath("$.data.preferredThemes[1]").value("ROMANTIC"))
+        .andExpect(jsonPath("$.data.updatedAt").value("2026-11-09T04:00:00"));
 
     verify(memberProfileService).updateProfile(eq(memberId), any(MemberProfileCommand.class));
   }
@@ -262,5 +269,41 @@ class MemberControllerTest {
                 .principal(new UsernamePasswordAuthenticationToken("member-1", null)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
+  @DisplayName("로그인한 회원 본인의 프로필 정보를 반환한다")
+  void findsMemberProfile() throws Exception {
+    // Given
+    String memberId = "member-1";
+    LocalDateTime updatedAt = LocalDateTime.of(2026, 11, 9, 4, 0);
+
+    MemberProfileDetailsResult result =
+        new MemberProfileDetailsResult(
+            memberId,
+            "test@example.com",
+            "테스트회원",
+            null,
+            List.of("11-110"),
+            List.of(Theme.QUIET),
+            updatedAt);
+
+    when(memberProfileService.findProfile(memberId)).thenReturn(result);
+
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/members/me")
+                .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
+        .andDo(print())
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.memberId").value(memberId))
+        .andExpect(jsonPath("$.data.email").value("test@example.com"))
+        .andExpect(jsonPath("$.data.nickname").value("테스트회원"))
+        .andExpect(jsonPath("$.data.preferredRegions[0]").value("11-110"))
+        .andExpect(jsonPath("$.data.preferredThemes[0]").value("QUIET"));
+
+    verify(memberProfileService).findProfile(memberId);
   }
 }

@@ -35,9 +35,9 @@ public class Member {
   @Column(name = "nickname_updated_at")
   private LocalDateTime nicknameUpdatedAt;
 
-  // 회원이 선택한 선호 지역 ID (region 테이블 참조)
-  @Column(name = "preferred_region")
-  private Integer preferredRegionId;
+  @JdbcTypeCode(SqlTypes.ARRAY)
+  @Column(name = "preferred_region", columnDefinition = "varchar(20)[]")
+  private String[] preferredRegionCodes;
 
   // PostgreSQL 문자열 배열에 선호 테마 코드 저장
   @JdbcTypeCode(SqlTypes.ARRAY)
@@ -127,13 +127,13 @@ public class Member {
   }
 
   /**
-   * 회원의 선호 지역을 변경합니다.
+   * 회원의 선호 지역 목록을 변경합니다.
    *
-   * @param regionId 선택한 지역 식별자, null이면 설정 해제
+   * @param regionCodes 변경할 지역 식별값 목록
    * @param updatedAt 변경 시각
    */
-  public void changePreferredRegion(Integer regionId, LocalDateTime updatedAt) {
-    this.preferredRegionId = regionId;
+  public void changePreferredRegions(List<String> regionCodes, LocalDateTime updatedAt) {
+    this.preferredRegionCodes = regionCodes.toArray(String[]::new);
     this.updatedAt = updatedAt;
   }
 
@@ -258,12 +258,16 @@ public class Member {
   }
 
   /**
-   * 회원이 선택한 선호 지역 식별자를 반환합니다.
+   * 회원의 선호 지역 목록을 반환합니다.
    *
-   * @return 선호 지역 식별자, 설정하지 않았으면 null
+   * @return 선호 지역 목록, 미설정 시 빈 목록
    */
-  public Integer getPreferredRegionId() {
-    return preferredRegionId;
+  public List<String> getPreferredRegions() {
+    if (preferredRegionCodes == null) {
+      return List.of();
+    }
+
+    return List.copyOf(Arrays.asList(preferredRegionCodes));
   }
 
   /**
@@ -277,5 +281,14 @@ public class Member {
     }
 
     return Arrays.stream(preferredThemeCodes).map(Theme::valueOf).toList();
+  }
+
+  /**
+   * 회원이 등록한 프로필 이미지 URL을 반환합니다.
+   *
+   * @return 등록한 이미지 URL, 기본 이미지 상태라면 null
+   */
+  public String getRegisteredProfileImage() {
+    return DEFAULT_PROFILE_IMAGE.equals(profileImage) ? null : profileImage;
   }
 }

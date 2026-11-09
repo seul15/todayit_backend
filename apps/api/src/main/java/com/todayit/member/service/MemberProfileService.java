@@ -2,13 +2,11 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
-import com.todayit.course.service.RegionQueryService;
 import com.todayit.member.entity.Member;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.service.command.MemberProfileCommand;
-import com.todayit.member.service.command.MemberProfileCommand.PreferredRegion;
 import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.theme.Theme;
@@ -16,7 +14,6 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +26,6 @@ public class MemberProfileService {
   private final MemberRepository memberRepository;
   private final MemberAgreementRepository memberAgreementRepository;
   private final SignupService signupService;
-  private final RegionQueryService regionQueryService;
 
   /**
    * 회원 프로필 변경에 필요한 서비스를 주입받습니다.
@@ -37,17 +33,14 @@ public class MemberProfileService {
    * @param memberRepository 회원 Repository
    * @param memberAgreementRepository 회원 약관 동의 Repository
    * @param signupService 공통 닉네임 검증 서비스
-   * @param regionQueryService 지역 조회 서비스
    */
   public MemberProfileService(
       MemberRepository memberRepository,
       MemberAgreementRepository memberAgreementRepository,
-      SignupService signupService,
-      RegionQueryService regionQueryService) {
+      SignupService signupService) {
     this.memberRepository = memberRepository;
     this.memberAgreementRepository = memberAgreementRepository;
     this.signupService = signupService;
-    this.regionQueryService = regionQueryService;
   }
 
   /**
@@ -91,20 +84,20 @@ public class MemberProfileService {
   /**
    * 회원의 닉네임, 선호 지역, 선호 테마를 수정합니다.
    *
-   * <p>요청에서 생략한 필드는 기존 값을 유지합니다. 검증 후 변경하며 하나의 트랜잭션으로 저장합니다.
+   * <p>요청에서 생략한 필드는 유지하며, 모든 값을 검증한 후 변경합니다.
    *
    * @param memberId 변경할 회원 식별자
    * @param command 회원 프로필 변경 정보
    * @return 변경된 회원 프로필 정보
    * @throws BusinessException 회원이 없거나 닉네임 변경 정책을 위반한 경우
-   * @throws InvalidRequestException 수정할 항목이 없거나 입력이 잘못된 경우
+   * @throws InvalidRequestException 수정 항목이 없거나 입력값이 잘못된 경우
    */
   @Transactional
   public MemberProfileDetailsResult updateProfile(String memberId, MemberProfileCommand command) {
 
     if (command == null
         || (command.nickname() == null
-            && command.preferredRegion() == null
+            && command.preferredRegions() == null
             && command.preferredThemes() == null)) {
       throw new InvalidRequestException("수정할 회원정보가 없습니다.");
     }
@@ -112,28 +105,42 @@ public class MemberProfileService {
     Member member = findActiveMember(memberId);
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
-    // 변경 전에 입력값을 검증
+    // 닉네임 검증
     String normalizedNickname =
         command.nickname() == null ? null : validateNicknameChange(member, command.nickname(), now);
 
-    Integer regionId =
-        command.preferredRegion() == null ? null : resolveRegionId(command.preferredRegion());
+    // 선호 지역 검증
+    List<String> regions = command.preferredRegions();
 
+    if (regions != null) {
+      if (regions.size() > 3) {
+        throw new InvalidRequestException("선호 지역은 최대 3개까지 선택할 수 있습니다.");
+      }
+
+      if (regions.stream().anyMatch(code -> code == null || code.isBlank())) {
+        throw new InvalidRequestException("선호 지역 목록이 올바르지 않습니다.");
+      }
+
+      if (new HashSet<>(regions).size() != regions.size()) {
+        throw new InvalidRequestException("선호 지역을 중복 선택할 수 없습니다.");
+      }
+    }
+
+    // 선호 테마 검증
     List<Theme> themes = command.preferredThemes();
 
     if (themes != null && new HashSet<>(themes).size() != themes.size()) {
       throw new InvalidRequestException("선호 테마를 중복 선택할 수 없습니다.");
     }
 
-    // 닉네임 변경
+    // 검증 완료 후 닉네임 변경
     if (normalizedNickname != null) {
       member.changeNickname(normalizedNickname, now);
     }
 
     // 선호 지역 변경
-    if (command.preferredRegion() != null
-        && !Objects.equals(member.getPreferredRegionId(), regionId)) {
-      member.changePreferredRegion(regionId, now);
+    if (regions != null && !member.getPreferredRegions().equals(regions)) {
+      member.changePreferredRegions(regions, now);
     }
 
     // 선호 테마 변경
@@ -141,12 +148,20 @@ public class MemberProfileService {
       member.changePreferredThemes(themes, now);
     }
 
-    return new MemberProfileDetailsResult(
-        member.getId(),
-        member.getNickname(),
-        member.getPreferredRegionId(),
-        member.getPreferredThemes(),
-        member.getUpdatedAt());
+    return toDetailsResult(member);
+  }
+
+  /**
+   * 로그인한 회원 본인의 프로필 정보를 조회합니다.
+   *
+   * @param memberId 인증된 회원 식별자
+   * @return 회원 프로필 조회 결과
+   * @throws BusinessException 회원이 없거나 비활성 상태인 경우
+   */
+  @Transactional(readOnly = true)
+  public MemberProfileDetailsResult findProfile(String memberId) {
+    Member member = findActiveMember(memberId);
+    return toDetailsResult(member);
   }
 
   /**
@@ -201,27 +216,14 @@ public class MemberProfileService {
     return normalizedNickname;
   }
 
-  private Integer resolveRegionId(PreferredRegion region) {
-
-    String sidoCode = region.sidoCode();
-    String sigunguCode = region.sigunguCode();
-
-    // 둘 다 null이면 기존 선호 지역 해제
-    if (sidoCode == null && sigunguCode == null) {
-      return null;
-    }
-
-    if (sidoCode == null || sigunguCode == null) {
-      throw new InvalidRequestException("선호 지역이 올바르지 않습니다.");
-    }
-
-    // 기존 지역 조회 서비스 사용
-    List<Integer> regionIds = regionQueryService.findRegionIds(sidoCode, sigunguCode);
-
-    if (regionIds.size() != 1) {
-      throw new InvalidRequestException("선호 지역이 올바르지 않습니다.");
-    }
-
-    return regionIds.get(0);
+  private MemberProfileDetailsResult toDetailsResult(Member member) {
+    return new MemberProfileDetailsResult(
+        member.getId(),
+        member.getEmail(),
+        member.getNickname(),
+        member.getRegisteredProfileImage(),
+        member.getPreferredRegions(),
+        member.getPreferredThemes(),
+        member.getUpdatedAt());
   }
 }

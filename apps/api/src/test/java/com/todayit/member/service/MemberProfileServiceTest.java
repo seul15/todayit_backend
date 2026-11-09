@@ -5,18 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
-import com.todayit.course.service.RegionQueryService;
 import com.todayit.member.entity.Member;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
 import com.todayit.member.service.command.MemberProfileCommand;
-import com.todayit.member.service.command.MemberProfileCommand.PreferredRegion;
 import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.theme.Theme;
@@ -40,15 +37,12 @@ class MemberProfileServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private MemberAgreementRepository memberAgreementRepository;
   @Mock private SignupService signupService;
-  @Mock private RegionQueryService regionQueryService;
 
   private MemberProfileService service;
 
   @BeforeEach
   void setUp() {
-    service =
-        new MemberProfileService(
-            memberRepository, memberAgreementRepository, signupService, regionQueryService);
+    service = new MemberProfileService(memberRepository, memberAgreementRepository, signupService);
   }
 
   @Test
@@ -184,11 +178,10 @@ class MemberProfileServiceTest {
 
     when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
     when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
-    when(regionQueryService.findRegionIds("11", "110")).thenReturn(List.of(1));
 
     MemberProfileCommand command =
         new MemberProfileCommand(
-            "새닉네임", new PreferredRegion("11", "110"), List.of(Theme.QUIET, Theme.ROMANTIC));
+            "새닉네임", List.of("11-110", "41-135"), List.of(Theme.QUIET, Theme.ROMANTIC));
 
     // When
     MemberProfileDetailsResult result = service.updateProfile(memberId, command);
@@ -196,13 +189,12 @@ class MemberProfileServiceTest {
     // Then
     assertThat(result.memberId()).isEqualTo(memberId);
     assertThat(result.nickname()).isEqualTo("새닉네임");
-    assertThat(result.preferredRegionId()).isEqualTo(1);
+    assertThat(result.preferredRegions()).containsExactly("11-110", "41-135");
     assertThat(result.preferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
     assertThat(result.updatedAt()).isNotNull();
 
     assertThat(member.getNickname()).isEqualTo("새닉네임");
-    assertThat(member.getPreferredRegionId()).isEqualTo(1);
-    assertThat(member.getPreferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
+    assertThat(member.getPreferredRegions()).containsExactly("11-110", "41-135");
   }
 
   @Test
@@ -213,19 +205,18 @@ class MemberProfileServiceTest {
 
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
-    member.changePreferredRegion(1, now);
+    member.changePreferredRegions(List.of("11-110"), now);
     member.changePreferredThemes(List.of(Theme.QUIET), now);
 
     when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
 
-    MemberProfileCommand command =
-        new MemberProfileCommand(null, new PreferredRegion(null, null), List.of());
+    MemberProfileCommand command = new MemberProfileCommand(null, List.of(), List.of());
 
     // When
     service.updateProfile(member.getId(), command);
 
     // Then
-    assertThat(member.getPreferredRegionId()).isNull();
+    assertThat(member.getPreferredRegions()).isEmpty();
     assertThat(member.getPreferredThemes()).isEmpty();
   }
 
@@ -266,7 +257,7 @@ class MemberProfileServiceTest {
 
     LocalDateTime previousUpdatedAt = LocalDateTime.now(Clock.systemUTC()).minusDays(1);
 
-    member.changePreferredRegion(17, previousUpdatedAt);
+    member.changePreferredRegions(List.of("11-110", "41-135"), previousUpdatedAt);
     member.changePreferredThemes(List.of(Theme.QUIET), previousUpdatedAt);
 
     when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
@@ -279,13 +270,11 @@ class MemberProfileServiceTest {
 
     // Then
     assertThat(result.nickname()).isEqualTo("새닉네임");
-    assertThat(result.preferredRegionId()).isEqualTo(17);
+    assertThat(result.preferredRegions()).containsExactly("11-110", "41-135");
     assertThat(result.preferredThemes()).containsExactly(Theme.QUIET);
 
-    assertThat(member.getPreferredRegionId()).isEqualTo(17);
+    assertThat(member.getPreferredRegions()).containsExactly("11-110", "41-135");
     assertThat(member.getPreferredThemes()).containsExactly(Theme.QUIET);
-
-    verifyNoInteractions(regionQueryService);
   }
 
   @Test
@@ -296,7 +285,7 @@ class MemberProfileServiceTest {
 
     LocalDateTime previousUpdatedAt = LocalDateTime.now(Clock.systemUTC()).minusDays(1);
 
-    member.changePreferredRegion(17, previousUpdatedAt);
+    member.changePreferredRegions(List.of("11-110"), previousUpdatedAt);
     member.changePreferredThemes(List.of(Theme.QUIET), previousUpdatedAt);
 
     when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
@@ -309,12 +298,11 @@ class MemberProfileServiceTest {
 
     // Then
     assertThat(result.nickname()).isEqualTo("기존닉네임");
-    assertThat(result.preferredRegionId()).isEqualTo(17);
+    assertThat(result.preferredRegions()).containsExactly("11-110");
     assertThat(result.preferredThemes()).containsExactly(Theme.ROMANTIC, Theme.COZY);
 
     assertThat(member.getNickname()).isEqualTo("기존닉네임");
     assertThat(member.getNicknameUpdatedAt()).isNull();
-
-    verifyNoInteractions(signupService, regionQueryService);
+    assertThat(member.getPreferredRegions()).containsExactly("11-110");
   }
 }

@@ -10,7 +10,7 @@ INSERT INTO member (
 )
 SELECT
     seed.member_id,
-    region.region_id,
+    ARRAY[region.region_id::VARCHAR(20)],
     seed.email,
     seed.password,
     'LOCAL',
