@@ -18,7 +18,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** 회원 선호 테마의 PostgreSQL 배열 저장 및 조회를 검증합니다. */
+/** 회원 선호 지역과 테마의 PostgreSQL 배열 저장 및 조회를 검증합니다. */
 @Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest
@@ -35,26 +35,6 @@ class MemberPreferenceRepositoryTest {
   @Autowired private MemberRepository memberRepository;
 
   @Autowired private EntityManager entityManager;
-
-  @Test
-  @DisplayName("회원의 선호 테마 배열을 저장하고 다시 조회한다")
-  void savesAndLoadsPreferredThemes() {
-    // Given
-    Member member = Member.createLocal("preference@example.com", "encoded-password", "선호검증");
-
-    member.changePreferredThemes(List.of(Theme.QUIET, Theme.ROMANTIC), LocalDateTime.now());
-
-    // When
-    memberRepository.saveAndFlush(member);
-
-    // 영속성 컨텍스트를 비워 실제 DB에서 다시 조회
-    entityManager.clear();
-
-    Member loaded = memberRepository.findById(member.getId()).orElseThrow();
-
-    // Then
-    assertThat(loaded.getPreferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
-  }
 
   @Test
   @DisplayName("기존 회원의 선호 지역과 테마를 수정한 뒤 DB에서 다시 조회한다")

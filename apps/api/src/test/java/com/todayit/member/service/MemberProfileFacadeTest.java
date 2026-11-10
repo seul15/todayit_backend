@@ -264,4 +264,22 @@ class MemberProfileFacadeTest {
         100L,
         LocalDateTime.of(2026, 11, 1, 10, 0));
   }
+
+  @Test
+  @DisplayName("프로필 초기화 실패 시 기존 파일을 삭제하지 않는다")
+  void doesNotDeleteFileWhenProfileResetFails() {
+    // Given
+    when(fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, MEMBER_ID))
+        .thenReturn(List.of(createProfileFile()));
+
+    BusinessException failure = new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND);
+
+    when(memberProfileService.resetProfileImage(MEMBER_ID)).thenThrow(failure);
+
+    // When & Then
+    assertThatThrownBy(() -> facade.deleteProfileImage(MEMBER_ID)).isSameAs(failure);
+
+    verify(fileManagementService, never())
+        .delete(eq(FileRelatedType.MEMBER_PROFILE), eq(MEMBER_ID), any());
+  }
 }

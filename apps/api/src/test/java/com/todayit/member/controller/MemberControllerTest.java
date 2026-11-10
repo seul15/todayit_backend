@@ -1,9 +1,11 @@
 package com.todayit.member.controller;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -305,5 +307,30 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.data.preferredThemes[0]").value("QUIET"));
 
     verify(memberProfileService).findProfile(memberId);
+  }
+
+  @Test
+  @DisplayName("프로필 이미지를 삭제하면 기본 이미지 상태를 반환한다")
+  void deletesProfileImage() throws Exception {
+    // Given
+    String memberId = "member-1";
+    LocalDateTime updatedAt = LocalDateTime.of(2026, 11, 10, 10, 0);
+
+    MemberProfileResult result = new MemberProfileResult(memberId, null, updatedAt);
+
+    when(memberProfileFacade.deleteProfileImage(memberId)).thenReturn(result);
+
+    // When & Then
+    mockMvc
+        .perform(
+            delete("/api/v1/members/me/profile-image")
+                .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.memberId").value(memberId))
+        .andExpect(jsonPath("$.data.profileImage").value(nullValue()))
+        .andExpect(jsonPath("$.data.updatedAt").value("2026-11-10T10:00:00"));
+
+    verify(memberProfileFacade).deleteProfileImage(memberId);
   }
 }
