@@ -324,4 +324,41 @@ class MemberProfileServiceTest {
 
     assertThat(member.getPreferredRegions()).isEmpty();
   }
+
+  @Test
+  @DisplayName("프로필 이미지를 삭제하면 기본 이미지로 복원한다")
+  void resetsProfileImage() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
+
+    member.changeProfileImage(PROFILE_IMAGE_URL, LocalDateTime.now(Clock.systemUTC()).minusDays(1));
+
+    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+
+    // When
+    MemberProfileResult result = service.resetProfileImage(member.getId());
+
+    // Then
+    assertThat(result.profileImage()).isNull();
+    assertThat(member.getRegisteredProfileImage()).isNull();
+    assertThat(result.updatedAt()).isNotNull();
+  }
+
+  @Test
+  @DisplayName("이미 기본 이미지인 경우 수정 시각을 변경하지 않는다")
+  void keepsUpdatedAtWhenProfileImageAlreadyDefault() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
+
+    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+
+    LocalDateTime previousUpdatedAt = member.getUpdatedAt();
+
+    // When
+    MemberProfileResult result = service.resetProfileImage(member.getId());
+
+    // Then
+    assertThat(result.profileImage()).isNull();
+    assertThat(result.updatedAt()).isEqualTo(previousUpdatedAt);
+  }
 }

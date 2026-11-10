@@ -17,7 +17,9 @@ import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.file.entity.FileRelatedType;
 import com.todayit.common.file.exception.FileErrorCode;
 import com.todayit.common.file.exception.FileException;
+import com.todayit.common.file.exception.FileStorageException;
 import com.todayit.common.file.service.FileManagementService;
+import com.todayit.common.file.service.model.FileResult;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.time.LocalDateTime;
@@ -167,5 +169,99 @@ class MemberProfileFacadeTest {
   /** 테스트에서 사용할 이미지 파일을 생성합니다. */
   private MockMultipartFile createFile() {
     return new MockMultipartFile("file", "profile.png", "image/png", new byte[] {1, 2, 3});
+  }
+
+  @Test
+  @DisplayName("프로필 이미지를 초기화하고 기존 파일을 삭제한다")
+  void deletesProfileImage() {
+    // Given
+    FileResult file = createProfileFile();
+
+    MemberProfileResult expected =
+        new MemberProfileResult(MEMBER_ID, null, LocalDateTime.of(2026, 11, 10, 10, 0));
+
+    when(fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, MEMBER_ID))
+        .thenReturn(List.of(file));
+
+    when(memberProfileService.resetProfileImage(MEMBER_ID)).thenReturn(expected);
+
+    // When
+    MemberProfileResult result = facade.deleteProfileImage(MEMBER_ID);
+
+    // Then
+    assertThat(result).isEqualTo(expected);
+
+    InOrder order =
+        inOrder(activeMemberValidationService, fileManagementService, memberProfileService);
+
+    order.verify(activeMemberValidationService).validateActiveMember(MEMBER_ID);
+
+    order.verify(fileManagementService).findAll(FileRelatedType.MEMBER_PROFILE, MEMBER_ID);
+
+    order.verify(memberProfileService).resetProfileImage(MEMBER_ID);
+
+    order
+        .verify(fileManagementService)
+        .delete(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(1L));
+  }
+
+  @Test
+  @DisplayName("기본 이미지 상태에서는 파일 삭제를 요청하지 않는다")
+  void skipsFileDeletionWhenNoFileExists() {
+    // Given
+    when(fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, MEMBER_ID))
+        .thenReturn(List.of());
+
+    when(memberProfileService.resetProfileImage(MEMBER_ID))
+        .thenReturn(
+            new MemberProfileResult(MEMBER_ID, null, LocalDateTime.of(2026, 11, 10, 10, 0)));
+
+    // When
+    MemberProfileResult result = facade.deleteProfileImage(MEMBER_ID);
+
+    // Then
+    assertThat(result.profileImage()).isNull();
+
+    verify(fileManagementService, never())
+        .delete(eq(FileRelatedType.MEMBER_PROFILE), eq(MEMBER_ID), any());
+  }
+
+  @Test
+  @DisplayName("외부 파일 삭제 실패 시 기본 이미지 복원 결과를 유지한다")
+  void keepsResetResultWhenStorageDeletionFails() {
+    // Given
+    FileResult file = createProfileFile();
+
+    MemberProfileResult expected =
+        new MemberProfileResult(MEMBER_ID, null, LocalDateTime.of(2026, 11, 10, 10, 0));
+
+    when(fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, MEMBER_ID))
+        .thenReturn(List.of(file));
+
+    when(memberProfileService.resetProfileImage(MEMBER_ID)).thenReturn(expected);
+
+    doThrow(new FileStorageException())
+        .when(fileManagementService)
+        .delete(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(1L));
+
+    // When
+    MemberProfileResult result = facade.deleteProfileImage(MEMBER_ID);
+
+    // Then
+    assertThat(result).isEqualTo(expected);
+
+    verify(memberProfileService).resetProfileImage(MEMBER_ID);
+  }
+
+  private FileResult createProfileFile() {
+    return new FileResult(
+        1L,
+        FileRelatedType.MEMBER_PROFILE,
+        MEMBER_ID,
+        "profile.png",
+        "image/profile-old",
+        "image/png",
+        100L,
+        LocalDateTime.of(2026, 11, 1, 10, 0));
   }
 }

@@ -18,6 +18,7 @@ import com.todayit.place.service.model.PlaceScrapSort;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -148,5 +149,20 @@ public class MemberController implements MemberApiDocs {
     var result = memberProfileService.findProfile(authentication.getName());
 
     return ResponseEntity.ok(CommonResponse.success(MemberProfileResponse.Query.from(result)));
+  }
+
+  /**
+   * 로그인한 회원의 프로필 이미지를 삭제합니다.
+   *
+   * @param authentication 인증된 회원 정보
+   * @return 초기화된 프로필 이미지 정보
+   */
+  @DeleteMapping("/me/profile-image")
+  public ResponseEntity<CommonResponse<MemberProfileImageResponse>> deleteProfileImage(
+      Authentication authentication) {
+
+    MemberProfileResult result = memberProfileFacade.deleteProfileImage(authentication.getName());
+
+    return ResponseEntity.ok(CommonResponse.success(MemberProfileImageResponse.from(result)));
   }
 }

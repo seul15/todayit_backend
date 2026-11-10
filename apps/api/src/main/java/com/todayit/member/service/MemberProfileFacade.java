@@ -2,10 +2,14 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.file.entity.FileRelatedType;
+import com.todayit.common.file.exception.FileStorageException;
 import com.todayit.common.file.service.FileManagementService;
+import com.todayit.common.file.service.model.FileResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -70,5 +74,37 @@ public class MemberProfileFacade {
         });
 
     return profileResult.get();
+  }
+
+  private static final Logger LOG = LoggerFactory.getLogger(MemberProfileFacade.class);
+
+  /**
+   * 회원의 프로필 이미지를 삭제하고 기본 이미지로 복원합니다.
+   *
+   * @param memberId 회원 식별자
+   * @return 초기화된 프로필 이미지 정보
+   */
+  public MemberProfileResult deleteProfileImage(String memberId) {
+    activeMemberValidationService.validateActiveMember(memberId);
+
+    // 삭제 대상 파일을 미리 확보
+    List<Long> fileIds =
+        fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, memberId).stream()
+            .map(FileResult::fileId)
+            .toList();
+
+    // 먼저 DB의 프로필 이미지 참조를 기본 이미지로 복원
+    MemberProfileResult result = memberProfileService.resetProfileImage(memberId);
+
+    // 기존 업로드 파일 정리
+    if (!fileIds.isEmpty()) {
+      try {
+        fileManagementService.delete(FileRelatedType.MEMBER_PROFILE, memberId, fileIds);
+      } catch (FileStorageException exception) {
+        LOG.warn("프로필 이미지 파일 정리 실패: memberId={}", memberId, exception);
+      }
+    }
+
+    return result;
   }
 }

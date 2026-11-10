@@ -226,4 +226,27 @@ public class MemberProfileService {
         member.getPreferredThemes(),
         member.getUpdatedAt());
   }
+
+  /**
+   * 회원의 프로필 이미지를 기본 이미지로 복원합니다.
+   *
+   * @param memberId 회원 식별자
+   * @return 초기화된 프로필 이미지 정보
+   * @throws BusinessException 회원이 없거나 비활성 상태인 경우
+   */
+  @Transactional
+  public MemberProfileResult resetProfileImage(String memberId) {
+    Member member = findActiveMember(memberId);
+
+    // 이미 기본 이미지라면 수정 시각을 변경하지 않음
+    if (member.getRegisteredProfileImage() == null) {
+      return new MemberProfileResult(member.getId(), null, member.getUpdatedAt());
+    }
+
+    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    member.resetProfileImage(now);
+
+    return new MemberProfileResult(
+        member.getId(), member.getRegisteredProfileImage(), member.getUpdatedAt());
+  }
 }
