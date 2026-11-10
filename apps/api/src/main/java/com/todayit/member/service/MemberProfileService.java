@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -52,52 +51,6 @@ public class MemberProfileService {
     this.signupService = signupService;
     this.regionPlaceQueryService = regionPlaceQueryService;
   }
-
-  private static final Set<String> ALLOWED_PREFERRED_REGIONS =
-      Set.of(
-          // 서울특별시
-          "11-440",
-          "11-200",
-          "11-680",
-          "11-710",
-          "11-110",
-          "11-170",
-          "11-560",
-          "11-140",
-          "11-650",
-          "11-215",
-
-          // 경기도
-          "41-115",
-          "41-135",
-          "41-285",
-          "41-480",
-          "41-820",
-
-          // 인천광역시
-          "28-185",
-
-          // 부산광역시
-          "26-500",
-          "26-350",
-          "26-230",
-
-          // 강원특별자치도
-          "51-150",
-          "51-210",
-          "51-110",
-
-          // 제주특별자치도
-          "50-110",
-          "50-130",
-
-          // 기타 지역
-          "47-130",
-          "52-111",
-          "12-130",
-          "30-140",
-          "27-110",
-          "44-131");
 
   /**
    * 회원의 프로필 이미지 URL과 수정 시각을 변경합니다.
@@ -181,13 +134,6 @@ public class MemberProfileService {
           throw new InvalidRequestException("선호 지역 코드가 올바르지 않습니다.");
         }
 
-        String regionKey = region.sidoCode() + "-" + region.sigunguCode();
-
-        if (!ALLOWED_PREFERRED_REGIONS.contains(regionKey)) {
-          throw new InvalidRequestException("선택할 수 없는 선호 지역입니다.");
-        }
-
-        // 기존 장소 검색에서 사용하는 지역 조회 로직 재사용
         regionPlaceQueryService.findRegionIds(region.sidoCode(), region.sigunguCode());
       }
     }

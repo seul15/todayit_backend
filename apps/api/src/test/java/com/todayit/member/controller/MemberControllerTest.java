@@ -340,4 +340,31 @@ class MemberControllerTest {
 
     verify(memberProfileFacade).deleteProfileImage(memberId);
   }
+
+  @Test
+  @DisplayName("선호 지역을 2개 선택하면 400을 반환한다")
+  void rejectsMultiplePreferredRegions() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "preferredRegions": [
+                                        {
+                                          "sidoCode": "11",
+                                          "sigunguCode": "110"
+                                        },
+                                        {
+                                          "sidoCode": "41",
+                                          "sigunguCode": "135"
+                                        }
+                                      ]
+                                    }
+                                    """)
+                .principal(new UsernamePasswordAuthenticationToken("member-1", null)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
 }

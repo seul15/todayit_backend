@@ -292,7 +292,12 @@ public interface MemberApiDocs {
                       name = "닉네임 변경 주기 위반",
                       value =
                           "{\"success\":false,\"code\":\"NICKNAME_CHANGE_TOO_SOON\","
-                              + "\"message\":\"닉네임은 마지막 변경 후 90일이 지나야 다시 변경할 수 있습니다.\"}")
+                              + "\"message\":\"닉네임은 마지막 변경 후 90일이 지나야 다시 변경할 수 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "존재하지 않는 선호 지역",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REGION_PATH\","
+                              + "\"message\":\"지역 필터 값이 올바르지 않습니다.\"}")
                 })),
     @ApiResponse(responseCode = "401", description = "Access Token 인증 필요"),
     @ApiResponse(

@@ -198,8 +198,13 @@ class MemberProfileServiceTest {
     MemberProfileDetailsResult result = service.updateProfile(memberId, command);
 
     // Then
+    assertThat(result.memberId()).isEqualTo(memberId);
+    assertThat(result.nickname()).isEqualTo("새닉네임");
     assertThat(result.preferredRegions()).containsExactly(new PreferredRegionCode("11", "110"));
+    assertThat(result.preferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
+    assertThat(result.updatedAt()).isNotNull();
 
+    assertThat(member.getNickname()).isEqualTo("새닉네임");
     assertThat(member.getPreferredSidoCode()).isEqualTo("11");
     assertThat(member.getPreferredSigunguCode()).isEqualTo("110");
 
@@ -323,25 +328,5 @@ class MemberProfileServiceTest {
             exception ->
                 assertThat(exception.getErrorCode())
                     .isEqualTo(MemberErrorCode.NICKNAME_ALREADY_EXISTS));
-  }
-
-  @Test
-  @DisplayName("허용 목록에 없는 선호 지역을 거부한다")
-  void rejectsUnsupportedPreferredRegion() {
-    // Given
-    Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
-
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
-
-    MemberProfileCommand command =
-        new MemberProfileCommand(null, List.of(new PreferredRegionCode("11", "999")), null);
-
-    // When & Then
-    assertThatThrownBy(() -> service.updateProfile(member.getId(), command))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("선택할 수 없는 선호 지역입니다.");
-
-    assertThat(member.getPreferredSidoCode()).isNull();
-    assertThat(member.getPreferredSigunguCode()).isNull();
   }
 }
