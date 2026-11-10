@@ -365,4 +365,50 @@ public interface MemberApiDocs {
   })
   ResponseEntity<CommonResponse<MemberProfileResponse.Query>> findProfile(
       Authentication authentication);
+
+  /**
+   * 로그인한 회원의 프로필 이미지를 삭제합니다.
+   *
+   * @param authentication 인증된 회원 정보
+   * @return 기본 이미지로 복원된 회원 프로필 정보
+   */
+  @Operation(
+      summary = "프로필 이미지 삭제",
+      description =
+          "로그인한 회원 본인의 프로필 이미지를 삭제하고 기본 이미지로 복원합니다. "
+              + "별도의 요청 본문은 필요하지 않습니다. "
+              + "삭제 후 profileImage는 null로 반환하며, 프론트에서 기본 이미지를 표시합니다. "
+              + "이미 기본 이미지인 경우에도 성공하고 기존 updatedAt을 유지합니다. "
+              + "닉네임과 선호 정보는 변경하지 않습니다.",
+      security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "프로필 이미지 삭제 성공",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":true,\"data\":"
+                                + "{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\","
+                                + "\"profileImage\":null,"
+                                + "\"updatedAt\":\"2026-11-10T05:00:00\"}}"))),
+    @ApiResponse(responseCode = "401", description = "Access Token 인증 필요"),
+    @ApiResponse(
+        responseCode = "404",
+        description = "회원을 찾을 수 없음",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,\"code\":\"MEMBER_NOT_FOUND\","
+                                + "\"message\":\"회원을 찾을 수 없습니다.\"}")))
+  })
+  ResponseEntity<CommonResponse<MemberProfileImageResponse>> deleteProfileImage(
+      Authentication authentication);
 }
