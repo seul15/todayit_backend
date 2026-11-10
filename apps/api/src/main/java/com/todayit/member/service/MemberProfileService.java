@@ -2,7 +2,9 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.course.service.RegionPlaceQueryService;
 import com.todayit.member.entity.Member;
+import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
@@ -14,6 +16,8 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -28,6 +32,7 @@ public class MemberProfileService {
   private final MemberRepository memberRepository;
   private final MemberAgreementRepository memberAgreementRepository;
   private final SignupService signupService;
+  private final RegionPlaceQueryService regionPlaceQueryService;
 
   /**
    * 회원 프로필 변경에 필요한 서비스를 주입받습니다.
@@ -35,15 +40,64 @@ public class MemberProfileService {
    * @param memberRepository 회원 Repository
    * @param memberAgreementRepository 회원 약관 동의 Repository
    * @param signupService 공통 닉네임 검증 서비스
+   * @param regionPlaceQueryService 기존 지역 조회 서비스
    */
   public MemberProfileService(
       MemberRepository memberRepository,
       MemberAgreementRepository memberAgreementRepository,
-      SignupService signupService) {
+      SignupService signupService,
+      RegionPlaceQueryService regionPlaceQueryService) {
     this.memberRepository = memberRepository;
     this.memberAgreementRepository = memberAgreementRepository;
     this.signupService = signupService;
+    this.regionPlaceQueryService = regionPlaceQueryService;
   }
+
+  private static final Set<String> ALLOWED_PREFERRED_REGIONS =
+      Set.of(
+          // 서울특별시
+          "11-440",
+          "11-200",
+          "11-680",
+          "11-710",
+          "11-110",
+          "11-170",
+          "11-560",
+          "11-140",
+          "11-650",
+          "11-215",
+
+          // 경기도
+          "41-115",
+          "41-135",
+          "41-285",
+          "41-480",
+          "41-820",
+
+          // 인천광역시
+          "28-185",
+
+          // 부산광역시
+          "26-500",
+          "26-350",
+          "26-230",
+
+          // 강원특별자치도
+          "51-150",
+          "51-210",
+          "51-110",
+
+          // 제주특별자치도
+          "50-110",
+          "50-130",
+
+          // 기타 지역
+          "47-130",
+          "52-111",
+          "12-130",
+          "30-140",
+          "27-110",
+          "44-131");
 
   /**
    * 회원의 프로필 이미지 URL과 수정 시각을 변경합니다.
@@ -113,19 +167,28 @@ public class MemberProfileService {
         command.nickname() == null ? null : validateNicknameChange(member, command.nickname(), now);
 
     // 선호 지역 검증
-    List<String> regions = command.preferredRegions();
+    List<PreferredRegionCode> regions = command.preferredRegions();
 
     if (regions != null) {
-      if (regions.size() > 3) {
-        throw new InvalidRequestException("선호 지역은 최대 3개까지 선택할 수 있습니다.");
+      if (regions.size() > 1) {
+        throw new InvalidRequestException("선호 지역은 1개만 선택할 수 있습니다.");
       }
 
-      if (regions.stream().anyMatch(code -> code == null || code.isBlank())) {
-        throw new InvalidRequestException("선호 지역 목록이 올바르지 않습니다.");
-      }
+      if (!regions.isEmpty()) {
+        PreferredRegionCode region = regions.get(0);
 
-      if (new HashSet<>(regions).size() != regions.size()) {
-        throw new InvalidRequestException("선호 지역을 중복 선택할 수 없습니다.");
+        if (region == null || region.sidoCode() == null || region.sigunguCode() == null) {
+          throw new InvalidRequestException("선호 지역 코드가 올바르지 않습니다.");
+        }
+
+        String regionKey = region.sidoCode() + "-" + region.sigunguCode();
+
+        if (!ALLOWED_PREFERRED_REGIONS.contains(regionKey)) {
+          throw new InvalidRequestException("선택할 수 없는 선호 지역입니다.");
+        }
+
+        // 기존 장소 검색에서 사용하는 지역 조회 로직 재사용
+        regionPlaceQueryService.findRegionIds(region.sidoCode(), region.sigunguCode());
       }
     }
 
@@ -143,8 +206,17 @@ public class MemberProfileService {
     }
 
     // 선호 지역 변경
-    if (regions != null && !member.getPreferredRegions().equals(regions)) {
-      member.changePreferredRegions(regions, now);
+    if (regions != null) {
+      PreferredRegionCode selected = regions.isEmpty() ? null : regions.get(0);
+
+      String sidoCode = selected == null ? null : selected.sidoCode();
+
+      String sigunguCode = selected == null ? null : selected.sigunguCode();
+
+      if (!Objects.equals(member.getPreferredSidoCode(), sidoCode)
+          || !Objects.equals(member.getPreferredSigunguCode(), sigunguCode)) {
+        member.changePreferredRegion(sidoCode, sigunguCode, now);
+      }
     }
 
     // 선호 테마 변경
@@ -221,12 +293,19 @@ public class MemberProfileService {
   }
 
   private MemberProfileDetailsResult toDetailsResult(Member member) {
+    List<PreferredRegionCode> regions =
+        member.getPreferredSidoCode() == null
+            ? List.of()
+            : List.of(
+                new PreferredRegionCode(
+                    member.getPreferredSidoCode(), member.getPreferredSigunguCode()));
+
     return new MemberProfileDetailsResult(
         member.getId(),
         member.getEmail(),
         member.getNickname(),
         member.getRegisteredProfileImage(),
-        member.getPreferredRegions(),
+        regions,
         member.getPreferredThemes(),
         member.getUpdatedAt());
   }

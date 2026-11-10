@@ -1,5 +1,6 @@
 package com.todayit.member.dto.response;
 
+import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.theme.Theme;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -12,7 +13,7 @@ import java.util.List;
  * @param memberId 회원 식별자
  * @param nickname 닉네임
  * @param profileImage 등록된 프로필 이미지 URL, 미등록 시 null
- * @param preferredRegions 선호 지역 목록
+ * @param preferredRegions 선호 지역
  * @param preferredThemes 선호 테마 목록
  * @param updatedAt 회원정보 최종 수정 시각
  */
@@ -21,7 +22,7 @@ public record MemberProfileResponse(
     @Schema(description = "회원 식별자") String memberId,
     @Schema(description = "닉네임") String nickname,
     @Schema(description = "프로필 이미지 URL, 미등록 시 null") String profileImage,
-    @Schema(description = "선호 지역 목록") List<String> preferredRegions,
+    @Schema(description = "선호 지역") List<PreferredRegionCode> preferredRegions,
     @Schema(description = "선호 테마 코드 목록") List<Theme> preferredThemes,
     @Schema(description = "회원정보 수정 시각") LocalDateTime updatedAt) {
 
@@ -58,7 +59,7 @@ public record MemberProfileResponse(
       String email,
       String nickname,
       String profileImage,
-      List<String> preferredRegions,
+      List<PreferredRegionCode> preferredRegions,
       List<Theme> preferredThemes,
       LocalDateTime updatedAt) {
 

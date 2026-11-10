@@ -246,7 +246,8 @@ public interface MemberApiDocs {
       description =
           "로그인한 회원의 닉네임, 선호 지역 및 선호 테마를 수정합니다. "
               + "요청에서 생략한 항목은 기존 값을 유지합니다. "
-              + "preferredRegions는 최대 3개까지 전달할 수 있으며, "
+              + "preferredRegions는 최대 1개까지 선택할 수 있으며, "
+              + "각 지역은 sidoCode와 sigunguCode로 구성됩니다. "
               + "빈 배열을 전달하면 기존 선호 지역을 모두 해제합니다. "
               + "preferredThemes에 빈 배열을 전달하면 선호 테마를 모두 해제합니다. "
               + "닉네임은 마지막 변경 이후 90일이 지나야 다시 변경할 수 있습니다.",
@@ -265,7 +266,8 @@ public interface MemberApiDocs {
                                 + "{\"memberId\":\"123e4567-e89b-12d3-a456-426614174000\","
                                 + "\"nickname\":\"새닉네임\","
                                 + "\"profileImage\":null,"
-                                + "\"preferredRegions\":[\"11-110\",\"41-135\"],"
+                                + "\"preferredRegions\":[{\"sidoCode\":\"11\","
+                                + "\"sigunguCode\":\"110\"}],"
                                 + "\"preferredThemes\":[\"QUIET\",\"ROMANTIC\"],"
                                 + "\"updatedAt\":\"2026-11-09T04:00:00\"}}"))),
     @ApiResponse(
@@ -285,7 +287,7 @@ public interface MemberApiDocs {
                       name = "선호 지역 개수 초과",
                       value =
                           "{\"success\":false,\"code\":\"INVALID_REQUEST\","
-                              + "\"message\":\"선호 지역은 최대 3개까지 선택할 수 있습니다.\"}"),
+                              + "\"message\":\"선호 지역은 1개만 선택할 수 있습니다.\"}"),
                   @ExampleObject(
                       name = "닉네임 변경 주기 위반",
                       value =

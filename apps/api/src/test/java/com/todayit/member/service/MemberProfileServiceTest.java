@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.course.service.RegionPlaceQueryService;
 import com.todayit.member.entity.Member;
+import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.repository.MemberAgreementRepository;
 import com.todayit.member.repository.MemberRepository;
@@ -41,12 +43,15 @@ class MemberProfileServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private MemberAgreementRepository memberAgreementRepository;
   @Mock private SignupService signupService;
+  @Mock private RegionPlaceQueryService regionPlaceQueryService;
 
   private MemberProfileService service;
 
   @BeforeEach
   void setUp() {
-    service = new MemberProfileService(memberRepository, memberAgreementRepository, signupService);
+    service =
+        new MemberProfileService(
+            memberRepository, memberAgreementRepository, signupService, regionPlaceQueryService);
   }
 
   @Test
@@ -185,20 +190,20 @@ class MemberProfileServiceTest {
 
     MemberProfileCommand command =
         new MemberProfileCommand(
-            "새닉네임", List.of("11-110", "41-135"), List.of(Theme.QUIET, Theme.ROMANTIC));
+            "새닉네임",
+            List.of(new PreferredRegionCode("11", "110")),
+            List.of(Theme.QUIET, Theme.ROMANTIC));
 
     // When
     MemberProfileDetailsResult result = service.updateProfile(memberId, command);
 
     // Then
-    assertThat(result.memberId()).isEqualTo(memberId);
-    assertThat(result.nickname()).isEqualTo("새닉네임");
-    assertThat(result.preferredRegions()).containsExactly("11-110", "41-135");
-    assertThat(result.preferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
-    assertThat(result.updatedAt()).isNotNull();
+    assertThat(result.preferredRegions()).containsExactly(new PreferredRegionCode("11", "110"));
 
-    assertThat(member.getNickname()).isEqualTo("새닉네임");
-    assertThat(member.getPreferredRegions()).containsExactly("11-110", "41-135");
+    assertThat(member.getPreferredSidoCode()).isEqualTo("11");
+    assertThat(member.getPreferredSigunguCode()).isEqualTo("110");
+
+    verify(regionPlaceQueryService).findRegionIds("11", "110");
   }
 
   @Test
@@ -209,7 +214,7 @@ class MemberProfileServiceTest {
 
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
-    member.changePreferredRegions(List.of("11-110"), now);
+    member.changePreferredRegion("11", "110", now);
     member.changePreferredThemes(List.of(Theme.QUIET), now);
 
     when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
@@ -220,7 +225,8 @@ class MemberProfileServiceTest {
     service.updateProfile(member.getId(), command);
 
     // Then
-    assertThat(member.getPreferredRegions()).isEmpty();
+    assertThat(member.getPreferredSidoCode()).isNull();
+    assertThat(member.getPreferredSigunguCode()).isNull();
     assertThat(member.getPreferredThemes()).isEmpty();
   }
 
@@ -251,82 +257,6 @@ class MemberProfileServiceTest {
     assertThatThrownBy(() -> service.updateProfile("member-1", command))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("수정할 회원정보가 없습니다.");
-  }
-
-  @Test
-  @DisplayName("닉네임만 수정하면 기존 선호 지역과 테마를 유지한다")
-  void keepsPreferencesWhenOnlyNicknameChanges() {
-    // Given
-    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
-
-    LocalDateTime previousUpdatedAt = LocalDateTime.now(Clock.systemUTC()).minusDays(1);
-
-    member.changePreferredRegions(List.of("11-110", "41-135"), previousUpdatedAt);
-    member.changePreferredThemes(List.of(Theme.QUIET), previousUpdatedAt);
-
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
-    when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
-
-    MemberProfileCommand command = new MemberProfileCommand("새닉네임", null, null);
-
-    // When
-    MemberProfileDetailsResult result = service.updateProfile(member.getId(), command);
-
-    // Then
-    assertThat(result.nickname()).isEqualTo("새닉네임");
-    assertThat(result.preferredRegions()).containsExactly("11-110", "41-135");
-    assertThat(result.preferredThemes()).containsExactly(Theme.QUIET);
-
-    assertThat(member.getPreferredRegions()).containsExactly("11-110", "41-135");
-    assertThat(member.getPreferredThemes()).containsExactly(Theme.QUIET);
-  }
-
-  @Test
-  @DisplayName("선호 테마만 수정하면 닉네임과 선호 지역을 유지한다")
-  void keepsOtherFieldsWhenOnlyThemesChange() {
-    // Given
-    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
-
-    LocalDateTime previousUpdatedAt = LocalDateTime.now(Clock.systemUTC()).minusDays(1);
-
-    member.changePreferredRegions(List.of("11-110"), previousUpdatedAt);
-    member.changePreferredThemes(List.of(Theme.QUIET), previousUpdatedAt);
-
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
-
-    MemberProfileCommand command =
-        new MemberProfileCommand(null, null, List.of(Theme.ROMANTIC, Theme.COZY));
-
-    // When
-    MemberProfileDetailsResult result = service.updateProfile(member.getId(), command);
-
-    // Then
-    assertThat(result.nickname()).isEqualTo("기존닉네임");
-    assertThat(result.preferredRegions()).containsExactly("11-110");
-    assertThat(result.preferredThemes()).containsExactly(Theme.ROMANTIC, Theme.COZY);
-
-    assertThat(member.getNickname()).isEqualTo("기존닉네임");
-    assertThat(member.getNicknameUpdatedAt()).isNull();
-    assertThat(member.getPreferredRegions()).containsExactly("11-110");
-  }
-
-  @Test
-  @DisplayName("선호 지역을 4개 선택하면 변경을 거부한다")
-  void rejectsTooManyPreferredRegions() {
-    // Given
-    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
-
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
-
-    MemberProfileCommand command =
-        new MemberProfileCommand(null, List.of("region1", "region2", "region3", "region4"), null);
-
-    // When & Then
-    assertThatThrownBy(() -> service.updateProfile(member.getId(), command))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("선호 지역은 최대 3개까지 선택할 수 있습니다.");
-
-    assertThat(member.getPreferredRegions()).isEmpty();
   }
 
   @Test
@@ -393,5 +323,25 @@ class MemberProfileServiceTest {
             exception ->
                 assertThat(exception.getErrorCode())
                     .isEqualTo(MemberErrorCode.NICKNAME_ALREADY_EXISTS));
+  }
+
+  @Test
+  @DisplayName("허용 목록에 없는 선호 지역을 거부한다")
+  void rejectsUnsupportedPreferredRegion() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
+
+    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+
+    MemberProfileCommand command =
+        new MemberProfileCommand(null, List.of(new PreferredRegionCode("11", "999")), null);
+
+    // When & Then
+    assertThatThrownBy(() -> service.updateProfile(member.getId(), command))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("선택할 수 없는 선호 지역입니다.");
+
+    assertThat(member.getPreferredSidoCode()).isNull();
+    assertThat(member.getPreferredSigunguCode()).isNull();
   }
 }

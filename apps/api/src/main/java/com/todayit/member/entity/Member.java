@@ -35,9 +35,11 @@ public class Member {
   @Column(name = "nickname_updated_at")
   private LocalDateTime nicknameUpdatedAt;
 
-  @JdbcTypeCode(SqlTypes.ARRAY)
-  @Column(name = "preferred_region", columnDefinition = "varchar(20)[]")
-  private String[] preferredRegionCodes;
+  @Column(name = "preferred_sido_code", length = 2)
+  private String preferredSidoCode;
+
+  @Column(name = "preferred_sigungu_code", length = 3)
+  private String preferredSigunguCode;
 
   // PostgreSQL 문자열 배열에 선호 테마 코드 저장
   @JdbcTypeCode(SqlTypes.ARRAY)
@@ -127,13 +129,15 @@ public class Member {
   }
 
   /**
-   * 회원의 선호 지역 목록을 변경합니다.
+   * 회원의 선호 지역을 변경하거나 해제합니다.
    *
-   * @param regionCodes 변경할 지역 식별값 목록
-   * @param updatedAt 변경 시각
+   * @param sidoCode 시도 코드, 해제 시 null
+   * @param sigunguCode 시군구 코드, 해제 시 null
+   * @param updatedAt 회원정보 수정 시각
    */
-  public void changePreferredRegions(List<String> regionCodes, LocalDateTime updatedAt) {
-    this.preferredRegionCodes = regionCodes.toArray(String[]::new);
+  public void changePreferredRegion(String sidoCode, String sigunguCode, LocalDateTime updatedAt) {
+    this.preferredSidoCode = sidoCode;
+    this.preferredSigunguCode = sigunguCode;
     this.updatedAt = updatedAt;
   }
 
@@ -257,17 +261,12 @@ public class Member {
     return updatedAt;
   }
 
-  /**
-   * 회원의 선호 지역 목록을 반환합니다.
-   *
-   * @return 선호 지역 목록, 미설정 시 빈 목록
-   */
-  public List<String> getPreferredRegions() {
-    if (preferredRegionCodes == null) {
-      return List.of();
-    }
+  public String getPreferredSidoCode() {
+    return preferredSidoCode;
+  }
 
-    return List.copyOf(Arrays.asList(preferredRegionCodes));
+  public String getPreferredSigunguCode() {
+    return preferredSigunguCode;
   }
 
   /**

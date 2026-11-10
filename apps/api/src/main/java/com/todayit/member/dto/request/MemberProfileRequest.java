@@ -1,6 +1,7 @@
 package com.todayit.member.dto.request;
 
 import com.todayit.common.exception.InvalidRequestException;
+import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.service.command.MemberProfileCommand;
 import com.todayit.theme.Theme;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,7 +18,8 @@ import java.util.List;
 @Schema(description = "회원 프로필 수정 요청")
 public record MemberProfileRequest(
     @Schema(description = "변경할 닉네임") String nickname,
-    @Schema(description = "선호 지역 목록, 최대 3개") List<String> preferredRegions,
+    @Schema(description = "선호 지역 목록, 최대 1개. 시도/시군구 코드로 구성")
+        List<PreferredRegionCode> preferredRegions,
     @Schema(description = "선호 테마 목록") List<Theme> preferredThemes) {
 
   /**
@@ -31,16 +33,18 @@ public record MemberProfileRequest(
     }
 
     if (preferredRegions != null) {
-      if (preferredRegions.size() > 3) {
-        throw new InvalidRequestException("선호 지역은 최대 3개까지 선택할 수 있습니다.");
+      if (preferredRegions.size() > 1) {
+        throw new InvalidRequestException("선호 지역은 1개만 선택할 수 있습니다.");
       }
 
-      if (preferredRegions.stream().anyMatch(code -> code == null || code.isBlank())) {
-        throw new InvalidRequestException("선호 지역 목록이 올바르지 않습니다.");
-      }
-
-      if (new HashSet<>(preferredRegions).size() != preferredRegions.size()) {
-        throw new InvalidRequestException("선호 지역을 중복 선택할 수 없습니다.");
+      for (PreferredRegionCode region : preferredRegions) {
+        if (region == null
+            || region.sidoCode() == null
+            || region.sigunguCode() == null
+            || !region.sidoCode().matches("[0-9]{2}")
+            || !region.sigunguCode().matches("[0-9]{3}")) {
+          throw new InvalidRequestException("선호 지역 코드가 올바르지 않습니다.");
+        }
       }
     }
 

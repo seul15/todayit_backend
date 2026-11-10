@@ -18,7 +18,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** 회원 선호 지역과 테마의 PostgreSQL 배열 저장 및 조회를 검증합니다. */
+/** 회원 선호 지역 코드와 테마 배열의 PostgreSQL 저장 및 조회를 검증합니다. */
 @Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest
@@ -51,7 +51,7 @@ class MemberPreferenceRepositoryTest {
 
     LocalDateTime now = LocalDateTime.now();
 
-    stored.changePreferredRegions(List.of("11-110", "41-135"), now);
+    stored.changePreferredRegion("11", "110", now);
     stored.changePreferredThemes(List.of(Theme.QUIET, Theme.ROMANTIC), now);
 
     memberRepository.saveAndFlush(stored);
@@ -60,7 +60,8 @@ class MemberPreferenceRepositoryTest {
     // Then
     Member loaded = memberRepository.findById(member.getId()).orElseThrow();
 
-    assertThat(loaded.getPreferredRegions()).containsExactly("11-110", "41-135");
+    assertThat(loaded.getPreferredSidoCode()).isEqualTo("11");
+    assertThat(loaded.getPreferredSigunguCode()).isEqualTo("110");
     assertThat(loaded.getPreferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
     assertThat(loaded.getNickname()).isEqualTo("선호수정검증");
   }

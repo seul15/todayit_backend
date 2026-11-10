@@ -1,5 +1,6 @@
 package com.todayit.member.service.model;
 
+import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.theme.Theme;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.List;
  * @param email 회원 이메일, 소셜 회원은 null
  * @param nickname 회원 닉네임
  * @param profileImage 등록된 프로필 이미지 URL, 미등록 시 null
- * @param preferredRegions 선호 지역 목록
+ * @param preferredRegions 선호 지역
  * @param preferredThemes 선호 테마 목록
  * @param updatedAt 회원정보 최종 수정 시각
  */
@@ -20,7 +21,7 @@ public record MemberProfileDetailsResult(
     String email,
     String nickname,
     String profileImage,
-    List<String> preferredRegions,
+    List<PreferredRegionCode> preferredRegions,
     List<Theme> preferredThemes,
     LocalDateTime updatedAt) {
 

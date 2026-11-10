@@ -17,6 +17,7 @@ import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.GlobalExceptionHandler;
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.pagination.PageResult;
+import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.exception.MemberErrorCode;
 import com.todayit.member.service.MemberProfileFacade;
 import com.todayit.member.service.MemberProfileService;
@@ -213,7 +214,7 @@ class MemberControllerTest {
             "test@example.com",
             "새닉네임",
             null,
-            List.of("11-110", "41-135"),
+            List.of(new PreferredRegionCode("11", "110")),
             List.of(Theme.QUIET, Theme.ROMANTIC),
             updatedAt);
 
@@ -227,19 +228,24 @@ class MemberControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                                    {
-                                      "nickname": "새닉네임",
-                                      "preferredRegions": ["11-110", "41-135"],
-                                      "preferredThemes": ["QUIET", "ROMANTIC"]
-                                    }
-                                    """)
+                            {
+                              "nickname": "새닉네임",
+                              "preferredRegions": [
+                                {
+                                  "sidoCode": "11",
+                                  "sigunguCode": "110"
+                                }
+                              ],
+                              "preferredThemes": ["QUIET", "ROMANTIC"]
+                            }
+                            """)
                 .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.memberId").value(memberId))
         .andExpect(jsonPath("$.data.nickname").value("새닉네임"))
-        .andExpect(jsonPath("$.data.preferredRegions[0]").value("11-110"))
-        .andExpect(jsonPath("$.data.preferredRegions[1]").value("41-135"))
+        .andExpect(jsonPath("$.data.preferredRegions[0].sidoCode").value("11"))
+        .andExpect(jsonPath("$.data.preferredRegions[0].sigunguCode").value("110"))
         .andExpect(jsonPath("$.data.preferredThemes[0]").value("QUIET"))
         .andExpect(jsonPath("$.data.preferredThemes[1]").value("ROMANTIC"))
         .andExpect(jsonPath("$.data.updatedAt").value("2026-11-09T04:00:00"));
@@ -286,7 +292,7 @@ class MemberControllerTest {
             "test@example.com",
             "테스트회원",
             null,
-            List.of("11-110"),
+            List.of(new PreferredRegionCode("11", "110")),
             List.of(Theme.QUIET),
             updatedAt);
 
@@ -303,7 +309,8 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.data.memberId").value(memberId))
         .andExpect(jsonPath("$.data.email").value("test@example.com"))
         .andExpect(jsonPath("$.data.nickname").value("테스트회원"))
-        .andExpect(jsonPath("$.data.preferredRegions[0]").value("11-110"))
+        .andExpect(jsonPath("$.data.preferredRegions[0].sidoCode").value("11"))
+        .andExpect(jsonPath("$.data.preferredRegions[0].sigunguCode").value("110"))
         .andExpect(jsonPath("$.data.preferredThemes[0]").value("QUIET"));
 
     verify(memberProfileService).findProfile(memberId);
