@@ -1,6 +1,7 @@
 INSERT INTO member (
     member_id,
-    preferred_region,
+    preferred_sido_code,
+    preferred_sigungu_code,
     email,
     password,
     provider,
@@ -10,7 +11,8 @@ INSERT INTO member (
 )
 SELECT
     seed.member_id,
-    ARRAY[region.region_id::VARCHAR(20)],
+    region.sido_code,
+    region.sigungu_code,
     seed.email,
     seed.password,
     'LOCAL',

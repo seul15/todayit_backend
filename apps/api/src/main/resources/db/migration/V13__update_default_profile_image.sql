@@ -26,18 +26,29 @@ ALTER TABLE member
 DROP CONSTRAINT fk_member_preferred_region;
 
 ALTER TABLE member
-ALTER COLUMN preferred_region TYPE VARCHAR(20)[]
-    USING CASE
-        WHEN preferred_region IS NULL THEN NULL
-        ELSE ARRAY[preferred_region::VARCHAR(20)]
-END;
+DROP COLUMN preferred_region;
 
 ALTER TABLE member
-    ADD CONSTRAINT ck_member_preferred_region_count
+    ADD COLUMN preferred_sido_code VARCHAR(2),
+    ADD COLUMN preferred_sigungu_code VARCHAR(3);
+
+ALTER TABLE member
+    ADD CONSTRAINT ck_member_preferred_region_codes
         CHECK (
-            preferred_region IS NULL
-                OR cardinality(preferred_region) <= 3
+            (
+                preferred_sido_code IS NULL
+                    AND preferred_sigungu_code IS NULL
+                )
+                OR (
+                preferred_sido_code IS NOT NULL
+                    AND preferred_sigungu_code IS NOT NULL
+                    AND preferred_sido_code ~ '^[0-9]{2}$'
+            AND preferred_sigungu_code ~ '^[0-9]{3}$'
+                )
             );
 
-COMMENT ON COLUMN member.preferred_region
-    IS '회원 선호 지역 식별값 목록, 최대 3개';
+COMMENT ON COLUMN member.preferred_sido_code
+    IS '회원 선호 지역 시도 코드';
+
+COMMENT ON COLUMN member.preferred_sigungu_code
+    IS '회원 선호 지역 시군구 코드';
