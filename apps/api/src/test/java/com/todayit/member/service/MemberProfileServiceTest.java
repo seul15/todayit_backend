@@ -3,6 +3,8 @@ package com.todayit.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,12 +23,14 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 /** 회원 프로필 이미지 변경과 회원 상태 검증을 테스트합니다. */
 @ExtendWith(MockitoExtension.class)
@@ -360,5 +364,34 @@ class MemberProfileServiceTest {
     // Then
     assertThat(result.profileImage()).isNull();
     assertThat(result.updatedAt()).isEqualTo(previousUpdatedAt);
+  }
+
+  @Test
+  @DisplayName("닉네임 저장 시 DB 중복 오류가 발생하면 409 오류 코드로 변환한다")
+  void convertsNicknameUniqueViolation() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
+
+    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+
+    when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
+
+    ConstraintViolationException constraint = mock(ConstraintViolationException.class);
+
+    when(constraint.getConstraintName()).thenReturn("uk_member_nickname_normalized");
+
+    doThrow(new DataIntegrityViolationException("닉네임 중복", constraint))
+        .when(memberRepository)
+        .flush();
+
+    MemberProfileCommand command = new MemberProfileCommand("새닉네임", null, null);
+
+    // When & Then
+    assertThatThrownBy(() -> service.updateProfile(member.getId(), command))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(MemberErrorCode.NICKNAME_ALREADY_EXISTS));
   }
 }

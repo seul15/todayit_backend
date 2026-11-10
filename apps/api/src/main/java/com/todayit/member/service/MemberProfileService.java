@@ -14,6 +14,8 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +80,7 @@ public class MemberProfileService {
 
     if (normalizedNickname != null) {
       member.changeNickname(normalizedNickname, now);
+      flushNicknameChange();
     }
   }
 
@@ -136,6 +139,7 @@ public class MemberProfileService {
     // 검증 완료 후 닉네임 변경
     if (normalizedNickname != null) {
       member.changeNickname(normalizedNickname, now);
+      flushNicknameChange();
     }
 
     // 선호 지역 변경
@@ -248,5 +252,26 @@ public class MemberProfileService {
 
     return new MemberProfileResult(
         member.getId(), member.getRegisteredProfileImage(), member.getUpdatedAt());
+  }
+
+  private void flushNicknameChange() {
+    try {
+      // 트랜잭션 종료 전 DB UNIQUE 제약 검증
+      memberRepository.flush();
+    } catch (DataIntegrityViolationException exception) {
+      Throwable cause = exception;
+
+      while (cause != null) {
+        if (cause instanceof ConstraintViolationException constraint
+            && "uk_member_nickname_normalized".equalsIgnoreCase(constraint.getConstraintName())) {
+          throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+        }
+
+        cause = cause.getCause();
+      }
+
+      // 닉네임 중복 이외의 DB 오류는 그대로 전파
+      throw exception;
+    }
   }
 }
