@@ -115,6 +115,7 @@ public class MemberProfileFacade {
           fileManagementService.delete(FileRelatedType.MEMBER_PROFILE, memberId, fileIds);
         } catch (FileStorageException exception) {
           LOG.warn("프로필 이미지 파일 정리 실패: memberId={}", memberId, exception);
+          throw exception;
         }
       }
 

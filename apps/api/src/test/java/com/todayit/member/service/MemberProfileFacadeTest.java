@@ -227,8 +227,8 @@ class MemberProfileFacadeTest {
   }
 
   @Test
-  @DisplayName("외부 파일 삭제 실패 시 기본 이미지 복원 결과를 유지한다")
-  void keepsResetResultWhenStorageDeletionFails() {
+  @DisplayName("외부 파일 삭제 실패 시 예외를 전달하고 재시도할 수 있도록 한다")
+  void propagatesStorageDeletionFailure() {
     // Given
     FileResult file = createProfileFile();
 
@@ -240,17 +240,18 @@ class MemberProfileFacadeTest {
 
     when(memberProfileService.resetProfileImage(MEMBER_ID)).thenReturn(expected);
 
-    doThrow(new FileStorageException())
+    FileStorageException failure = new FileStorageException();
+
+    doThrow(failure)
         .when(fileManagementService)
         .delete(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(1L));
 
-    // When
-    MemberProfileResult result = facade.deleteProfileImage(MEMBER_ID);
-
-    // Then
-    assertThat(result).isEqualTo(expected);
+    // When & Then
+    assertThatThrownBy(() -> facade.deleteProfileImage(MEMBER_ID)).isSameAs(failure);
 
     verify(memberProfileService).resetProfileImage(MEMBER_ID);
+
+    verify(fileManagementService).delete(FileRelatedType.MEMBER_PROFILE, MEMBER_ID, List.of(1L));
   }
 
   private FileResult createProfileFile() {

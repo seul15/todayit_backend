@@ -415,7 +415,20 @@ public interface MemberApiDocs {
                     @ExampleObject(
                         value =
                             "{\"success\":false,\"code\":\"MEMBER_NOT_FOUND\","
-                                + "\"message\":\"회원을 찾을 수 없습니다.\"}")))
+                                + "\"message\":\"회원을 찾을 수 없습니다.\"}"))),
+    @ApiResponse(
+        responseCode = "500",
+        description = "외부 파일 저장소 삭제 실패",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = ErrorResponse.class),
+                examples =
+                    @ExampleObject(
+                        value =
+                            "{\"success\":false,"
+                                + "\"code\":\"FILE_STORAGE_FAILED\","
+                                + "\"message\":\"파일 저장소 작업에 실패했습니다.\"}")))
   })
   ResponseEntity<CommonResponse<MemberProfileImageResponse>> deleteProfileImage(
       Authentication authentication);
