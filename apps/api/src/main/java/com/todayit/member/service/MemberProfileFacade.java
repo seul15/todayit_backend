@@ -8,6 +8,8 @@ import com.todayit.common.file.service.model.FileResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,13 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class MemberProfileFacade {
   private static final Logger LOG = LoggerFactory.getLogger(MemberProfileFacade.class);
+
+  private static final int PROFILE_IMAGE_LOCK_COUNT = 64;
+
+  private final ReentrantLock[] profileImageLocks =
+      IntStream.range(0, PROFILE_IMAGE_LOCK_COUNT)
+          .mapToObj(index -> new ReentrantLock())
+          .toArray(ReentrantLock[]::new);
 
   private final ActiveMemberValidationService activeMemberValidationService;
   private final MemberProfileService memberProfileService;
@@ -49,33 +58,36 @@ public class MemberProfileFacade {
    * @throws InvalidRequestException 업로드할 파일이 없는 경우
    */
   public MemberProfileResult uploadProfileImage(String memberId, MultipartFile file) {
+    ReentrantLock lock = getProfileImageLock(memberId);
+    lock.lock();
 
-    // 프로필 이미지 파일 필수 확인
-    if (file == null) {
-      throw new InvalidRequestException("프로필 이미지는 필수입니다.");
+    try {
+      if (file == null) {
+        throw new InvalidRequestException("프로필 이미지는 필수입니다.");
+      }
+
+      activeMemberValidationService.validateActiveMember(memberId);
+
+      memberProfileService.validateProfileImageConsent(memberId);
+
+      AtomicReference<MemberProfileResult> profileResult = new AtomicReference<>();
+
+      fileManagementService.uploadWithReferenceUpdate(
+          FileRelatedType.MEMBER_PROFILE,
+          memberId,
+          List.of(file),
+          urls -> {
+            MemberProfileResult result =
+                memberProfileService.changeProfileImage(memberId, urls.get(0));
+
+            profileResult.set(result);
+          });
+
+      return profileResult.get();
+
+    } finally {
+      lock.unlock();
     }
-
-    // 회원 존재 여부 및 활성 상태 검증
-    activeMemberValidationService.validateActiveMember(memberId);
-
-    // 프로필 이미지 약관 동의 여부 검증
-    memberProfileService.validateProfileImageConsent(memberId);
-
-    AtomicReference<MemberProfileResult> profileResult = new AtomicReference<>();
-
-    // 파일 메타데이터와 회원정보를 동일한 DB 트랜잭션에서 갱신
-    fileManagementService.uploadWithReferenceUpdate(
-        FileRelatedType.MEMBER_PROFILE,
-        memberId,
-        List.of(file),
-        urls -> {
-          MemberProfileResult result =
-              memberProfileService.changeProfileImage(memberId, urls.get(0));
-
-          profileResult.set(result);
-        });
-
-    return profileResult.get();
   }
 
   /**
@@ -85,26 +97,36 @@ public class MemberProfileFacade {
    * @return 초기화된 프로필 이미지 정보
    */
   public MemberProfileResult deleteProfileImage(String memberId) {
-    activeMemberValidationService.validateActiveMember(memberId);
+    ReentrantLock lock = getProfileImageLock(memberId);
+    lock.lock();
 
-    // 삭제 대상 파일을 미리 확보
-    List<Long> fileIds =
-        fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, memberId).stream()
-            .map(FileResult::fileId)
-            .toList();
+    try {
+      activeMemberValidationService.validateActiveMember(memberId);
 
-    // 먼저 DB의 프로필 이미지 참조를 기본 이미지로 복원
-    MemberProfileResult result = memberProfileService.resetProfileImage(memberId);
+      List<Long> fileIds =
+          fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, memberId).stream()
+              .map(FileResult::fileId)
+              .toList();
 
-    // 기존 업로드 파일 정리
-    if (!fileIds.isEmpty()) {
-      try {
-        fileManagementService.delete(FileRelatedType.MEMBER_PROFILE, memberId, fileIds);
-      } catch (FileStorageException exception) {
-        LOG.warn("프로필 이미지 파일 정리 실패: memberId={}", memberId, exception);
+      MemberProfileResult result = memberProfileService.resetProfileImage(memberId);
+
+      if (!fileIds.isEmpty()) {
+        try {
+          fileManagementService.delete(FileRelatedType.MEMBER_PROFILE, memberId, fileIds);
+        } catch (FileStorageException exception) {
+          LOG.warn("프로필 이미지 파일 정리 실패: memberId={}", memberId, exception);
+        }
       }
-    }
 
-    return result;
+      return result;
+
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  private ReentrantLock getProfileImageLock(String memberId) {
+    int index = Math.floorMod(memberId.hashCode(), PROFILE_IMAGE_LOCK_COUNT);
+    return profileImageLocks[index];
   }
 }

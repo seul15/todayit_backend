@@ -62,8 +62,7 @@ public class MemberProfileService {
    */
   @Transactional
   public MemberProfileResult changeProfileImage(String memberId, String profileImage) {
-    Member member = findActiveMember(memberId);
-
+    Member member = findActiveMemberForUpdate(memberId);
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
     member.changeProfileImage(profileImage, now);
 
@@ -80,7 +79,7 @@ public class MemberProfileService {
    */
   @Transactional
   public void changeNickname(String memberId, String nickname) {
-    Member member = findActiveMember(memberId);
+    Member member = findActiveMemberForUpdate(memberId);
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
     String normalizedNickname = validateNicknameChange(member, nickname, now);
@@ -112,7 +111,7 @@ public class MemberProfileService {
       throw new InvalidRequestException("수정할 회원정보가 없습니다.");
     }
 
-    Member member = findActiveMember(memberId);
+    Member member = findActiveMemberForUpdate(memberId);
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
 
     // 닉네임 검증
@@ -210,6 +209,13 @@ public class MemberProfileService {
         .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
   }
 
+  private Member findActiveMemberForUpdate(String memberId) {
+    return memberRepository
+        .findByIdForUpdate(memberId)
+        .filter(Member::isActive)
+        .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+  }
+
   private String validateNicknameChange(Member member, String nickname, LocalDateTime now) {
 
     if (nickname == null || nickname.isBlank()) {
@@ -265,7 +271,7 @@ public class MemberProfileService {
    */
   @Transactional
   public MemberProfileResult resetProfileImage(String memberId) {
-    Member member = findActiveMember(memberId);
+    Member member = findActiveMemberForUpdate(memberId);
 
     // 이미 기본 이미지라면 수정 시각을 변경하지 않음
     if (member.getRegisteredProfileImage() == null) {

@@ -2,9 +2,11 @@ package com.todayit.member.repository;
 
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -74,4 +76,14 @@ public interface MemberRepository extends JpaRepository<Member, String> {
                   """,
       nativeQuery = true)
   boolean existsByNormalizedNickname(@Param("nickname") String nickname);
+
+  /**
+   * 회원정보 변경을 위해 해당 회원 행을 잠그고 조회합니다.
+   *
+   * @param memberId 회원 식별자
+   * @return 회원 정보, 없으면 empty
+   */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("SELECT m FROM Member m WHERE m.id = :memberId")
+  Optional<Member> findByIdForUpdate(@Param("memberId") String memberId);
 }

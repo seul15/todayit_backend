@@ -61,7 +61,7 @@ class MemberProfileServiceTest {
     Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
     String memberId = member.getId();
 
-    when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
 
     LocalDateTime before = LocalDateTime.now(Clock.systemUTC());
 
@@ -78,7 +78,7 @@ class MemberProfileServiceTest {
     assertThat(member.getProfileImage()).isEqualTo(PROFILE_IMAGE_URL);
     assertThat(member.getUpdatedAt()).isEqualTo(result.updatedAt());
 
-    verify(memberRepository).findById(memberId);
+    verify(memberRepository).findByIdForUpdate(memberId);
   }
 
   @Test
@@ -87,7 +87,7 @@ class MemberProfileServiceTest {
     // Given
     String memberId = "unknown-member";
 
-    when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.empty());
 
     // When & Then
     assertThatThrownBy(() -> service.changeProfileImage(memberId, PROFILE_IMAGE_URL))
@@ -104,7 +104,7 @@ class MemberProfileServiceTest {
     Member member = org.mockito.Mockito.mock(Member.class);
     String memberId = "inactive-member";
 
-    when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
     when(member.isActive()).thenReturn(false);
 
     // When & Then
@@ -163,7 +163,7 @@ class MemberProfileServiceTest {
 
     member.changeNickname("기존닉네임", changedAt);
 
-    when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
 
     // When & Then
     assertThatThrownBy(() -> service.changeNickname(memberId, "새닉네임"))
@@ -185,7 +185,7 @@ class MemberProfileServiceTest {
 
     String memberId = member.getId();
 
-    when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
     when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
 
     MemberProfileCommand command =
@@ -222,7 +222,7 @@ class MemberProfileServiceTest {
     member.changePreferredRegion("11", "110", now);
     member.changePreferredThemes(List.of(Theme.QUIET), now);
 
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
     MemberProfileCommand command = new MemberProfileCommand(null, List.of(), List.of());
 
@@ -241,7 +241,7 @@ class MemberProfileServiceTest {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
 
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
     MemberProfileCommand command =
         new MemberProfileCommand(null, null, List.of(Theme.QUIET, Theme.QUIET));
@@ -272,7 +272,7 @@ class MemberProfileServiceTest {
 
     member.changeProfileImage(PROFILE_IMAGE_URL, LocalDateTime.now(Clock.systemUTC()).minusDays(1));
 
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
     // When
     MemberProfileResult result = service.resetProfileImage(member.getId());
@@ -289,7 +289,7 @@ class MemberProfileServiceTest {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
 
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
     LocalDateTime previousUpdatedAt = member.getUpdatedAt();
 
@@ -307,7 +307,7 @@ class MemberProfileServiceTest {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
 
-    when(memberRepository.findById(member.getId())).thenReturn(Optional.of(member));
+    when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
     when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
 
