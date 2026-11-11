@@ -254,6 +254,33 @@ class MemberControllerTest {
   }
 
   @Test
+  @DisplayName("선호정보 약관에 동의하지 않으면 400을 반환한다")
+  void rejectsProfileUpdateWithoutPreferenceConsent() throws Exception {
+    // Given
+    String memberId = "member-1";
+
+    when(memberProfileService.updateProfile(eq(memberId), any(MemberProfileCommand.class)))
+        .thenThrow(new BusinessException(MemberErrorCode.PREFERENCE_CONSENT_REQUIRED));
+
+    // When & Then
+    mockMvc
+        .perform(
+            patch("/api/v1/members/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                    {
+                                      "preferredThemes": ["QUIET"]
+                                    }
+                                    """)
+                .principal(new UsernamePasswordAuthenticationToken(memberId, null)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.code").value("PREFERENCE_CONSENT_REQUIRED"))
+        .andExpect(jsonPath("$.message").value("선호정보 저장을 위한 약관 동의가 필요합니다."));
+  }
+
+  @Test
   @DisplayName("수정 항목이 없으면 400을 반환한다")
   void rejectsEmptyMemberProfileRequest() throws Exception {
     mockMvc

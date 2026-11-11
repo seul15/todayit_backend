@@ -186,6 +186,8 @@ class MemberProfileServiceTest {
 
     when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
     when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
+    when(memberAgreementRepository.existsAgreedActiveAgreement(memberId, "PREFERENCE"))
+        .thenReturn(true);
 
     MemberProfileCommand command =
         new MemberProfileCommand(
@@ -232,25 +234,57 @@ class MemberProfileServiceTest {
     assertThat(member.getPreferredSidoCode()).isNull();
     assertThat(member.getPreferredSigunguCode()).isNull();
     assertThat(member.getPreferredThemes()).isEmpty();
+
+    verify(memberAgreementRepository, never())
+        .existsAgreedActiveAgreement(member.getId(), "PREFERENCE");
   }
 
   @Test
-  @DisplayName("선호 테마를 중복 선택하면 변경을 거부한다")
-  void rejectsDuplicateThemes() {
+  @DisplayName("선호정보 약관에 동의하지 않으면 선호 테마 저장을 거부한다")
+  void rejectsPreferenceWithoutConsent() {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
 
-    when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
+    String memberId = member.getId();
 
-    MemberProfileCommand command =
-        new MemberProfileCommand(null, null, List.of(Theme.QUIET, Theme.QUIET));
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+
+    MemberProfileCommand command = new MemberProfileCommand(null, null, List.of(Theme.QUIET));
 
     // When & Then
-    assertThatThrownBy(() -> service.updateProfile(member.getId(), command))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("선호 테마를 중복 선택할 수 없습니다.");
+    assertThatThrownBy(() -> service.updateProfile(memberId, command))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.getErrorCode())
+                    .isEqualTo(MemberErrorCode.PREFERENCE_CONSENT_REQUIRED));
 
     assertThat(member.getPreferredThemes()).isEmpty();
+
+    verify(memberAgreementRepository).existsAgreedActiveAgreement(memberId, "PREFERENCE");
+  }
+
+  @Test
+  @DisplayName("닉네임만 변경하면 선호정보 약관 동의를 검사하지 않는다")
+  void changesNicknameWithoutPreferenceConsent() {
+    // Given
+    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
+
+    String memberId = member.getId();
+
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+
+    when(signupService.isNicknameAvailable("새닉네임")).thenReturn(true);
+
+    MemberProfileCommand command = new MemberProfileCommand("새닉네임", null, null);
+
+    // When
+    service.updateProfile(memberId, command);
+
+    // Then
+    assertThat(member.getNickname()).isEqualTo("새닉네임");
+
+    verify(memberAgreementRepository, never()).existsAgreedActiveAgreement(memberId, "PREFERENCE");
   }
 
   @Test

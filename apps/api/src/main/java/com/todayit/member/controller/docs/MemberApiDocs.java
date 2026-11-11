@@ -273,7 +273,7 @@ public interface MemberApiDocs {
                                 + "\"updatedAt\":\"2026-11-09T04:00:00\"}}"))),
     @ApiResponse(
         responseCode = "400",
-        description = "입력값 오류, 선호 지역 개수 초과 또는 닉네임 변경 주기 위반",
+        description = "입력값 오류, 선호 지역 개수 초과, 닉네임 변경 주기 위반 또는 선호정보 약관 미동의",
         content =
             @Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -294,6 +294,11 @@ public interface MemberApiDocs {
                       value =
                           "{\"success\":false,\"code\":\"NICKNAME_CHANGE_TOO_SOON\","
                               + "\"message\":\"닉네임은 마지막 변경 후 90일이 지나야 다시 변경할 수 있습니다.\"}"),
+                  @ExampleObject(
+                      name = "선호정보 약관 미동의",
+                      value =
+                          "{\"success\":false,\"code\":\"PREFERENCE_CONSENT_REQUIRED\","
+                              + "\"message\":\"선호정보 저장을 위한 약관 동의가 필요합니다.\"}"),
                   @ExampleObject(
                       name = "존재하지 않는 선호 지역",
                       value =

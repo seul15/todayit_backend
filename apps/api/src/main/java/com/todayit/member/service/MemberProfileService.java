@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MemberProfileService {
 
   private static final String PROFILE_IMAGE_AGREEMENT_CODE = "PROFILE_IMAGE";
+  private static final String PREFERENCE_AGREEMENT_CODE = "PREFERENCE";
 
   private final MemberRepository memberRepository;
   private final MemberAgreementRepository memberAgreementRepository;
@@ -141,6 +142,16 @@ public class MemberProfileService {
 
     if (themes != null && new HashSet<>(themes).size() != themes.size()) {
       throw new InvalidRequestException("선호 테마를 중복 선택할 수 없습니다.");
+    }
+
+    // 선호 지역 또는 테마를 저장하는 경우 약관 동의 확인
+    boolean settingPreference =
+        (regions != null && !regions.isEmpty()) || (themes != null && !themes.isEmpty());
+
+    if (settingPreference
+        && !memberAgreementRepository.existsAgreedActiveAgreement(
+            memberId, PREFERENCE_AGREEMENT_CODE)) {
+      throw new BusinessException(MemberErrorCode.PREFERENCE_CONSENT_REQUIRED);
     }
 
     // 검증 완료 후 닉네임 변경

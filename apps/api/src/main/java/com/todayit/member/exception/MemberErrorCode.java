@@ -68,7 +68,10 @@ public enum MemberErrorCode implements ErrorCode {
   MEMBER_NOT_FOUND("MEMBER_NOT_FOUND", "회원을 찾을 수 없습니다.", ErrorStatus.NOT_FOUND),
 
   PROFILE_IMAGE_CONSENT_REQUIRED(
-      "PROFILE_IMAGE_CONSENT_REQUIRED", "프로필 이미지 등록을 위한 약관 동의가 필요합니다.", ErrorStatus.BAD_REQUEST);
+      "PROFILE_IMAGE_CONSENT_REQUIRED", "프로필 이미지 등록을 위한 약관 동의가 필요합니다.", ErrorStatus.BAD_REQUEST),
+
+  PREFERENCE_CONSENT_REQUIRED(
+      "PREFERENCE_CONSENT_REQUIRED", "선호정보 저장을 위한 약관 동의가 필요합니다.", ErrorStatus.BAD_REQUEST);
 
   private final String code;
   private final String message;
