@@ -19,13 +19,34 @@ import java.util.List;
  */
 @Schema(description = "회원 프로필 수정 응답")
 public record MemberProfileResponse(
-    @Schema(description = "회원 식별자") String memberId,
-    @Schema(description = "닉네임") String nickname,
-    @Schema(description = "프로필 이미지 URL, 미등록 시 null") String profileImage,
-    @Schema(description = "선호 지역") List<PreferredRegionCode> preferredRegions,
-    @Schema(description = "선호 테마 코드 목록") List<Theme> preferredThemes,
-    @Schema(description = "회원정보 수정 시각") LocalDateTime updatedAt) {
-
+    @Schema(
+            description = "회원 식별자입니다.",
+            example = "123e4567-e89b-12d3-a456-426614174000",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        String memberId,
+    @Schema(description = "회원 닉네임입니다.", example = "오늘", requiredMode = Schema.RequiredMode.REQUIRED)
+        String nickname,
+    @Schema(
+            description = "등록된 프로필 이미지 URL입니다. 기본 이미지 상태라면 null을 반환합니다.",
+            example = "https://example.com/profile.png",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED,
+            nullable = true)
+        String profileImage,
+    @Schema(
+            description = "선호 지역 목록입니다. 설정하지 않았으면 빈 배열을 반환하며 최대 1개까지 포함합니다.",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        List<PreferredRegionCode> preferredRegions,
+    @Schema(
+            description = "선호 테마 코드 목록입니다. 설정하지 않았으면 빈 배열을 반환합니다.",
+            example = "[\"QUIET\",\"ROMANTIC\"]",
+            requiredMode = Schema.RequiredMode.REQUIRED)
+        List<Theme> preferredThemes,
+    @Schema(
+            description = "회원정보 최종 수정 시각입니다. 수정 이력이 없으면 null일 수 있습니다.",
+            example = "2026-11-11T07:00:00",
+            requiredMode = Schema.RequiredMode.NOT_REQUIRED,
+            nullable = true)
+        LocalDateTime updatedAt) {
   /**
    * 서비스 결과를 API 응답으로 변환합니다.
    *
