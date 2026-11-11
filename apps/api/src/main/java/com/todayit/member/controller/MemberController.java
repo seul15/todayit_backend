@@ -5,12 +5,14 @@ import com.todayit.common.pagination.PaginationValidator;
 import com.todayit.common.response.CommonResponse;
 import com.todayit.member.controller.docs.MemberApiDocs;
 import com.todayit.member.dto.request.MemberProfileRequest;
+import com.todayit.member.dto.response.MemberProfileDetailResponse;
 import com.todayit.member.dto.response.MemberProfileImageResponse;
 import com.todayit.member.dto.response.MemberProfileResponse;
 import com.todayit.member.dto.response.NicknameAvailabilityResponse;
 import com.todayit.member.service.MemberProfileFacade;
 import com.todayit.member.service.MemberProfileService;
 import com.todayit.member.service.SignupService;
+import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.place.dto.response.PlaceResponse;
 import com.todayit.place.service.PlaceScrapQueryService;
@@ -131,7 +133,8 @@ public class MemberController implements MemberApiDocs {
 
     request.validate();
 
-    var result = memberProfileService.updateProfile(authentication.getName(), request.toCommand());
+    MemberProfileDetailsResult result =
+        memberProfileService.updateProfile(authentication.getName(), request.toCommand());
 
     return ResponseEntity.ok(CommonResponse.success(MemberProfileResponse.from(result)));
   }
@@ -143,12 +146,12 @@ public class MemberController implements MemberApiDocs {
    * @return 회원 프로필 조회 응답
    */
   @GetMapping("/me")
-  public ResponseEntity<CommonResponse<MemberProfileResponse.Query>> findProfile(
+  public ResponseEntity<CommonResponse<MemberProfileDetailResponse>> findProfile(
       Authentication authentication) {
 
-    var result = memberProfileService.findProfile(authentication.getName());
+    MemberProfileDetailsResult result = memberProfileService.findProfile(authentication.getName());
 
-    return ResponseEntity.ok(CommonResponse.success(MemberProfileResponse.Query.from(result)));
+    return ResponseEntity.ok(CommonResponse.success(MemberProfileDetailResponse.from(result)));
   }
 
   /**

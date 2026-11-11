@@ -5,6 +5,7 @@ import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.response.CommonResponse;
 import com.todayit.common.response.ErrorResponse;
 import com.todayit.member.dto.request.MemberProfileRequest;
+import com.todayit.member.dto.response.MemberProfileDetailResponse;
 import com.todayit.member.dto.response.MemberProfileImageResponse;
 import com.todayit.member.dto.response.MemberProfileResponse;
 import com.todayit.member.dto.response.NicknameAvailabilityResponse;
@@ -370,7 +371,7 @@ public interface MemberApiDocs {
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = ErrorResponse.class)))
   })
-  ResponseEntity<CommonResponse<MemberProfileResponse.Query>> findProfile(
+  ResponseEntity<CommonResponse<MemberProfileDetailResponse>> findProfile(
       Authentication authentication);
 
   /**

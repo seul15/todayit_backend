@@ -16,6 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 /** 회원 프로필 이미지 등록 과정을 연결하는 Facade입니다. */
 @Service
 public class MemberProfileFacade {
+  private static final Logger LOG = LoggerFactory.getLogger(MemberProfileFacade.class);
+
   private final ActiveMemberValidationService activeMemberValidationService;
   private final MemberProfileService memberProfileService;
   private final FileManagementService fileManagementService;
@@ -75,8 +77,6 @@ public class MemberProfileFacade {
 
     return profileResult.get();
   }
-
-  private static final Logger LOG = LoggerFactory.getLogger(MemberProfileFacade.class);
 
   /**
    * 회원의 프로필 이미지를 삭제하고 기본 이미지로 복원합니다.
