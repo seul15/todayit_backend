@@ -12,7 +12,6 @@ import com.todayit.member.service.command.MemberProfileCommand;
 import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.theme.Theme;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
@@ -63,7 +62,7 @@ public class MemberProfileService {
   @Transactional
   public MemberProfileResult changeProfileImage(String memberId, String profileImage) {
     Member member = findActiveMemberForUpdate(memberId);
-    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime now = LocalDateTime.now();
     member.changeProfileImage(profileImage, now);
 
     return new MemberProfileResult(member.getId(), member.getProfileImage(), member.getUpdatedAt());
@@ -80,7 +79,7 @@ public class MemberProfileService {
   @Transactional
   public void changeNickname(String memberId, String nickname) {
     Member member = findActiveMemberForUpdate(memberId);
-    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime now = LocalDateTime.now();
 
     String normalizedNickname = validateNicknameChange(member, nickname, now);
 
@@ -112,7 +111,7 @@ public class MemberProfileService {
     }
 
     Member member = findActiveMemberForUpdate(memberId);
-    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime now = LocalDateTime.now();
 
     // 닉네임 검증
     String normalizedNickname =
@@ -278,7 +277,7 @@ public class MemberProfileService {
       return new MemberProfileResult(member.getId(), null, member.getUpdatedAt());
     }
 
-    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime now = LocalDateTime.now();
     member.resetProfileImage(now);
 
     return new MemberProfileResult(

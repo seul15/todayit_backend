@@ -21,7 +21,6 @@ import com.todayit.member.service.command.MemberProfileCommand;
 import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.theme.Theme;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -63,12 +62,12 @@ class MemberProfileServiceTest {
 
     when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
 
-    LocalDateTime before = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime before = LocalDateTime.now();
 
     // When
     MemberProfileResult result = service.changeProfileImage(memberId, PROFILE_IMAGE_URL);
 
-    LocalDateTime after = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime after = LocalDateTime.now();
 
     // Then
     assertThat(result.memberId()).isEqualTo(memberId);
@@ -159,7 +158,7 @@ class MemberProfileServiceTest {
 
     String memberId = member.getId();
 
-    LocalDateTime changedAt = LocalDateTime.now(Clock.systemUTC()).minusDays(30);
+    LocalDateTime changedAt = LocalDateTime.now().minusDays(30);
 
     member.changeNickname("기존닉네임", changedAt);
 
@@ -217,7 +216,7 @@ class MemberProfileServiceTest {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
 
-    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    LocalDateTime now = LocalDateTime.now();
 
     member.changePreferredRegion("11", "110", now);
     member.changePreferredThemes(List.of(Theme.QUIET), now);
@@ -270,7 +269,7 @@ class MemberProfileServiceTest {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
 
-    member.changeProfileImage(PROFILE_IMAGE_URL, LocalDateTime.now(Clock.systemUTC()).minusDays(1));
+    member.changeProfileImage(PROFILE_IMAGE_URL, LocalDateTime.now().minusDays(1));
 
     when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
