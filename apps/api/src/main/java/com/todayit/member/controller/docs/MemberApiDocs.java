@@ -300,6 +300,31 @@ public interface MemberApiDocs {
                           "{\"success\":false,\"code\":\"PREFERENCE_CONSENT_REQUIRED\","
                               + "\"message\":\"선호정보 저장을 위한 약관 동의가 필요합니다.\"}"),
                   @ExampleObject(
+                      name = "선호 테마 중복",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"선호 테마를 중복 선택할 수 없습니다.\"}"),
+                  @ExampleObject(
+                      name = "잘못된 선호 테마 코드",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"요청값이 올바르지 않습니다.\"}"),
+                  @ExampleObject(
+                      name = "선호 지역 코드 형식 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"선호 지역 코드가 올바르지 않습니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 길이 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"닉네임은 2자 이상 8자 이하이어야 합니다.\"}"),
+                  @ExampleObject(
+                      name = "닉네임 형식 오류",
+                      value =
+                          "{\"success\":false,\"code\":\"INVALID_REQUEST\","
+                              + "\"message\":\"닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.\"}"),
+                  @ExampleObject(
                       name = "존재하지 않는 선호 지역",
                       value =
                           "{\"success\":false,\"code\":\"INVALID_REGION_PATH\","
