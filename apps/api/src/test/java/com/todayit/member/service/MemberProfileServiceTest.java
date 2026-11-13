@@ -167,7 +167,9 @@ class MemberProfileServiceTest {
     when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
 
     // When & Then
-    assertThatThrownBy(() -> service.changeNickname(memberId, "새닉네임"))
+    MemberProfileCommand command = new MemberProfileCommand("새닉네임", null, null);
+
+    assertThatThrownBy(() -> service.updateProfile(memberId, command))
         .isInstanceOfSatisfying(
             BusinessException.class,
             exception ->

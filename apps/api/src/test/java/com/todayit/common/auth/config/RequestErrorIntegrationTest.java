@@ -12,6 +12,8 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -187,44 +189,18 @@ class RequestErrorIntegrationTest {
     }
   }
 
-  @Test
-  @DisplayName("인증 없이 회원 프로필 수정 API를 호출하면 401을 반환한다")
-  void requiresAuthenticationForMemberProfileUpdate() throws Exception {
-    // Given
-    String path = "/api/v1/members/me";
+  @ParameterizedTest(name = "{index} => {0} {1}")
+  @DisplayName("회원 프로필 API는 인증 없이 접근하면 401을 반환한다")
+  @CsvSource({
+    "PATCH, /api/v1/members/me",
+    "GET, /api/v1/members/me",
+    "DELETE, /api/v1/members/me/profile-image"
+  })
+  void requiresAuthenticationForMemberProfileEndpoints(String method, String path)
+      throws Exception {
 
     // When
-    HttpResponse<String> response = send(path, "PATCH", false);
-
-    // Then
-    assertThat(response.statusCode()).isEqualTo(401);
-    assertThat(jsonMapper.readTree(response.body()).get("code").asText())
-        .isEqualTo("AUTHENTICATION_REQUIRED");
-  }
-
-  @Test
-  @DisplayName("인증 없이 회원 프로필 조회 API를 호출하면 401을 반환한다")
-  void requiresAuthenticationForMemberProfileQuery() throws Exception {
-    // Given
-    String path = "/api/v1/members/me";
-
-    // When
-    HttpResponse<String> response = send(path, "GET", false);
-
-    // Then
-    assertThat(response.statusCode()).isEqualTo(401);
-    assertThat(jsonMapper.readTree(response.body()).get("code").asText())
-        .isEqualTo("AUTHENTICATION_REQUIRED");
-  }
-
-  @Test
-  @DisplayName("인증 없이 프로필 이미지를 삭제하면 401을 반환한다")
-  void requiresAuthenticationForProfileImageDeletion() throws Exception {
-    // Given
-    String path = "/api/v1/members/me/profile-image";
-
-    // When
-    HttpResponse<String> response = send(path, "DELETE", false);
+    HttpResponse<String> response = send(path, method, false);
 
     // Then
     assertThat(response.statusCode()).isEqualTo(401);

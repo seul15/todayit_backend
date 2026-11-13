@@ -119,27 +119,6 @@ public class MemberProfileService {
   }
 
   /**
-   * 회원 닉네임을 변경합니다.
-   *
-   * @param memberId 변경할 회원 식별자
-   * @param nickname 변경할 닉네임
-   * @throws BusinessException 회원이 없거나 닉네임이 중복되었거나 변경 주기를 위반한 경우
-   * @throws InvalidRequestException 닉네임 형식이 올바르지 않은 경우
-   */
-  @Transactional
-  public void changeNickname(String memberId, String nickname) {
-    Member member = findActiveMemberForUpdate(memberId);
-    LocalDateTime now = LocalDateTime.now();
-
-    String normalizedNickname = validateNicknameChange(member, nickname, now);
-
-    if (normalizedNickname != null) {
-      member.changeNickname(normalizedNickname, now);
-      flushNicknameChange();
-    }
-  }
-
-  /**
    * 회원의 닉네임, 선호 지역, 선호 테마를 수정합니다.
    *
    * <p>요청에서 생략한 필드는 유지하며, 모든 값을 검증한 후 변경합니다.
@@ -280,6 +259,17 @@ public class MemberProfileService {
     if (!agreed) {
       throw new BusinessException(MemberErrorCode.PROFILE_IMAGE_CONSENT_REQUIRED);
     }
+  }
+
+  /**
+   * 회원이 존재하고 활성 상태인지 확인합니다.
+   *
+   * @param memberId 회원 식별자
+   * @throws BusinessException 회원이 없거나 비활성 상태인 경우
+   */
+  @Transactional(readOnly = true)
+  public void validateActiveMember(String memberId) {
+    findActiveMember(memberId);
   }
 
   private Member findActiveMember(String memberId) {

@@ -40,8 +40,6 @@ class MemberProfileFacadeTest {
   private static final String MEMBER_ID = "member-123";
   private static final String PROFILE_IMAGE_URL = "https://example.com/profile.png";
 
-  @Mock private ActiveMemberValidationService activeMemberValidationService;
-
   @Mock private MemberProfileService memberProfileService;
 
   @Mock private FileManagementService fileManagementService;
@@ -50,9 +48,7 @@ class MemberProfileFacadeTest {
 
   @BeforeEach
   void setUp() {
-    facade =
-        new MemberProfileFacade(
-            activeMemberValidationService, memberProfileService, fileManagementService);
+    facade = new MemberProfileFacade(memberProfileService, fileManagementService);
   }
 
   @Test
@@ -82,10 +78,9 @@ class MemberProfileFacadeTest {
     // Then
     assertThat(result).isEqualTo(expected);
 
-    InOrder order =
-        inOrder(activeMemberValidationService, memberProfileService, fileManagementService);
+    InOrder order = inOrder(memberProfileService, fileManagementService);
 
-    order.verify(activeMemberValidationService).validateActiveMember(MEMBER_ID);
+    order.verify(memberProfileService).validateActiveMember(MEMBER_ID);
     order.verify(memberProfileService).validateProfileImageConsent(MEMBER_ID);
 
     order
@@ -126,14 +121,18 @@ class MemberProfileFacadeTest {
     MockMultipartFile file = createFile();
 
     doThrow(new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND))
-        .when(activeMemberValidationService)
+        .when(memberProfileService)
         .validateActiveMember(MEMBER_ID);
 
     // When & Then
     assertThatThrownBy(() -> facade.uploadProfileImage(MEMBER_ID, file))
-        .isInstanceOf(BusinessException.class);
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
 
-    verifyNoInteractions(memberProfileService, fileManagementService);
+    verify(memberProfileService, never()).validateProfileImageConsent(MEMBER_ID);
+    verifyNoInteractions(fileManagementService);
   }
 
   @Test
@@ -144,8 +143,7 @@ class MemberProfileFacadeTest {
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("프로필 이미지는 필수입니다.");
 
-    verifyNoInteractions(
-        activeMemberValidationService, memberProfileService, fileManagementService);
+    verifyNoInteractions(memberProfileService, fileManagementService);
   }
 
   @Test
@@ -191,10 +189,9 @@ class MemberProfileFacadeTest {
     // Then
     assertThat(result).isEqualTo(expected);
 
-    InOrder order =
-        inOrder(activeMemberValidationService, fileManagementService, memberProfileService);
+    InOrder order = inOrder(memberProfileService, fileManagementService);
 
-    order.verify(activeMemberValidationService).validateActiveMember(MEMBER_ID);
+    order.verify(memberProfileService).validateActiveMember(MEMBER_ID);
 
     order.verify(fileManagementService).findAll(FileRelatedType.MEMBER_PROFILE, MEMBER_ID);
 

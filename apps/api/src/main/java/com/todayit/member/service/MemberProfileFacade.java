@@ -2,7 +2,6 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.common.file.entity.FileRelatedType;
-import com.todayit.common.file.exception.FileStorageException;
 import com.todayit.common.file.service.FileManagementService;
 import com.todayit.common.file.service.model.FileResult;
 import com.todayit.member.service.model.MemberProfileResult;
@@ -10,16 +9,12 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.IntStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 /** 회원 프로필 이미지 등록 과정을 연결하는 Facade입니다. */
 @Service
 public class MemberProfileFacade {
-  private static final Logger LOG = LoggerFactory.getLogger(MemberProfileFacade.class);
-
   private static final int PROFILE_IMAGE_LOCK_COUNT = 64;
 
   private final ReentrantLock[] profileImageLocks =
@@ -27,22 +22,17 @@ public class MemberProfileFacade {
           .mapToObj(index -> new ReentrantLock())
           .toArray(ReentrantLock[]::new);
 
-  private final ActiveMemberValidationService activeMemberValidationService;
   private final MemberProfileService memberProfileService;
   private final FileManagementService fileManagementService;
 
   /**
    * 프로필 이미지 등록에 필요한 서비스를 주입받습니다.
    *
-   * @param activeMemberValidationService 회원 상태 검증 서비스
    * @param memberProfileService 회원 프로필 변경 서비스
    * @param fileManagementService 공용 파일 관리 서비스
    */
   public MemberProfileFacade(
-      ActiveMemberValidationService activeMemberValidationService,
-      MemberProfileService memberProfileService,
-      FileManagementService fileManagementService) {
-    this.activeMemberValidationService = activeMemberValidationService;
+      MemberProfileService memberProfileService, FileManagementService fileManagementService) {
     this.memberProfileService = memberProfileService;
     this.fileManagementService = fileManagementService;
   }
@@ -66,7 +56,7 @@ public class MemberProfileFacade {
         throw new InvalidRequestException("프로필 이미지는 필수입니다.");
       }
 
-      activeMemberValidationService.validateActiveMember(memberId);
+      memberProfileService.validateActiveMember(memberId);
 
       memberProfileService.validateProfileImageConsent(memberId);
 
@@ -101,7 +91,7 @@ public class MemberProfileFacade {
     lock.lock();
 
     try {
-      activeMemberValidationService.validateActiveMember(memberId);
+      memberProfileService.validateActiveMember(memberId);
 
       List<Long> fileIds =
           fileManagementService.findAll(FileRelatedType.MEMBER_PROFILE, memberId).stream()
@@ -111,12 +101,7 @@ public class MemberProfileFacade {
       MemberProfileResult result = memberProfileService.resetProfileImage(memberId);
 
       if (!fileIds.isEmpty()) {
-        try {
-          fileManagementService.delete(FileRelatedType.MEMBER_PROFILE, memberId, fileIds);
-        } catch (FileStorageException exception) {
-          LOG.warn("프로필 이미지 파일 정리 실패: memberId={}", memberId, exception);
-          throw exception;
-        }
+        fileManagementService.delete(FileRelatedType.MEMBER_PROFILE, memberId, fileIds);
       }
 
       return result;
