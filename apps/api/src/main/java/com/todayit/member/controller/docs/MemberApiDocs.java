@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -145,12 +146,40 @@ public interface MemberApiDocs {
   @Operation(
       summary = "프로필 이미지 등록 및 변경",
       description =
-          "로그인한 회원의 프로필 이미지를 등록하거나 교체합니다. "
-              + "PROFILE_IMAGE 약관에 동의한 회원만 사용할 수 있습니다. "
-              + "이미 등록된 이미지가 있으면 새 이미지로 교체합니다.",
+          """
+                  로그인한 회원의 프로필 이미지를 등록하거나 교체합니다.
+
+                  - 요청 형식: multipart/form-data
+                  - 파일 필드명: file
+                  - 업로드 파일 개수: 1개
+                  - 허용 확장자: jpg, jpeg, png, webp
+                  - 최대 파일 크기: 10MB
+                  - 확장자, MIME 타입, 실제 파일 형식을 검증합니다.
+                  - PROFILE_IMAGE 약관에 동의한 회원만 등록할 수 있습니다.
+                  - 기존 이미지가 있으면 새 이미지로 교체합니다.
+                  - 이미지 삭제는 DELETE /api/v1/members/me/profile-image를 사용합니다.
+                  """,
       security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
   @ApiResponses({
-    @ApiResponse(responseCode = "200", description = "프로필 이미지 등록 성공"),
+    @ApiResponse(
+        responseCode = "200",
+        description = "프로필 이미지 등록 또는 교체 성공",
+        content =
+            @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                examples =
+                    @ExampleObject(
+                        value =
+                            """
+                                          {
+                                            "success": true,
+                                            "data": {
+                                              "memberId": "123e4567-e89b-12d3-a456-426614174000",
+                                              "profileImage": "https://example.com/profile.png",
+                                              "updatedAt": "2026-11-13T08:00:00"
+                                            }
+                                          }
+                                          """))),
     @ApiResponse(
         responseCode = "400",
         description = "파일 검증 오류 또는 프로필 이미지 약관 미동의",
@@ -245,13 +274,84 @@ public interface MemberApiDocs {
   @Operation(
       summary = "회원 프로필 수정",
       description =
-          "로그인한 회원의 닉네임, 선호 지역 및 선호 테마를 수정합니다. "
-              + "요청에서 생략한 항목은 기존 값을 유지합니다. "
-              + "preferredRegions는 지정된 30개 지역 중 최대 1개까지 선택할 수 있으며, "
-              + "각 지역은 sidoCode와 sigunguCode로 구성됩니다. "
-              + "빈 배열을 전달하면 기존 선호 지역을 모두 해제합니다. "
-              + "preferredThemes에 빈 배열을 전달하면 선호 테마를 모두 해제합니다. "
-              + "닉네임은 마지막 변경 이후 90일이 지나야 다시 변경할 수 있습니다.",
+          """
+                  로그인한 회원의 닉네임, 선호 지역 및 선호 테마를 수정합니다.
+
+                  - 요청에서 생략하거나 null로 전달한 항목은 기존 값을 유지합니다.
+                  - `preferredRegions`: 지정된 30개 지역 중 최대 1개 선택. 배열 안에 지역 코드 객체를 1개 전달합니다.
+                  - `preferredRegions: []`: 선호 지역 선택 해제
+                  - `preferredThemes`: 여러 테마 선택 가능. 중복 선택 불가
+                  - `preferredThemes: []`: 모든 선호 테마 선택 해제
+                  - `nickname`: 마지막 실제 변경 후 90일이 지나야 다시 변경할 수 있습니다.
+                  - 선호 지역 또는 테마를 새로 저장하려면 PREFERENCE 약관 동의가 필요합니다.
+                  - 프로필 이미지는 이 API에서 변경하지 않고 별도의 이미지 API를 사용합니다.
+                  """
+              + """
+
+  선택 가능한 선호 지역 코드(시도/시군구):
+
+  - 서울: 마포구(11/440), 성동구(11/200), 강남구(11/680), 송파구(11/710), 종로구(11/110), 용산구(11/170), 영등포구(11/560), 중구(11/140), 서초구(11/650), 광진구(11/215)
+  - 경기: 수원시 팔달구(41/115), 성남시 분당구(41/135), 고양시 일산동구(41/285), 파주시(41/480), 가평군(41/820)
+  - 인천: 연수구(28/185)
+  - 부산: 수영구(26/500), 해운대구(26/350), 부산진구(26/230)
+  - 강원: 강릉시(51/150), 속초시(51/210), 춘천시(51/110)
+  - 제주: 제주시(50/110), 서귀포시(50/130)
+  - 기타: 경주시(47/130), 전주시 완산구(52/111), 여수시(12/130), 대전 중구(30/140), 대구 중구(27/110), 천안시 동남구(44/131)
+  """,
+      requestBody =
+          @RequestBody(
+              required = true,
+              description = "변경할 항목만 포함해 전달합니다.",
+              content =
+                  @Content(
+                      mediaType = MediaType.APPLICATION_JSON_VALUE,
+                      schema = @Schema(implementation = MemberProfileRequest.class),
+                      examples = {
+                        @ExampleObject(
+                            name = "선호 지역 1개 선택",
+                            value =
+                                """
+                                                  {
+                                                    "preferredRegions": [
+                                                      {
+                                                        "sidoCode": "11",
+                                                        "sigunguCode": "440"
+                                                      }
+                                                    ]
+                                                  }
+                                                  """),
+                        @ExampleObject(
+                            name = "선호 지역 선택 해제",
+                            value =
+                                """
+                                                  {
+                                                    "preferredRegions": []
+                                                  }
+                                                  """),
+                        @ExampleObject(
+                            name = "선호 테마만 변경",
+                            value =
+                                """
+                                                  {
+                                                    "preferredThemes": ["QUIET", "ROMANTIC"]
+                                                  }
+                                                  """),
+                        @ExampleObject(
+                            name = "닉네임과 선호정보 함께 변경",
+                            value =
+                                """
+                                                  {
+                                                    "nickname": "새닉네임",
+                                                    "preferredRegions": [
+                                                      {
+                                                        "sidoCode": "11",
+                                                        "sigunguCode": "440"
+                                                      }
+                                                    ],
+                                                    "preferredThemes": ["QUIET", "ROMANTIC"]
+                                                  }
+                                                  """)
+                      })),
       security = @SecurityRequirement(name = OpenApiConfig.BEARER_AUTH))
   @ApiResponses({
     @ApiResponse(
