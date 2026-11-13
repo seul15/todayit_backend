@@ -15,7 +15,6 @@ import com.todayit.member.service.model.MemberProfileDetailsResult;
 import com.todayit.member.service.model.MemberProfileResult;
 import com.todayit.theme.Theme;
 import java.time.LocalDateTime;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -132,14 +131,6 @@ public class MemberProfileService {
    */
   @Transactional
   public MemberProfileDetailsResult updateProfile(String memberId, MemberProfileCommand command) {
-
-    if (command == null
-        || (command.nickname() == null
-            && command.preferredRegions() == null
-            && command.preferredThemes() == null)) {
-      throw new InvalidRequestException("수정할 회원정보가 없습니다.");
-    }
-
     Member member = findActiveMemberForUpdate(memberId);
     LocalDateTime now = LocalDateTime.now();
 
@@ -151,48 +142,26 @@ public class MemberProfileService {
     List<PreferredRegionCode> regions = command.preferredRegions();
     Region selectedRegion = null;
 
-    if (regions != null) {
-      if (regions.size() > 1) {
-        throw new InvalidRequestException("선호 지역은 1개만 선택할 수 있습니다.");
+    if (regions != null && !regions.isEmpty()) {
+      PreferredRegionCode requested = regions.get(0);
+
+      if (!ALLOWED_PREFERRED_REGIONS.contains(requested)) {
+        throw new InvalidRegionPathException();
       }
 
-      if (!regions.isEmpty()) {
-        PreferredRegionCode requested = regions.get(0);
+      List<Integer> regionIds =
+          regionRepository.findIdsByCodes(requested.sidoCode(), requested.sigunguCode());
 
-        if (requested == null
-            || requested.sidoCode() == null
-            || requested.sigunguCode() == null
-            || !requested.sidoCode().matches("[0-9]{2}")
-            || !requested.sigunguCode().matches("[0-9]{3}")) {
-          throw new InvalidRequestException("선호 지역 코드가 올바르지 않습니다.");
-        }
-
-        if (!ALLOWED_PREFERRED_REGIONS.contains(requested)) {
-          throw new InvalidRegionPathException();
-        }
-
-        // 기존 Repository 메서드 재사용
-        List<Integer> regionIds =
-            regionRepository.findIdsByCodes(requested.sidoCode(), requested.sigunguCode());
-
-        if (regionIds.size() != 1) {
-          throw new InvalidRegionPathException();
-        }
-
-        // JpaRepository 기본 제공 메서드 재사용
-        selectedRegion =
-            regionRepository
-                .findById(regionIds.get(0))
-                .orElseThrow(InvalidRegionPathException::new);
+      if (regionIds.size() != 1) {
+        throw new InvalidRegionPathException();
       }
+
+      selectedRegion =
+          regionRepository.findById(regionIds.get(0)).orElseThrow(InvalidRegionPathException::new);
     }
 
     // 선호 테마 검증
     List<Theme> themes = command.preferredThemes();
-
-    if (themes != null && new HashSet<>(themes).size() != themes.size()) {
-      throw new InvalidRequestException("선호 테마를 중복 선택할 수 없습니다.");
-    }
 
     // 선호 지역 또는 테마를 저장하는 경우 약관 동의 확인
     boolean settingPreference =
@@ -252,11 +221,8 @@ public class MemberProfileService {
    */
   @Transactional(readOnly = true)
   public void validateProfileImageConsent(String memberId) {
-    boolean agreed =
-        memberAgreementRepository.existsAgreedActiveAgreement(
-            memberId, PROFILE_IMAGE_AGREEMENT_CODE);
-
-    if (!agreed) {
+    if (!memberAgreementRepository.existsAgreedActiveAgreement(
+        memberId, PROFILE_IMAGE_AGREEMENT_CODE)) {
       throw new BusinessException(MemberErrorCode.PROFILE_IMAGE_CONSENT_REQUIRED);
     }
   }

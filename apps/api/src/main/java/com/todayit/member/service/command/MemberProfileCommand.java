@@ -12,15 +12,4 @@ import java.util.List;
  * @param preferredThemes 변경할 선호 테마 목록
  */
 public record MemberProfileCommand(
-    String nickname, List<PreferredRegionCode> preferredRegions, List<Theme> preferredThemes) {
-
-  /** 선택 목록을 방어적으로 복사합니다. */
-  public MemberProfileCommand {
-    if (preferredRegions != null) {
-      preferredRegions = List.copyOf(preferredRegions);
-    }
-    if (preferredThemes != null) {
-      preferredThemes = List.copyOf(preferredThemes);
-    }
-  }
-}
+    String nickname, List<PreferredRegionCode> preferredRegions, List<Theme> preferredThemes) {}

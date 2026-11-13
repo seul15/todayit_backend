@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.todayit.common.exception.BusinessException;
-import com.todayit.common.exception.InvalidRequestException;
 import com.todayit.course.entity.Region;
 import com.todayit.course.exception.InvalidRegionPathException;
 import com.todayit.course.repository.RegionRepository;
@@ -321,16 +320,6 @@ class MemberProfileServiceTest {
     assertThat(member.getNickname()).isEqualTo("새닉네임");
 
     verify(memberAgreementRepository, never()).existsAgreedActiveAgreement(memberId, "PREFERENCE");
-  }
-
-  @Test
-  @DisplayName("수정할 회원정보가 없으면 요청을 거부한다")
-  void rejectsEmptyProfileUpdate() {
-    MemberProfileCommand command = new MemberProfileCommand(null, null, null);
-
-    assertThatThrownBy(() -> service.updateProfile("member-1", command))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("수정할 회원정보가 없습니다.");
   }
 
   @Test

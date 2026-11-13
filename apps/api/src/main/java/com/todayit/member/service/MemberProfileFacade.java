@@ -66,13 +66,8 @@ public class MemberProfileFacade {
           FileRelatedType.MEMBER_PROFILE,
           memberId,
           List.of(file),
-          urls -> {
-            MemberProfileResult result =
-                memberProfileService.changeProfileImage(memberId, urls.get(0));
-
-            profileResult.set(result);
-          });
-
+          urls ->
+              profileResult.set(memberProfileService.changeProfileImage(memberId, urls.get(0))));
       return profileResult.get();
 
     } finally {
