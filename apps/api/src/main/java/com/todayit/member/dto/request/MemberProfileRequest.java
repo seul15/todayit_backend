@@ -18,7 +18,7 @@ import java.util.List;
 @Schema(description = "회원 프로필 수정 요청")
 public record MemberProfileRequest(
     @Schema(description = "변경할 닉네임") String nickname,
-    @Schema(description = "선호 지역 목록, 최대 1개. 시도/시군구 코드로 구성")
+    @Schema(description = "선호 지역 목록, 지정된 30개 지역 중 최대 1개. 시도/시군구 코드로 구성")
         List<PreferredRegionCode> preferredRegions,
     @Schema(description = "선호 테마 목록") List<Theme> preferredThemes) {
 

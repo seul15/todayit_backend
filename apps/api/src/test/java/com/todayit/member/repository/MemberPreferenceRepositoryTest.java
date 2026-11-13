@@ -2,6 +2,8 @@ package com.todayit.member.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.todayit.course.entity.Region;
+import com.todayit.course.repository.RegionRepository;
 import com.todayit.member.entity.Member;
 import com.todayit.theme.Theme;
 import jakarta.persistence.EntityManager;
@@ -33,25 +35,39 @@ class MemberPreferenceRepositoryTest {
           .withUrlParam("currentSchema", "todayit");
 
   @Autowired private MemberRepository memberRepository;
-
+  @Autowired private RegionRepository regionRepository;
   @Autowired private EntityManager entityManager;
 
   @Test
-  @DisplayName("기존 회원의 선호 지역과 테마를 수정한 뒤 DB에서 다시 조회한다")
+  @DisplayName("회원 선호 지역 FK와 테마 배열을 저장하고 다시 조회한다")
   void persistsUpdatedPreferences() {
-    // Given
+    // test 프로필에는 로컬 지역 시드가 없으므로 테스트 데이터만 생성
+    entityManager
+        .createNativeQuery(
+            """
+                    INSERT INTO region (
+                        sido_code, sigungu_code, sido_name, sigungu_name
+                    )
+                    VALUES ('11', '110', '서울특별시', '종로구')
+                    """)
+        .executeUpdate();
+
     Member member =
         Member.createLocal("preference-update@example.com", "encoded-password", "선호수정검증");
 
     memberRepository.saveAndFlush(member);
     entityManager.clear();
 
-    // When
+    // 기존 Repository 메서드 재사용
+    Integer regionId = regionRepository.findIdsByCodes("11", "110").getFirst();
+
+    Region region = regionRepository.findById(regionId).orElseThrow();
+
     Member stored = memberRepository.findById(member.getId()).orElseThrow();
 
     LocalDateTime now = LocalDateTime.now();
 
-    stored.changePreferredRegion("11", "110", now);
+    stored.changePreferredRegion(region, now);
     stored.changePreferredThemes(List.of(Theme.QUIET, Theme.ROMANTIC), now);
 
     memberRepository.saveAndFlush(stored);
@@ -60,9 +76,13 @@ class MemberPreferenceRepositoryTest {
     // Then
     Member loaded = memberRepository.findById(member.getId()).orElseThrow();
 
-    assertThat(loaded.getPreferredSidoCode()).isEqualTo("11");
-    assertThat(loaded.getPreferredSigunguCode()).isEqualTo("110");
+    assertThat(loaded.getPreferredRegion()).isNotNull();
+    assertThat(loaded.getPreferredRegion().getRegionId()).isEqualTo(regionId);
+    assertThat(loaded.getPreferredRegion().getSidoCode()).isEqualTo("11");
+    assertThat(loaded.getPreferredRegion().getSigunguCode()).isEqualTo("110");
+
     assertThat(loaded.getPreferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
+
     assertThat(loaded.getNickname()).isEqualTo("선호수정검증");
   }
 }

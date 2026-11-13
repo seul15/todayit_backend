@@ -30,4 +30,16 @@ public class Region {
   private String sigunguName;
 
   protected Region() {}
+
+  public int getRegionId() {
+    return regionId;
+  }
+
+  public String getSidoCode() {
+    return sidoCode;
+  }
+
+  public String getSigunguCode() {
+    return sigunguCode;
+  }
 }

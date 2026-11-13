@@ -1,11 +1,15 @@
 package com.todayit.member.entity;
 
+import com.todayit.course.entity.Region;
 import com.todayit.theme.Theme;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -35,11 +39,9 @@ public class Member {
   @Column(name = "nickname_updated_at")
   private LocalDateTime nicknameUpdatedAt;
 
-  @Column(name = "preferred_sido_code", length = 2)
-  private String preferredSidoCode;
-
-  @Column(name = "preferred_sigungu_code", length = 3)
-  private String preferredSigunguCode;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "preferred_region")
+  private Region preferredRegion;
 
   // PostgreSQL 문자열 배열에 선호 테마 코드 저장
   @JdbcTypeCode(SqlTypes.ARRAY)
@@ -131,13 +133,11 @@ public class Member {
   /**
    * 회원의 선호 지역을 변경하거나 해제합니다.
    *
-   * @param sidoCode 시도 코드, 해제 시 null
-   * @param sigunguCode 시군구 코드, 해제 시 null
-   * @param updatedAt 회원정보 수정 시각
+   * @param region 변경할 지역, 해제 시 null
+   * @param updatedAt 수정 시각
    */
-  public void changePreferredRegion(String sidoCode, String sigunguCode, LocalDateTime updatedAt) {
-    this.preferredSidoCode = sidoCode;
-    this.preferredSigunguCode = sigunguCode;
+  public void changePreferredRegion(Region region, LocalDateTime updatedAt) {
+    this.preferredRegion = region;
     this.updatedAt = updatedAt;
   }
 
@@ -261,12 +261,8 @@ public class Member {
     return updatedAt;
   }
 
-  public String getPreferredSidoCode() {
-    return preferredSidoCode;
-  }
-
-  public String getPreferredSigunguCode() {
-    return preferredSigunguCode;
+  public Region getPreferredRegion() {
+    return preferredRegion;
   }
 
   /**

@@ -2,7 +2,9 @@ package com.todayit.member.service;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
-import com.todayit.course.service.RegionPlaceQueryService;
+import com.todayit.course.entity.Region;
+import com.todayit.course.exception.InvalidRegionPathException;
+import com.todayit.course.repository.RegionRepository;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.exception.MemberErrorCode;
@@ -16,6 +18,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -28,28 +31,74 @@ public class MemberProfileService {
   private static final String PROFILE_IMAGE_AGREEMENT_CODE = "PROFILE_IMAGE";
   private static final String PREFERENCE_AGREEMENT_CODE = "PREFERENCE";
 
+  private static final Set<PreferredRegionCode> ALLOWED_PREFERRED_REGIONS =
+      Set.of(
+          // 서울특별시
+          new PreferredRegionCode("11", "440"),
+          new PreferredRegionCode("11", "200"),
+          new PreferredRegionCode("11", "680"),
+          new PreferredRegionCode("11", "710"),
+          new PreferredRegionCode("11", "110"),
+          new PreferredRegionCode("11", "170"),
+          new PreferredRegionCode("11", "560"),
+          new PreferredRegionCode("11", "140"),
+          new PreferredRegionCode("11", "650"),
+          new PreferredRegionCode("11", "215"),
+
+          // 경기도
+          new PreferredRegionCode("41", "115"),
+          new PreferredRegionCode("41", "135"),
+          new PreferredRegionCode("41", "285"),
+          new PreferredRegionCode("41", "480"),
+          new PreferredRegionCode("41", "820"),
+
+          // 인천광역시
+          new PreferredRegionCode("28", "185"),
+
+          // 부산광역시
+          new PreferredRegionCode("26", "500"),
+          new PreferredRegionCode("26", "350"),
+          new PreferredRegionCode("26", "230"),
+
+          // 강원특별자치도
+          new PreferredRegionCode("51", "150"),
+          new PreferredRegionCode("51", "210"),
+          new PreferredRegionCode("51", "110"),
+
+          // 제주특별자치도
+          new PreferredRegionCode("50", "110"),
+          new PreferredRegionCode("50", "130"),
+
+          // 기타 지역
+          new PreferredRegionCode("47", "130"),
+          new PreferredRegionCode("52", "111"),
+          new PreferredRegionCode("12", "130"),
+          new PreferredRegionCode("30", "140"),
+          new PreferredRegionCode("27", "110"),
+          new PreferredRegionCode("44", "131"));
+
   private final MemberRepository memberRepository;
   private final MemberAgreementRepository memberAgreementRepository;
   private final SignupService signupService;
-  private final RegionPlaceQueryService regionPlaceQueryService;
+  private final RegionRepository regionRepository;
 
   /**
    * 회원 프로필 변경에 필요한 서비스를 주입받습니다.
    *
    * @param memberRepository 회원 Repository
    * @param memberAgreementRepository 회원 약관 동의 Repository
-   * @param signupService 공통 닉네임 검증 서비스
-   * @param regionPlaceQueryService 기존 지역 조회 서비스
+   * @param signupService 닉네임 검증 서비스
+   * @param regionRepository 기존 지역 Repository
    */
   public MemberProfileService(
       MemberRepository memberRepository,
       MemberAgreementRepository memberAgreementRepository,
       SignupService signupService,
-      RegionPlaceQueryService regionPlaceQueryService) {
+      RegionRepository regionRepository) {
     this.memberRepository = memberRepository;
     this.memberAgreementRepository = memberAgreementRepository;
     this.signupService = signupService;
-    this.regionPlaceQueryService = regionPlaceQueryService;
+    this.regionRepository = regionRepository;
   }
 
   /**
@@ -100,6 +149,7 @@ public class MemberProfileService {
    * @return 변경된 회원 프로필 정보
    * @throws BusinessException 회원이 없거나 닉네임 변경 정책을 위반한 경우
    * @throws InvalidRequestException 수정 항목이 없거나 입력값이 잘못된 경우
+   * @throws InvalidRegionPathException 선택할 수 없거나 존재하지 않는 지역인 경우
    */
   @Transactional
   public MemberProfileDetailsResult updateProfile(String memberId, MemberProfileCommand command) {
@@ -120,6 +170,7 @@ public class MemberProfileService {
 
     // 선호 지역 검증
     List<PreferredRegionCode> regions = command.preferredRegions();
+    Region selectedRegion = null;
 
     if (regions != null) {
       if (regions.size() > 1) {
@@ -127,13 +178,33 @@ public class MemberProfileService {
       }
 
       if (!regions.isEmpty()) {
-        PreferredRegionCode region = regions.get(0);
+        PreferredRegionCode requested = regions.get(0);
 
-        if (region == null || region.sidoCode() == null || region.sigunguCode() == null) {
+        if (requested == null
+            || requested.sidoCode() == null
+            || requested.sigunguCode() == null
+            || !requested.sidoCode().matches("[0-9]{2}")
+            || !requested.sigunguCode().matches("[0-9]{3}")) {
           throw new InvalidRequestException("선호 지역 코드가 올바르지 않습니다.");
         }
 
-        regionPlaceQueryService.findRegionIds(region.sidoCode(), region.sigunguCode());
+        if (!ALLOWED_PREFERRED_REGIONS.contains(requested)) {
+          throw new InvalidRegionPathException();
+        }
+
+        // 기존 Repository 메서드 재사용
+        List<Integer> regionIds =
+            regionRepository.findIdsByCodes(requested.sidoCode(), requested.sigunguCode());
+
+        if (regionIds.size() != 1) {
+          throw new InvalidRegionPathException();
+        }
+
+        // JpaRepository 기본 제공 메서드 재사용
+        selectedRegion =
+            regionRepository
+                .findById(regionIds.get(0))
+                .orElseThrow(InvalidRegionPathException::new);
       }
     }
 
@@ -162,15 +233,14 @@ public class MemberProfileService {
 
     // 선호 지역 변경
     if (regions != null) {
-      PreferredRegionCode selected = regions.isEmpty() ? null : regions.get(0);
+      Region currentRegion = member.getPreferredRegion();
 
-      String sidoCode = selected == null ? null : selected.sidoCode();
+      Integer currentId = currentRegion == null ? null : currentRegion.getRegionId();
 
-      String sigunguCode = selected == null ? null : selected.sigunguCode();
+      Integer selectedId = selectedRegion == null ? null : selectedRegion.getRegionId();
 
-      if (!Objects.equals(member.getPreferredSidoCode(), sidoCode)
-          || !Objects.equals(member.getPreferredSigunguCode(), sigunguCode)) {
-        member.changePreferredRegion(sidoCode, sigunguCode, now);
+      if (!Objects.equals(currentId, selectedId)) {
+        member.changePreferredRegion(selectedRegion, now);
       }
     }
 
@@ -255,12 +325,12 @@ public class MemberProfileService {
   }
 
   private MemberProfileDetailsResult toDetailsResult(Member member) {
+    Region region = member.getPreferredRegion();
+
     List<PreferredRegionCode> regions =
-        member.getPreferredSidoCode() == null
+        region == null
             ? List.of()
-            : List.of(
-                new PreferredRegionCode(
-                    member.getPreferredSidoCode(), member.getPreferredSigunguCode()));
+            : List.of(new PreferredRegionCode(region.getSidoCode(), region.getSigunguCode()));
 
     return new MemberProfileDetailsResult(
         member.getId(),

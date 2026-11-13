@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import com.todayit.common.exception.BusinessException;
 import com.todayit.common.exception.InvalidRequestException;
-import com.todayit.course.service.RegionPlaceQueryService;
+import com.todayit.course.entity.Region;
+import com.todayit.course.exception.InvalidRegionPathException;
+import com.todayit.course.repository.RegionRepository;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.PreferredRegionCode;
 import com.todayit.member.exception.MemberErrorCode;
@@ -42,7 +44,7 @@ class MemberProfileServiceTest {
   @Mock private MemberRepository memberRepository;
   @Mock private MemberAgreementRepository memberAgreementRepository;
   @Mock private SignupService signupService;
-  @Mock private RegionPlaceQueryService regionPlaceQueryService;
+  @Mock private RegionRepository regionRepository;
 
   private MemberProfileService service;
 
@@ -50,7 +52,7 @@ class MemberProfileServiceTest {
   void setUp() {
     service =
         new MemberProfileService(
-            memberRepository, memberAgreementRepository, signupService, regionPlaceQueryService);
+            memberRepository, memberAgreementRepository, signupService, regionRepository);
   }
 
   @Test
@@ -189,6 +191,16 @@ class MemberProfileServiceTest {
     when(memberAgreementRepository.existsAgreedActiveAgreement(memberId, "PREFERENCE"))
         .thenReturn(true);
 
+    Region region = mock(Region.class);
+
+    when(region.getRegionId()).thenReturn(1);
+    when(region.getSidoCode()).thenReturn("11");
+    when(region.getSigunguCode()).thenReturn("110");
+
+    when(regionRepository.findIdsByCodes("11", "110")).thenReturn(List.of(1));
+
+    when(regionRepository.findById(1)).thenReturn(Optional.of(region));
+
     MemberProfileCommand command =
         new MemberProfileCommand(
             "새닉네임",
@@ -206,10 +218,10 @@ class MemberProfileServiceTest {
     assertThat(result.updatedAt()).isNotNull();
 
     assertThat(member.getNickname()).isEqualTo("새닉네임");
-    assertThat(member.getPreferredSidoCode()).isEqualTo("11");
-    assertThat(member.getPreferredSigunguCode()).isEqualTo("110");
+    assertThat(member.getPreferredRegion()).isSameAs(region);
 
-    verify(regionPlaceQueryService).findRegionIds("11", "110");
+    verify(regionRepository).findIdsByCodes("11", "110");
+    verify(regionRepository).findById(1);
   }
 
   @Test
@@ -220,7 +232,10 @@ class MemberProfileServiceTest {
 
     LocalDateTime now = LocalDateTime.now();
 
-    member.changePreferredRegion("11", "110", now);
+    Region region = mock(Region.class);
+    when(region.getRegionId()).thenReturn(1);
+
+    member.changePreferredRegion(region, now);
     member.changePreferredThemes(List.of(Theme.QUIET), now);
 
     when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
@@ -231,12 +246,31 @@ class MemberProfileServiceTest {
     service.updateProfile(member.getId(), command);
 
     // Then
-    assertThat(member.getPreferredSidoCode()).isNull();
-    assertThat(member.getPreferredSigunguCode()).isNull();
+    assertThat(member.getPreferredRegion()).isNull();
     assertThat(member.getPreferredThemes()).isEmpty();
 
     verify(memberAgreementRepository, never())
         .existsAgreedActiveAgreement(member.getId(), "PREFERENCE");
+  }
+
+  @Test
+  @DisplayName("허용 목록에 없는 지역은 선호 지역으로 저장할 수 없다")
+  void rejectsNonSelectablePreferredRegion() {
+    Member member = Member.createLocal("test@example.com", "encoded-password", "기존닉네임");
+
+    String memberId = member.getId();
+
+    when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
+
+    MemberProfileCommand command =
+        new MemberProfileCommand(null, List.of(new PreferredRegionCode("11", "350")), null);
+
+    assertThatThrownBy(() -> service.updateProfile(memberId, command))
+        .isInstanceOf(InvalidRegionPathException.class);
+
+    assertThat(member.getPreferredRegion()).isNull();
+
+    verify(regionRepository, never()).findIdsByCodes("11", "350");
   }
 
   @Test

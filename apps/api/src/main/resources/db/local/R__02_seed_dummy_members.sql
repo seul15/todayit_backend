@@ -1,7 +1,6 @@
 INSERT INTO member (
     member_id,
-    preferred_sido_code,
-    preferred_sigungu_code,
+    preferred_region,
     email,
     password,
     provider,
@@ -11,8 +10,7 @@ INSERT INTO member (
 )
 SELECT
     seed.member_id,
-    region.sido_code,
-    region.sigungu_code,
+    region.region_id,
     seed.email,
     seed.password,
     'LOCAL',

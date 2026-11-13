@@ -247,7 +247,7 @@ public interface MemberApiDocs {
       description =
           "로그인한 회원의 닉네임, 선호 지역 및 선호 테마를 수정합니다. "
               + "요청에서 생략한 항목은 기존 값을 유지합니다. "
-              + "preferredRegions는 최대 1개까지 선택할 수 있으며, "
+              + "preferredRegions는 지정된 30개 지역 중 최대 1개까지 선택할 수 있으며, "
               + "각 지역은 sidoCode와 sigunguCode로 구성됩니다. "
               + "빈 배열을 전달하면 기존 선호 지역을 모두 해제합니다. "
               + "preferredThemes에 빈 배열을 전달하면 선호 테마를 모두 해제합니다. "
@@ -325,7 +325,7 @@ public interface MemberApiDocs {
                           "{\"success\":false,\"code\":\"INVALID_REQUEST\","
                               + "\"message\":\"닉네임은 한글, 영문, 숫자만 사용할 수 있습니다.\"}"),
                   @ExampleObject(
-                      name = "존재하지 않는 선호 지역",
+                      name = "존재하지 않거나 선택할 수 없는 선호 지역",
                       value =
                           "{\"success\":false,\"code\":\"INVALID_REGION_PATH\","
                               + "\"message\":\"지역 필터 값이 올바르지 않습니다.\"}")
