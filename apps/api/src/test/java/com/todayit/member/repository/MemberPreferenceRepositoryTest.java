@@ -41,7 +41,6 @@ class MemberPreferenceRepositoryTest {
   @Test
   @DisplayName("회원 선호 지역 FK와 테마 배열을 저장하고 다시 조회한다")
   void persistsUpdatedPreferences() {
-    // test 프로필에는 로컬 지역 시드가 없으므로 테스트 데이터만 생성
     entityManager
         .createNativeQuery(
             """
@@ -58,7 +57,6 @@ class MemberPreferenceRepositoryTest {
     memberRepository.saveAndFlush(member);
     entityManager.clear();
 
-    // 기존 Repository 메서드 재사용
     Integer regionId = regionRepository.findIdsByCodes("11", "110").getFirst();
 
     Region region = regionRepository.findById(regionId).orElseThrow();
