@@ -130,9 +130,6 @@ public class MemberController implements MemberApiDocs {
   @PatchMapping("/me")
   public ResponseEntity<CommonResponse<MemberProfileResponse>> updateProfile(
       @RequestBody MemberProfileRequest request, Authentication authentication) {
-
-    request.validate();
-
     MemberProfileDetailsResult result =
         memberProfileService.updateProfile(authentication.getName(), request.toCommand());
 

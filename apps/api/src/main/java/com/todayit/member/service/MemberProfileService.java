@@ -140,25 +140,9 @@ public class MemberProfileService {
 
     // 선호 지역 검증
     List<PreferredRegionCode> regions = command.preferredRegions();
-    Region selectedRegion = null;
 
-    if (regions != null && !regions.isEmpty()) {
-      PreferredRegionCode requested = regions.get(0);
-
-      if (!ALLOWED_PREFERRED_REGIONS.contains(requested)) {
-        throw new InvalidRegionPathException();
-      }
-
-      List<Integer> regionIds =
-          regionRepository.findIdsByCodes(requested.sidoCode(), requested.sigunguCode());
-
-      if (regionIds.size() != 1) {
-        throw new InvalidRegionPathException();
-      }
-
-      selectedRegion =
-          regionRepository.findById(regionIds.get(0)).orElseThrow(InvalidRegionPathException::new);
-    }
+    Region selectedRegion =
+        regions == null || regions.isEmpty() ? null : resolvePreferredRegion(regions.get(0));
 
     // 선호 테마 검증
     List<Theme> themes = command.preferredThemes();
@@ -250,6 +234,28 @@ public class MemberProfileService {
         .findByIdForUpdate(memberId)
         .filter(Member::isActive)
         .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+  }
+
+  /**
+   * 선호 지역 코드에 해당하는 지역을 조회합니다.
+   *
+   * @param requested 요청된 선호 지역 코드
+   * @return 조회된 지역
+   * @throws InvalidRegionPathException 선택 불가능하거나 존재하지 않는 지역인 경우
+   */
+  private Region resolvePreferredRegion(PreferredRegionCode requested) {
+    if (!ALLOWED_PREFERRED_REGIONS.contains(requested)) {
+      throw new InvalidRegionPathException();
+    }
+
+    List<Integer> regionIds =
+        regionRepository.findIdsByCodes(requested.sidoCode(), requested.sigunguCode());
+
+    if (regionIds.size() != 1) {
+      throw new InvalidRegionPathException();
+    }
+
+    return regionRepository.findById(regionIds.get(0)).orElseThrow(InvalidRegionPathException::new);
   }
 
   private String validateNicknameChange(Member member, String nickname, LocalDateTime now) {
