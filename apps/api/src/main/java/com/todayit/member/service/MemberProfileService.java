@@ -260,7 +260,7 @@ public class MemberProfileService {
 
   private String validateNicknameChange(Member member, String nickname, LocalDateTime now) {
 
-    if (nickname == null || nickname.isBlank()) {
+    if (nickname.isBlank()) {
       throw new InvalidRequestException("닉네임은 필수입니다.");
     }
 
@@ -315,16 +315,11 @@ public class MemberProfileService {
   public MemberProfileResult resetProfileImage(String memberId) {
     Member member = findActiveMemberForUpdate(memberId);
 
-    // 이미 기본 이미지라면 수정 시각을 변경하지 않음
-    if (member.getRegisteredProfileImage() == null) {
-      return new MemberProfileResult(member.getId(), null, member.getUpdatedAt());
+    if (member.getRegisteredProfileImage() != null) {
+      member.resetProfileImage(LocalDateTime.now());
     }
 
-    LocalDateTime now = LocalDateTime.now();
-    member.resetProfileImage(now);
-
-    return new MemberProfileResult(
-        member.getId(), member.getRegisteredProfileImage(), member.getUpdatedAt());
+    return new MemberProfileResult(member.getId(), null, member.getUpdatedAt());
   }
 
   private void flushNicknameChange() {

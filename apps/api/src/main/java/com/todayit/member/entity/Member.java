@@ -144,12 +144,11 @@ public class Member {
   /**
    * 회원의 선호 테마를 변경합니다.
    *
-   * @param themes 변경할 선호 테마 목록, null이면 설정 해제
+   * @param themes 변경할 선호 테마 목록, 빈 목록이면 전체 해제
    * @param updatedAt 변경 시각
    */
   public void changePreferredThemes(List<Theme> themes, LocalDateTime updatedAt) {
-    this.preferredThemeCodes =
-        themes == null ? null : themes.stream().map(Theme::name).toArray(String[]::new);
+    this.preferredThemeCodes = themes.stream().map(Theme::name).toArray(String[]::new);
     this.updatedAt = updatedAt;
   }
 

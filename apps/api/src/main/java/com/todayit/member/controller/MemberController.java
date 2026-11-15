@@ -110,13 +110,10 @@ public class MemberController implements MemberApiDocs {
   @PostMapping(value = "/me/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ResponseEntity<CommonResponse<MemberProfileImageResponse>> uploadProfileImage(
       @RequestPart("file") MultipartFile file, Authentication authentication) {
-    // Access Token에서 회원 ID 조회
     String memberId = authentication.getName();
 
-    // 프로필 이미지 등록 및 회원 정보 갱신
     MemberProfileResult result = memberProfileFacade.uploadProfileImage(memberId, file);
 
-    // 변경된 프로필 이미지 정보를 반환
     return ResponseEntity.ok(CommonResponse.success(MemberProfileImageResponse.from(result)));
   }
 
