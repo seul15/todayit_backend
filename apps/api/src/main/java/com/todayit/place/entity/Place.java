@@ -13,7 +13,12 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 장소의 기본 정보와 운영 상태를 나타냅니다. */
 @Entity
@@ -42,6 +47,28 @@ public class Place {
 
   @Column(name = "description", columnDefinition = "text")
   private String description;
+
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "visitor_info", columnDefinition = "jsonb")
+  private Map<String, String> visitorInfo;
+
+  /**
+   * 정의된 안내 코드 중 설명이 있는 항목만 반환합니다.
+   *
+   * @return 항목 코드와 설명, 정보가 없으면 빈 맵
+   */
+  public Map<VisitorInfoType, String> getVisitorInfo() {
+    Map<VisitorInfoType, String> result = new EnumMap<>(VisitorInfoType.class);
+    if (visitorInfo != null) {
+      for (VisitorInfoType type : VisitorInfoType.values()) {
+        String value = visitorInfo.get(type.name());
+        if (value != null && !value.isBlank()) {
+          result.put(type, value);
+        }
+      }
+    }
+    return Collections.unmodifiableMap(result);
+  }
 
   @Column(name = "view_count", nullable = false)
   private int viewCount;

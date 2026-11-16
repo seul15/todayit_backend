@@ -11,6 +11,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -264,6 +266,178 @@ class PlaceRepositoryTest {
     assertThat(districtResult.getContent())
         .extracting(place -> place.getSnapshot().name())
         .containsExactly("종로 장소");
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("이름의 일치 글자 수로 정렬하고 페이지를 나누며 비활성 장소를 제외한다")
+  void searchesNamesByMatchingCharacterCountAndPaginates() {
+    // Given
+    insertPlace("gangnam", "RESTAURANT");
+    insertPlace("gang", "RESTAURANT");
+    insertPlace("xyz", "RESTAURANT");
+    Integer inactive = insertPlace("gangnam inactive", "RESTAURANT");
+    jdbcTemplate.update("UPDATE place SET is_active = false WHERE place_id = ?", inactive);
+
+    // When
+    Page<Place> first = placeRepository.searchByName("gangnam", PageRequest.of(0, 1));
+    Page<Place> second = placeRepository.searchByName("gangnam", PageRequest.of(1, 1));
+
+    // Then
+    assertThat(first.getTotalElements()).isEqualTo(2);
+    assertThat(first.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("gangnam");
+    assertThat(second.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("gang");
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("가게 이름의 한글 한 글자만 일치해도 조회하고 일치 글자 수로 정렬한다")
+  void searchesKoreanNamesWithSingleCharacterMatches() {
+    // Given
+    insertPlace("강남카페", "RESTAURANT");
+    insertPlace("강변식당", "RESTAURANT");
+    insertPlace("서울카페", "RESTAURANT");
+
+    // When
+    Page<Place> result = placeRepository.searchByName("강남", PageRequest.of(0, 10));
+
+    // Then
+    assertThat(result.getTotalElements()).isEqualTo(2);
+    assertThat(result.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("강남카페", "강변식당");
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("공백을 제거한 완전 일치가 글자 순서만 다른 이름보다 먼저 조회된다")
+  void prioritizesExactNameIgnoringWhitespace() {
+    // Given
+    insertPlace("성수 어니언", "RESTAURANT");
+    insertPlace("어니언 성수", "RESTAURANT");
+
+    // When
+    Page<Place> result = placeRepository.searchByName("성수  어니언", PageRequest.of(0, 1));
+
+    // Then
+    assertThat(result.getTotalElements()).isEqualTo(2);
+    assertThat(result.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("성수 어니언");
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("반복 글자는 검색어와 이름의 등장 횟수 중 작은 값만큼 점수에 반영한다")
+  void countsRepeatedCharactersUpToKeywordFrequency() {
+    // Given
+    insertPlace("어어", "RESTAURANT");
+    Integer repeatedPlaceId = insertPlace("어어어", "RESTAURANT");
+    Integer cafePlaceId = insertPlace("어어 카페", "RESTAURANT");
+    insertPlace("어", "RESTAURANT");
+    jdbcTemplate.update(
+        "UPDATE place SET created_at = TIMESTAMP '2026-01-01 12:00:00' WHERE place_id IN (?, ?)",
+        repeatedPlaceId,
+        cafePlaceId);
+
+    // When
+    Page<Place> result = placeRepository.searchByName("어어", PageRequest.of(0, 10));
+
+    // Then
+    assertThat(result.getTotalElements()).isEqualTo(4);
+    assertThat(result.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("어어", "어어 카페", "어어어", "어");
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("일치 점수가 같으면 장소 ID보다 생성 시각 내림차순을 먼저 적용한다")
+  void prioritizesCreatedAtOverPlaceIdForEqualScores() {
+    // Given
+    Integer newerPlaceId = insertPlace("어어 카페", "RESTAURANT");
+    Integer olderPlaceId = insertPlace("어어어", "RESTAURANT");
+    jdbcTemplate.update(
+        "UPDATE place SET created_at = TIMESTAMP '2026-01-02 12:00:00' WHERE place_id = ?",
+        newerPlaceId);
+    jdbcTemplate.update(
+        "UPDATE place SET created_at = TIMESTAMP '2026-01-01 12:00:00' WHERE place_id = ?",
+        olderPlaceId);
+
+    // When
+    Page<Place> result = placeRepository.searchByName("어어", PageRequest.of(0, 10));
+
+    // Then
+    assertThat(newerPlaceId).isLessThan(olderPlaceId);
+    assertThat(result.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("어어 카페", "어어어");
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "어니언성수, 어니언 성수",
+    "어니언  성수, 어니언 성수",
+    "성수어니언, 성수 어니언",
+    "블루엘리펀트, 블루엘리펀트 스페이스 성수",
+    "서울숲, 서울숲"
+  })
+  @Transactional
+  @DisplayName("화면의 가게 이름과 공백 변형 검색어로 원하는 장소가 먼저 조회된다")
+  void searchesScreenPlaceNames(String keyword, String expectedFirst) {
+    // Given
+    insertPlace("어니언 성수", "CAFE_DESSERT");
+    insertPlace("성수 어니언", "CAFE_DESSERT");
+    insertPlace("블루엘리펀트 스페이스 성수", "RESTAURANT");
+    insertPlace("서울숲", "RESTAURANT");
+
+    // When
+    Page<Place> result = placeRepository.searchByName(keyword, PageRequest.of(0, 10));
+
+    // Then
+    assertThat(result.getContent()).isNotEmpty();
+    assertThat(result.getContent().getFirst().getSnapshot().name()).isEqualTo(expectedFirst);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"ZZZZ", "강남", "'   '", "'%'", "'_'"})
+  @Transactional
+  @DisplayName("일치하지 않는 검색어와 공백 및 와일드카드 문자는 결과를 반환하지 않는다")
+  void returnsNoMatchesForUnmatchedKeywords(String keyword) {
+    // Given
+    insertPlace("어니언 성수", "CAFE_DESSERT");
+
+    // When
+    Page<Place> result = placeRepository.searchByName(keyword, PageRequest.of(0, 1));
+
+    // Then
+    assertThat(result.getContent()).isEmpty();
+    assertThat(result.getTotalElements()).isZero();
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("영문 대소문자를 무시하고 삭제된 장소와 이름 외 필드의 일치를 제외한다")
+  void ignoresCaseAndExcludesDeletedPlacesAndAddressMatches() {
+    // Given
+    insertPlace("ONION", "CAFE_DESSERT");
+    Integer deleted = insertPlace("onion deleted", "CAFE_DESSERT");
+    jdbcTemplate.update("UPDATE place SET is_deleted = true WHERE place_id = ?", deleted);
+    Integer addressMatch = insertPlace("xyz", "CAFE_DESSERT");
+    jdbcTemplate.update("UPDATE place SET address = 'onion' WHERE place_id = ?", addressMatch);
+
+    // When
+    Page<Place> result = placeRepository.searchByName("onion", PageRequest.of(0, 1));
+
+    // Then
+    assertThat(result.getTotalElements()).isEqualTo(1);
+    assertThat(result.getContent())
+        .extracting(place -> place.getSnapshot().name())
+        .containsExactly("ONION");
   }
 
   private Integer insertRegion(

@@ -54,4 +54,48 @@ public interface PlaceRepository extends JpaRepository<Place, Integer> {
    * @return 조건에 맞는 장소
    */
   Optional<Place> findByPlaceIdAndIsActiveTrueAndIsDeletedFalse(int placeId);
+
+  /**
+   * 이름에 검색어 글자가 하나 이상 포함된 활성 장소를 조회합니다. 공백을 제거한 이름의 완전 일치를 우선하고, 글자별 등장 횟수 중 작은 값을 합산한 점수 내림차순으로
+   * 정렬합니다.
+   *
+   * @param keyword 가게 이름 검색어
+   * @param pageable 페이지 조건
+   * @return 검색 조건에 맞는 장소 페이지
+   */
+  @Query(
+      value =
+          """
+          with search as (
+            select regexp_replace(lower(:keyword), '[[:space:]]+', '', 'g') as keyword
+          ), characters as (
+            select ch, count(*) as occurrences
+            from search, lateral regexp_split_to_table(keyword, '') ch
+            where ch <> '' group by ch
+          )
+          select p.* from place p
+          cross join search s
+          cross join lateral (
+            select regexp_replace(lower(p.name), '[[:space:]]+', '', 'g') as name
+          ) normalized
+          cross join lateral (
+            select coalesce(sum(least(c.occurrences,
+              char_length(normalized.name) - char_length(replace(normalized.name, c.ch, '')))), 0) as score
+            from characters c
+          ) matched
+          where p.is_active = true and p.is_deleted = false and matched.score > 0
+          order by (normalized.name = s.keyword) desc, matched.score desc,
+            p.created_at desc, p.place_id desc
+          """,
+      countQuery =
+          """
+          select count(*) from place p where p.is_active = true and p.is_deleted = false
+          and exists (
+            select 1 from regexp_split_to_table(
+              regexp_replace(lower(:keyword), '[[:space:]]+', '', 'g'), '') ch
+            where ch <> '' and position(ch in lower(p.name)) > 0
+          )
+          """,
+      nativeQuery = true)
+  Page<Place> searchByName(@Param("keyword") String keyword, Pageable pageable);
 }

@@ -70,6 +70,7 @@ services:
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:3000/oauth/google/callback}
     expose:
       - "8080"
     networks:
@@ -114,8 +115,19 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-todayit_app}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       SPRING_FLYWAY_ENABLED: "false"
+      TOUR_API_ENABLED: ${TOUR_API_ENABLED:-false}
+      TOUR_API_SERVICE_KEY: ${TOUR_API_SERVICE_KEY:-}
+      TOUR_API_MOBILE_APP: ${TOUR_API_MOBILE_APP:-TodayIt}
+      TOUR_API_TIMEOUT: ${TOUR_API_TIMEOUT:-30s}
+      REDTABLE_ENABLED: ${REDTABLE_ENABLED:-false}
+      REDTABLE_SERVICE_KEY: ${REDTABLE_SERVICE_KEY:-}
+      REDTABLE_TIMEOUT: ${REDTABLE_TIMEOUT:-30s}
+      CULTURE_ENABLED: ${CULTURE_ENABLED:-false}
+      CULTURE_SERVICE_KEY: ${CULTURE_SERVICE_KEY:-}
+      CULTURE_TIMEOUT: ${CULTURE_TIMEOUT:-30s}
       JAVA_TOOL_OPTIONS: -Xms128m -Xmx320m
     networks:
+      - worker-egress
       - backend
     depends_on:
       postgres:
@@ -132,6 +144,8 @@ services:
 
   postgres:
     image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-todayit}
@@ -196,5 +210,6 @@ services:
 
 networks:
   edge:
+  worker-egress:
   backend:
     internal: true

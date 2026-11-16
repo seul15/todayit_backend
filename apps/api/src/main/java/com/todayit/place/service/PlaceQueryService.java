@@ -2,6 +2,7 @@ package com.todayit.place.service;
 
 import com.todayit.common.pagination.PageResult;
 import com.todayit.course.service.RegionPlaceQueryService;
+import com.todayit.course.service.model.RegionFilter;
 import com.todayit.place.entity.Category;
 import com.todayit.place.entity.Place;
 import com.todayit.place.entity.PlaceImage;
@@ -70,8 +71,8 @@ public class PlaceQueryService implements PlaceScrapQueryService {
    * @param categories 장소 카테고리 목록
    * @param page 페이지 번호
    * @param size 페이지 크기
-   * @param memberId 선택 회원 식별자, 비회원이면 null
    * @param sort 정렬 기준
+   * @param memberId 선택 회원 식별자, 비회원이면 null
    * @return 장소 목록과 페이지 정보
    */
   @Transactional(readOnly = true)
@@ -83,14 +84,41 @@ public class PlaceQueryService implements PlaceScrapQueryService {
       int size,
       PlaceSort sort,
       String memberId) {
+    List<RegionFilter> regions =
+        sidoCode == null && sigunguCode == null
+            ? null
+            : List.of(
+                new RegionFilter(sidoCode, sigunguCode == null ? List.of() : List.of(sigunguCode)));
+    return findPlaces(regions, categories, page, size, sort, memberId);
+  }
+
+  /**
+   * 활성화되고 삭제되지 않은 장소를 지역 필터 목록 및 카테고리 조건으로 페이지 단위 조회합니다.
+   *
+   * @param regions 지역 필터 목록
+   * @param categories 장소 카테고리 목록
+   * @param page 페이지 번호
+   * @param size 페이지 크기
+   * @param sort 정렬 기준
+   * @param memberId 선택 회원 식별자, 비회원이면 null
+   * @return 장소 목록과 페이지 정보
+   */
+  @Transactional(readOnly = true)
+  public PageResult<PlaceResult> findPlaces(
+      List<RegionFilter> regions,
+      List<Category> categories,
+      int page,
+      int size,
+      PlaceSort sort,
+      String memberId) {
     Sort order =
         sort == PlaceSort.LATEST
             ? Sort.by(Sort.Direction.DESC, "createdAt")
             : Sort.by(Sort.Direction.DESC, "viewCount");
 
-    boolean regionFiltered = sidoCode != null || sigunguCode != null;
+    boolean regionFiltered = regions != null && !regions.isEmpty();
     List<Integer> regionIds =
-        regionFiltered ? regionPlaceQueryService.findRegionIds(sidoCode, sigunguCode) : List.of(0);
+        regionFiltered ? regionPlaceQueryService.findRegionIds(regions) : List.of(0);
     boolean categoryFiltered = categories != null && !categories.isEmpty();
     List<Category> categoryFilters =
         categoryFiltered ? List.copyOf(categories) : Arrays.asList(Category.values());
@@ -136,6 +164,49 @@ public class PlaceQueryService implements PlaceScrapQueryService {
         content.size());
     return new PageResult<>(
         content, placePage.getNumber(), placePage.getSize(), placePage.getTotalElements());
+  }
+
+  /**
+   * 가게 이름으로 활성화되고 삭제되지 않은 장소를 검색합니다. 빈 검색어는 빈 결과를 반환합니다.
+   *
+   * @param keyword 가게 이름 검색어
+   * @param page 페이지 번호
+   * @param size 페이지 크기
+   * @param memberId 선택 회원 식별자, 비회원이면 null
+   * @return 검색 결과와 페이지 정보
+   */
+  @Transactional(readOnly = true)
+  public PageResult<PlaceResult> searchPlaces(String keyword, int page, int size, String memberId) {
+    if (keyword == null || keyword.isBlank()) {
+      return new PageResult<>(List.of(), page, size, 0);
+    }
+    Page<Place> results = placeRepository.searchByName(keyword, PageRequest.of(page, size));
+    List<Place> places = results.getContent();
+    Map<Integer, List<String>> images = findImageUrlsByPlaceId(places);
+    Set<Integer> liked =
+        memberId == null || places.isEmpty()
+            ? Set.of()
+            : placeMemberLikeRepository.findLikedPlaceIds(
+                memberId, places.stream().map(Place::getPlaceId).toList());
+    List<PlaceResult> content =
+        places.stream()
+            .map(
+                place -> {
+                  PlaceResult result = toResult(place, images);
+                  return new PlaceResult(
+                      result.placeId(),
+                      result.name(),
+                      result.latitude(),
+                      result.longitude(),
+                      result.address(),
+                      result.category(),
+                      result.viewCount(),
+                      result.imageUrls(),
+                      liked.contains(place.getPlaceId()));
+                })
+            .toList();
+    return new PageResult<>(
+        content, results.getNumber(), results.getSize(), results.getTotalElements());
   }
 
   /**

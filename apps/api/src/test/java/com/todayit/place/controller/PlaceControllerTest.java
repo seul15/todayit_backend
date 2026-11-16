@@ -13,9 +13,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.todayit.common.exception.GlobalExceptionHandler;
 import com.todayit.common.pagination.PageResult;
 import com.todayit.course.service.CoursePlaceQueryService;
-import com.todayit.course.service.model.CourseResult;
-import com.todayit.course.service.model.CourseSort;
+import com.todayit.course.service.model.RegionFilter;
 import com.todayit.place.entity.Category;
+import com.todayit.place.entity.VisitorInfoType;
 import com.todayit.place.exception.PlaceNotFoundException;
 import com.todayit.place.service.PlaceCommandService;
 import com.todayit.place.service.PlaceDetailFacade;
@@ -32,12 +32,15 @@ import com.todayit.place.service.model.PlaceSort;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
@@ -86,46 +89,202 @@ class PlaceControllerTest {
   }
 
   @Test
+  @DisplayName("검색 전용 엔드포인트로 가게 이름을 검색한다")
+  void searchesPlacesUsingDedicatedEndpoint() throws Exception {
+    // Given
+    when(placeQueryService.searchPlaces("gang", 0, 20, null))
+        .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
+
+    // When
+    ResultActions result = mockMvc.perform(get("/api/v1/places/search").param("keyword", "gang"));
+    // Then
+    result.andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(0));
+    verify(placeQueryService).searchPlaces("gang", 0, 20, null);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"-1, 20", "0, 0", "0, -1"})
+  @DisplayName("검색 API는 잘못된 페이지 번호와 크기를 거부한다")
+  void rejectsInvalidSearchPagination(String page, String size) throws Exception {
+    // Given
+    String keyword = "어니언";
+
+    // When
+    ResultActions result =
+        mockMvc.perform(
+            get("/api/v1/places/search")
+                .param("keyword", keyword)
+                .param("page", page)
+                .param("size", size));
+
+    // Then
+    result.andExpect(status().isBadRequest());
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
+  @DisplayName("검색 API는 검색어가 누락되면 잘못된 요청을 반환한다")
+  void rejectsMissingSearchKeyword() throws Exception {
+    // Given
+    String endpoint = "/api/v1/places/search";
+
+    // When
+    ResultActions result = mockMvc.perform(get(endpoint));
+
+    // Then
+    result.andExpect(status().isBadRequest());
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
   @DisplayName("시도 코드만으로 조회한다")
   void forwardsSidoOnly() throws Exception {
     // Given
-    when(placeQueryService.findPlaces("41", null, null, 0, 20, PlaceSort.LATEST, null))
-        .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
-
-    // When & Then
-    mockMvc.perform(get("/api/v1/places").param("sidoCode", "41")).andExpect(status().isOk());
-    verify(placeQueryService).findPlaces("41", null, null, 0, 20, PlaceSort.LATEST, null);
-  }
-
-  @Test
-  @DisplayName("시군구 코드만으로 조회한다")
-  void forwardsSigunguOnly() throws Exception {
-    // Given
-    when(placeQueryService.findPlaces(null, "110", null, 0, 20, PlaceSort.LATEST, null))
-        .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
-
-    // When & Then
-    mockMvc.perform(get("/api/v1/places").param("sigunguCode", "110")).andExpect(status().isOk());
-    verify(placeQueryService).findPlaces(null, "110", null, 0, 20, PlaceSort.LATEST, null);
-  }
-
-  @Test
-  @DisplayName("지역 코드 두 조건을 모두 적용한다")
-  void forwardsAllCodes() throws Exception {
-    // Given
-    when(placeQueryService.findPlaces("41", "111", null, 0, 20, PlaceSort.LATEST, null))
+    when(placeQueryService.findPlaces(
+            List.of(new RegionFilter("41", List.of())), null, 0, 20, PlaceSort.LATEST, null))
         .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
 
     // When & Then
     mockMvc
-        .perform(get("/api/v1/places").param("sidoCode", "41").param("sigunguCode", "111"))
+        .perform(get("/api/v1/places").param("regions", "[{\"sidoCode\":\"41\"}]"))
         .andExpect(status().isOk());
-    verify(placeQueryService).findPlaces("41", "111", null, 0, 20, PlaceSort.LATEST, null);
+    verify(placeQueryService)
+        .findPlaces(
+            List.of(new RegionFilter("41", List.of())), null, 0, 20, PlaceSort.LATEST, null);
+  }
+
+  @Test
+  @DisplayName("단일 시도 및 시군구 코드로 조회한다")
+  void forwardsSingleSidoWithSigungus() throws Exception {
+    // Given
+    when(placeQueryService.findPlaces(
+            List.of(new RegionFilter("41", List.of("110", "120"))),
+            null,
+            0,
+            20,
+            PlaceSort.LATEST,
+            null))
+        .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
+
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/places")
+                .param("regions", "[{\"sidoCode\":\"41\",\"sigunguCodes\":[\"110\",\"120\"]}]"))
+        .andExpect(status().isOk());
+    verify(placeQueryService)
+        .findPlaces(
+            List.of(new RegionFilter("41", List.of("110", "120"))),
+            null,
+            0,
+            20,
+            PlaceSort.LATEST,
+            null);
+  }
+
+  @Test
+  @DisplayName("여러 시도 코드를 조회한다")
+  void forwardsMultipleSidos() throws Exception {
+    // Given
+    List<RegionFilter> filters =
+        List.of(new RegionFilter("11", List.of("680")), new RegionFilter("41", List.of()));
+    when(placeQueryService.findPlaces(filters, null, 0, 20, PlaceSort.LATEST, null))
+        .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
+
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/places")
+                .param(
+                    "regions",
+                    "[{\"sidoCode\":\"11\",\"sigunguCodes\":[\"680\"]},{\"sidoCode\":\"41\"}]"))
+        .andExpect(status().isOk());
+    verify(placeQueryService).findPlaces(filters, null, 0, 20, PlaceSort.LATEST, null);
+  }
+
+  @Test
+  @DisplayName("시도당 시군구 코드가 3개를 초과하면 400 오류를 반환한다")
+  void rejectsExceededSigunguLimit() throws Exception {
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/places")
+                .param(
+                    "regions",
+                    "[{\"sidoCode\":\"11\",\"sigunguCodes\":[\"110\",\"120\",\"130\",\"140\"]}]"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("EXCEEDED_SIGUNGU_LIMIT"))
+        .andExpect(jsonPath("$.message").value("시군구 필터는 시도당 최대 3개까지 선택할 수 있습니다."));
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
+  @DisplayName("잘못된 형식의 시도 코드는 400 오류를 반환한다")
+  void rejectsMalformedSidoCode() throws Exception {
+    // When & Then
+    mockMvc
+        .perform(get("/api/v1/places").param("regions", "[{\"sidoCode\":\"111\"}]"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REGION_PATH"));
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
+  @DisplayName("잘못된 형식의 시군구 코드는 400 오류를 반환한다")
+  void rejectsMalformedSigunguCode() throws Exception {
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/places")
+                .param("regions", "[{\"sidoCode\":\"11\",\"sigunguCodes\":[\"11\"]}]"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REGION_PATH"));
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
+  @DisplayName("빈 값이나 공백의 regions 파라미터는 400 오류를 반환한다")
+  void rejectsBlankRegionsParam() throws Exception {
+    // When & Then
+    mockMvc
+        .perform(get("/api/v1/places").param("regions", "   "))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REGION_PATH"));
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
+  @DisplayName("중복된 시도 코드가 전달되면 400 오류를 반환한다")
+  void rejectsDuplicateSidoCode() throws Exception {
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/places")
+                .param(
+                    "regions",
+                    "[{\"sidoCode\":\"11\",\"sigunguCodes\":[]},{\"sidoCode\":\"11\",\"sigunguCodes\":[\"110\"]}]"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REGION_PATH"));
+    verifyNoInteractions(placeQueryService);
+  }
+
+  @Test
+  @DisplayName("후행 데이터가 있는 잘못된 형식의 regions 파라미터는 400 오류를 반환한다")
+  void rejectsTrailingDataInRegionsParam() throws Exception {
+    // When & Then
+    mockMvc
+        .perform(
+            get("/api/v1/places")
+                .param("regions", "[{\"sidoCode\":\"11\"}] [{\"sidoCode\":\"26\"}]"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REGION_PATH"));
+    verifyNoInteractions(placeQueryService);
   }
 
   @Test
   @DisplayName("인증된 회원의 장소 목록에 좋아요 여부를 반환한다")
   void returnsAuthenticatedMemberLikesInList() throws Exception {
+    // Given
     PlaceResult place =
         new PlaceResult(
             1,
@@ -137,16 +296,19 @@ class PlaceControllerTest {
             0,
             List.of(),
             true);
-    when(placeQueryService.findPlaces(null, null, null, 0, 20, PlaceSort.LATEST, "member-1"))
+    when(placeQueryService.findPlaces(
+            (List<RegionFilter>) null, null, 0, 20, PlaceSort.LATEST, "member-1"))
         .thenReturn(new PageResult<>(List.of(place), 0, 20, 1));
 
+    // When & Then
     mockMvc
         .perform(
             get("/api/v1/places")
                 .principal(new UsernamePasswordAuthenticationToken("member-1", null, List.of())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.content[0].liked").value(true));
-    verify(placeQueryService).findPlaces(null, null, null, 0, 20, PlaceSort.LATEST, "member-1");
+    verify(placeQueryService)
+        .findPlaces((List<RegionFilter>) null, null, 0, 20, PlaceSort.LATEST, "member-1");
   }
 
   @Test
@@ -172,9 +334,16 @@ class PlaceControllerTest {
             List.of("https://example.com/place.jpg"),
             false);
     PlaceDetailResult detail =
-        new PlaceDetailResult(place, "장소 설명", List.of(opening), false, false);
+        new PlaceDetailResult(
+            place,
+            "장소 설명",
+            List.of(opening),
+            false,
+            false,
+            Map.of(VisitorInfoType.PARKING, "주차 가능", VisitorInfoType.PET_ACCESS, "반려동물 동반 불가"));
     when(placeDetailFacade.getPlaceDetail(1, null))
         .thenReturn(new PlaceDetailWithStayResult(detail, 0));
+
     // When
     ResultActions result = mockMvc.perform(get("/api/v1/places/1"));
 
@@ -184,6 +353,8 @@ class PlaceControllerTest {
         .andExpect(jsonPath("$.data.placeId").value(1))
         .andExpect(jsonPath("$.data.location.latitude").value(37.5))
         .andExpect(jsonPath("$.data.description").value("장소 설명"))
+        .andExpect(jsonPath("$.data.visitorInfo.PARKING").value("주차 가능"))
+        .andExpect(jsonPath("$.data.visitorInfo.PET_ACCESS").value("반려동물 동반 불가"))
         .andExpect(jsonPath("$.data.openingHours").isArray())
         .andExpect(jsonPath("$.data.openingHours[0].startAt").value("2026-10-16T09:00:00"))
         .andExpect(jsonPath("$.data.images[0]").value("https://example.com/place.jpg"))
@@ -197,6 +368,7 @@ class PlaceControllerTest {
   void passesOptionalMemberToDetailLookup() throws Exception {
     // Given
     doThrow(new PlaceNotFoundException()).when(placeDetailFacade).getPlaceDetail(1, "member-1");
+
     // When
     ResultActions result =
         mockMvc.perform(
@@ -224,8 +396,7 @@ class PlaceControllerTest {
             List.of("https://placehold.co/1200x800?text=Restaurant"),
             false);
     when(placeQueryService.findPlaces(
-            "11",
-            "110",
+            List.of(new RegionFilter("11", List.of("110"))),
             List.of(Category.RESTAURANT, Category.CAFE_DESSERT),
             1,
             5,
@@ -237,8 +408,7 @@ class PlaceControllerTest {
     mockMvc
         .perform(
             get("/api/v1/places")
-                .param("sidoCode", "11")
-                .param("sigunguCode", "110")
+                .param("regions", "[{\"sidoCode\":\"11\",\"sigunguCodes\":[\"110\"]}]")
                 .param("categories", "RESTAURANT", "CAFE_DESSERT")
                 .param("page", "1")
                 .param("size", "5")
@@ -260,8 +430,7 @@ class PlaceControllerTest {
     // Then
     verify(placeQueryService)
         .findPlaces(
-            "11",
-            "110",
+            List.of(new RegionFilter("11", List.of("110"))),
             List.of(Category.RESTAURANT, Category.CAFE_DESSERT),
             1,
             5,
@@ -281,109 +450,73 @@ class PlaceControllerTest {
   }
 
   @Test
-  @DisplayName("기존 영화·공연 카테고리 필터는 받지 않는다")
-  void rejectsRemovedMovieCategory() throws Exception {
+  @DisplayName("지원하지 않는 카테고리 필터 요청은 400을 반환한다")
+  void rejectsUnsupportedCategory() throws Exception {
     // When & Then
     mockMvc
-        .perform(get("/api/v1/places").param("categories", "MOVIE_PERFORMANCE"))
+        .perform(get("/api/v1/places").param("categories", "UNKNOWN"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_PLACE_CATEGORY"));
     verifyNoInteractions(placeQueryService);
   }
 
   @Test
-  @DisplayName("스파 카테고리 필터는 받지 않는다")
-  void rejectsRemovedSpaCategory() throws Exception {
+  @DisplayName("빈 카테고리 필터 요청은 400을 반환한다")
+  void rejectsEmptyCategory() throws Exception {
     // When & Then
-    mockMvc
-        .perform(get("/api/v1/places").param("categories", "RELAXATION_SPA"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_PLACE_CATEGORY"));
-    verifyNoInteractions(placeQueryService);
-  }
-
-  @Test
-  @DisplayName("지원하지 않는 카테고리 필터는 400 응답을 반환한다")
-  void returnsBadRequestForInvalidCategory() throws Exception {
-    // When
-    mockMvc
-        .perform(get("/api/v1/places").param("categories", "INVALID_CATEGORY"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.code").value("INVALID_PLACE_CATEGORY"))
-        .andExpect(jsonPath("$.message").value("카테고리 필터 값이 올바르지 않습니다."));
-
-    // Then
-    verifyNoInteractions(placeQueryService);
-  }
-
-  @Test
-  @DisplayName("빈 카테고리 필터는 400 응답을 반환한다")
-  void returnsBadRequestForEmptyCategory() throws Exception {
-    // When
     mockMvc
         .perform(get("/api/v1/places").param("categories", ""))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.code").value("INVALID_PLACE_CATEGORY"))
-        .andExpect(jsonPath("$.message").value("카테고리 필터 값이 올바르지 않습니다."));
-
-    // Then
+        .andExpect(jsonPath("$.code").value("INVALID_PLACE_CATEGORY"));
     verifyNoInteractions(placeQueryService);
   }
 
   @Test
-  @DisplayName("해당 장소로 만들어진 코스를 페이지 정보와 함께 반환한다")
-  void returnsCoursesByPlace() throws Exception {
+  @DisplayName("장소의 지도 정보를 반환한다")
+  void returnsPlaceLocation() throws Exception {
     // Given
-    CourseResult course =
-        new CourseResult(
-            1,
-            "종로 맛집과 카페 코스",
-            "종로에서 식사와 카페를 함께 즐기는 코스입니다.",
-            com.todayit.course.entity.CourseTransport.WALKING,
-            LocalDateTime.of(2026, 10, 3, 11, 0),
-            LocalDateTime.of(2026, 10, 3, 15, 0),
-            25);
-    when(coursePlaceQueryService.findCoursesByPlace(1, 0, 20, CourseSort.LATEST))
-        .thenReturn(new PageResult<>(List.of(course), 0, 20, 1));
+    when(placeQueryService.findPlaceLocation(1))
+        .thenReturn(
+            new PlaceLocationResult(
+                1,
+                new BigDecimal("37.57000000"),
+                new BigDecimal("126.98500000"),
+                "서울특별시 종로구 종로 1"));
 
     // When
     mockMvc
-        .perform(get("/api/v1/places/1/courses"))
+        .perform(get("/api/v1/places/1/location"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.content[0].courseId").value(1))
-        .andExpect(jsonPath("$.data.content[0].title").value("종로 맛집과 카페 코스"))
-        .andExpect(jsonPath("$.data.page").value(0))
-        .andExpect(jsonPath("$.data.size").value(20))
-        .andExpect(jsonPath("$.data.totalElements").value(1))
-        .andExpect(jsonPath("$.data.totalPages").value(1));
+        .andExpect(jsonPath("$.data.placeId").value(1))
+        .andExpect(jsonPath("$.data.latitude").value(37.57))
+        .andExpect(jsonPath("$.data.longitude").value(126.985))
+        .andExpect(jsonPath("$.data.address").value("서울특별시 종로구 종로 1"));
 
     // Then
-    verify(coursePlaceQueryService).findCoursesByPlace(1, 0, 20, CourseSort.LATEST);
+    verify(placeQueryService).findPlaceLocation(1);
   }
 
   @Test
-  @DisplayName("존재하지 않는 장소의 코스 조회는 장소 없음 오류를 반환한다")
-  void returnsNotFoundWhenCoursesPlaceDoesNotExist() throws Exception {
+  @DisplayName("존재하지 않는 장소의 지도 조회는 404 응답을 반환한다")
+  void returnsNotFoundWhenPlaceLocationDoesNotExist() throws Exception {
     // Given
-    doThrow(new PlaceNotFoundException()).when(placeQueryService).validatePlaceExists(999);
+    when(placeQueryService.findPlaceLocation(999)).thenThrow(new PlaceNotFoundException());
 
     // When
     mockMvc
-        .perform(get("/api/v1/places/999/courses"))
+        .perform(get("/api/v1/places/999/location"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.code").value("PLACE_NOT_FOUND"));
 
     // Then
-    verifyNoInteractions(coursePlaceQueryService);
+    verify(placeQueryService).findPlaceLocation(999);
   }
 
   @Test
-  @DisplayName("장소 사진 목록을 페이지 정보와 함께 반환한다")
-  void returnsPagedPlaceImages() throws Exception {
+  @DisplayName("장소의 사진 목록을 페이지 단위로 반환한다")
+  void returnsPlaceImages() throws Exception {
     // Given
     when(placeQueryService.findPlaceImages(1, 0, 5))
         .thenReturn(
@@ -505,48 +638,5 @@ class PlaceControllerTest {
 
     // Then
     verifyNoInteractions(placeQueryService, placeCommandService);
-  }
-
-  @Test
-  @DisplayName("장소 지도 정보를 반환한다")
-  void returnsPlaceLocation() throws Exception {
-    // Given
-    when(placeQueryService.findPlaceLocation(1))
-        .thenReturn(
-            new PlaceLocationResult(
-                1,
-                new BigDecimal("37.57000000"),
-                new BigDecimal("126.98500000"),
-                "서울특별시 종로구 종로 1"));
-
-    // When
-    mockMvc
-        .perform(get("/api/v1/places/1/location"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.placeId").value(1))
-        .andExpect(jsonPath("$.data.latitude").value(37.57))
-        .andExpect(jsonPath("$.data.longitude").value(126.985))
-        .andExpect(jsonPath("$.data.address").value("서울특별시 종로구 종로 1"));
-
-    // Then
-    verify(placeQueryService).findPlaceLocation(1);
-  }
-
-  @Test
-  @DisplayName("존재하지 않는 장소의 지도 조회는 404 응답을 반환한다")
-  void returnsNotFoundWhenPlaceLocationDoesNotExist() throws Exception {
-    // Given
-    when(placeQueryService.findPlaceLocation(999)).thenThrow(new PlaceNotFoundException());
-
-    // When
-    mockMvc
-        .perform(get("/api/v1/places/999/location"))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.code").value("PLACE_NOT_FOUND"));
-
-    // Then
-    verify(placeQueryService).findPlaceLocation(999);
   }
 }

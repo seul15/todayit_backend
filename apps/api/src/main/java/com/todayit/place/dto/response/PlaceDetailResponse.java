@@ -1,12 +1,14 @@
 package com.todayit.place.dto.response;
 
 import com.todayit.place.entity.Category;
+import com.todayit.place.entity.VisitorInfoType;
 import com.todayit.place.service.model.PlaceDetailResult;
 import com.todayit.place.service.model.PlaceDetailWithStayResult;
 import com.todayit.place.service.model.PlaceResult;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 장소 상세 응답입니다.
@@ -22,6 +24,7 @@ import java.util.List;
  * @param averageStayMinutes 평균 체류 시간(분), 데이터가 없으면 0
  * @param liked 좋아요 여부
  * @param scrapped 스크랩 여부
+ * @param visitorInfo 설명이 있는 편의시설·운영 안내, 항목 코드별 설명
  */
 @Schema(description = "장소 상세 응답")
 public record PlaceDetailResponse(
@@ -74,7 +77,11 @@ public record PlaceDetailResponse(
             description = "현재 회원이 이 장소를 스크랩했는지 나타냅니다. 비회원이면 false를 반환합니다.",
             example = "false",
             requiredMode = Schema.RequiredMode.REQUIRED)
-        boolean scrapped) {
+        boolean scrapped,
+    @Schema(
+            description = "설명이 있는 안내 항목만 코드와 설명으로 반환합니다. 정보가 없으면 빈 객체입니다.",
+            example = "{\"PARKING\":\"지하 주차장 50대 수용 가능\",\"PET_ACCESS\":\"반려동물 동반 입장 불가\"}")
+        Map<VisitorInfoType, String> visitorInfo) {
   /**
    * 응답의 영업시간과 이미지 목록을 방어적으로 복사합니다.
    *
@@ -89,10 +96,12 @@ public record PlaceDetailResponse(
    * @param averageStayMinutes 평균 체류 시간(분), 데이터가 없으면 0
    * @param liked 좋아요 여부
    * @param scrapped 스크랩 여부
+   * @param visitorInfo 설명이 있는 편의시설·운영 안내, 항목 코드별 설명
    */
   public PlaceDetailResponse {
     openingHours = List.copyOf(openingHours);
     images = List.copyOf(images);
+    visitorInfo = Map.copyOf(visitorInfo);
   }
 
   /**
@@ -120,7 +129,8 @@ public record PlaceDetailResponse(
         place.imageUrls(),
         result.averageStayMinutes(),
         detail.liked(),
-        detail.scrapped());
+        detail.scrapped(),
+        detail.visitorInfo());
   }
 
   /**

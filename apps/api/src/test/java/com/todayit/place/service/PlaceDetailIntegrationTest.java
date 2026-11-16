@@ -2,8 +2,11 @@ package com.todayit.place.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.todayit.place.dto.response.PlaceDetailResponse;
+import com.todayit.place.entity.VisitorInfoType;
 import com.todayit.place.service.model.PlaceDetailWithStayResult;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +40,43 @@ class PlaceDetailIntegrationTest {
 
   @Autowired JdbcTemplate jdbc;
   @Autowired PlaceDetailFacade facade;
+
+  @Test
+  @DisplayName("상세 응답은 enum에 해당하고 설명이 있는 안내만 코드와 설명으로 반환한다")
+  void returnsOnlyKnownVisitorInfoWithDescriptions() {
+    // Given
+    int placeId = createPlace();
+    jdbc.update(
+        "UPDATE place SET visitor_info = CAST(? AS jsonb) WHERE place_id = ?",
+        """
+        {"PARKING":"지하 주차장 50대 수용 가능","PET_ACCESS":"반려동물 동반 입장 불가",
+         "RESTROOM":"   ","TAKEOUT":"","RESERVATION":null,"UNKNOWN":"알 수 없는 항목"}
+        """,
+        placeId);
+
+    // When
+    PlaceDetailResponse response = PlaceDetailResponse.from(facade.getPlaceDetail(placeId, null));
+
+    // Then
+    assertThat(response.visitorInfo())
+        .containsExactlyInAnyOrderEntriesOf(
+            Map.of(
+                VisitorInfoType.PARKING, "지하 주차장 50대 수용 가능",
+                VisitorInfoType.PET_ACCESS, "반려동물 동반 입장 불가"));
+  }
+
+  @Test
+  @DisplayName("안내 정보가 없는 장소의 상세 응답은 빈 안내 객체를 반환한다")
+  void returnsEmptyVisitorInfoWhenMissing() {
+    // Given
+    int placeId = createPlace();
+
+    // When
+    PlaceDetailResponse response = PlaceDetailResponse.from(facade.getPlaceDetail(placeId, null));
+
+    // Then
+    assertThat(response.visitorInfo()).isEmpty();
+  }
 
   private int createPlace() {
     return jdbc.queryForObject(

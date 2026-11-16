@@ -1,12 +1,18 @@
 package com.todayit.place.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.todayit.common.pagination.PageResponse;
 import com.todayit.common.pagination.PaginationValidator;
 import com.todayit.common.response.CommonResponse;
 import com.todayit.course.dto.response.CourseResponse;
+import com.todayit.course.exception.InvalidRegionPathException;
 import com.todayit.course.service.CoursePlaceQueryService;
 import com.todayit.course.service.model.CourseSort;
+import com.todayit.course.service.model.RegionFilter;
 import com.todayit.place.controller.docs.PlaceApiDocs;
+import com.todayit.place.dto.request.RegionFilterRequest;
 import com.todayit.place.dto.response.PlaceDetailResponse;
 import com.todayit.place.dto.response.PlaceFilterResponse;
 import com.todayit.place.dto.response.PlaceImageResponse;
@@ -14,13 +20,17 @@ import com.todayit.place.dto.response.PlaceLikeResponse;
 import com.todayit.place.dto.response.PlaceLocationResponse;
 import com.todayit.place.dto.response.PlaceScrapResponse;
 import com.todayit.place.entity.Category;
+import com.todayit.place.exception.ExceededSigunguLimitException;
 import com.todayit.place.exception.InvalidPlaceCategoryFilterException;
 import com.todayit.place.service.PlaceCommandService;
 import com.todayit.place.service.PlaceDetailFacade;
 import com.todayit.place.service.PlaceQueryService;
 import com.todayit.place.service.model.PlaceSort;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
@@ -41,6 +51,7 @@ public class PlaceController implements PlaceApiDocs {
 
   private static final int DEFAULT_PAGE = 0;
   private static final int DEFAULT_SIZE = 20;
+  private static final int MAX_SIGUNGU_COUNT_PER_SIDO = 3;
   private static final Set<String> CATEGORY_FILTER_VALUES =
       Arrays.stream(Category.values()).map(Enum::name).collect(Collectors.toUnmodifiableSet());
 
@@ -48,14 +59,15 @@ public class PlaceController implements PlaceApiDocs {
   private final PlaceQueryService placeQueryService;
   private final PlaceCommandService placeCommandService;
   private final CoursePlaceQueryService coursePlaceQueryService;
+  private final ObjectMapper objectMapper;
 
   /**
    * 장소 기능을 처리할 서비스를 받습니다.
    *
-   * @param placeDetailFacade 장소 상세 조회 Facade
    * @param placeQueryService 장소 조회 Service
    * @param placeCommandService 장소 변경 Service
    * @param coursePlaceQueryService 코스 장소 조회 Service 계약
+   * @param placeDetailFacade 장소 상세 조회 Facade
    */
   public PlaceController(
       PlaceQueryService placeQueryService,
@@ -66,6 +78,7 @@ public class PlaceController implements PlaceApiDocs {
     this.placeQueryService = placeQueryService;
     this.placeCommandService = placeCommandService;
     this.coursePlaceQueryService = coursePlaceQueryService;
+    this.objectMapper = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
   }
 
   /**
@@ -87,38 +100,122 @@ public class PlaceController implements PlaceApiDocs {
   /**
    * 활성화되고 삭제되지 않은 장소 목록을 조회합니다.
    *
-   * @param authentication 선택 인증 정보
-   * @param sidoCode 시·도 코드 2자리, 생략 가능
-   * @param sigunguCode 시·군·구 코드 3자리, 생략 가능
+   * @param regions 지역 필터 JSON 문자열, 생략 가능
    * @param categories 장소 카테고리 목록
    * @param page 페이지 번호
    * @param size 페이지 크기
    * @param sort 정렬 기준
+   * @param authentication 선택 인증 정보
    * @return 장소 목록과 페이지 정보
    */
   @GetMapping
   public ResponseEntity<CommonResponse<PageResponse<PlaceFilterResponse>>> findPlaces(
-      @RequestParam(required = false) String sidoCode,
-      @RequestParam(required = false) String sigunguCode,
+      @RequestParam(required = false) String regions,
       @RequestParam(required = false) List<String> categories,
       @RequestParam(defaultValue = "" + DEFAULT_PAGE) int page,
       @RequestParam(defaultValue = "" + DEFAULT_SIZE) int size,
       @RequestParam(defaultValue = "LATEST") PlaceSort sort,
       Authentication authentication) {
     PaginationValidator.validate(page, size);
+    List<RegionFilter> regionFilters = parseRegions(regions);
     List<Category> categoryFilters = parseCategories(categories);
     return ResponseEntity.ok(
         CommonResponse.success(
             PageResponse.from(
                 placeQueryService.findPlaces(
-                    sidoCode,
-                    sigunguCode,
+                    regionFilters,
                     categoryFilters,
                     page,
                     size,
                     sort,
                     authentication == null ? null : authentication.getName()),
                 PlaceFilterResponse::from)));
+  }
+
+  /**
+   * 가게 이름으로 장소를 검색합니다.
+   *
+   * @param keyword 가게 이름 검색어
+   * @param page 페이지 번호
+   * @param size 페이지 크기
+   * @param authentication 선택 인증 정보
+   * @return 검색 결과와 페이지 정보
+   */
+  @GetMapping("/search")
+  public ResponseEntity<CommonResponse<PageResponse<PlaceFilterResponse>>> searchPlaces(
+      @RequestParam String keyword,
+      @RequestParam(defaultValue = "" + DEFAULT_PAGE) int page,
+      @RequestParam(defaultValue = "" + DEFAULT_SIZE) int size,
+      Authentication authentication) {
+    PaginationValidator.validate(page, size);
+    return ResponseEntity.ok(
+        CommonResponse.success(
+            PageResponse.from(
+                placeQueryService.searchPlaces(
+                    keyword, page, size, authentication == null ? null : authentication.getName()),
+                PlaceFilterResponse::from)));
+  }
+
+  /**
+   * 지역 필터 JSON 문자열을 파싱하고 검증합니다.
+   *
+   * @param regionsJson 지역 필터 JSON 문자열
+   * @return 변환한 지역 필터 목록, 생략 시 {@code null}
+   * @throws InvalidRegionPathException 형식이 잘못되었거나 코드가 올바르지 않을 때
+   * @throws ExceededSigunguLimitException 시도당 시군구 코드가 3개를 초과할 때
+   */
+  private List<RegionFilter> parseRegions(String regionsJson) {
+    if (regionsJson == null) {
+      return null;
+    }
+    if (regionsJson.isBlank()) {
+      throw new InvalidRegionPathException();
+    }
+
+    List<RegionFilterRequest> requests;
+    try {
+      requests =
+          objectMapper.readValue(regionsJson, new TypeReference<List<RegionFilterRequest>>() {});
+    } catch (Exception e) {
+      throw new InvalidRegionPathException();
+    }
+
+    if (requests == null || requests.isEmpty()) {
+      throw new InvalidRegionPathException();
+    }
+
+    Map<String, Set<String>> sigunguBySido = new LinkedHashMap<>();
+    for (RegionFilterRequest request : requests) {
+      if (request == null
+          || request.sidoCode() == null
+          || !request.sidoCode().matches("^[0-9]{2}$")) {
+        throw new InvalidRegionPathException();
+      }
+
+      if (sigunguBySido.containsKey(request.sidoCode())) {
+        throw new InvalidRegionPathException();
+      }
+
+      List<String> sigunguCodes = request.sigunguCodes();
+      Set<String> set = new LinkedHashSet<>();
+      if (sigunguCodes != null) {
+        for (String sigunguCode : sigunguCodes) {
+          if (sigunguCode == null || !sigunguCode.matches("^[0-9]{3}$")) {
+            throw new InvalidRegionPathException();
+          }
+          set.add(sigunguCode);
+        }
+        if (set.size() > MAX_SIGUNGU_COUNT_PER_SIDO) {
+          throw new ExceededSigunguLimitException();
+        }
+      }
+
+      sigunguBySido.put(request.sidoCode(), set);
+    }
+
+    return sigunguBySido.entrySet().stream()
+        .map(entry -> new RegionFilter(entry.getKey(), List.copyOf(entry.getValue())))
+        .toList();
   }
 
   /**

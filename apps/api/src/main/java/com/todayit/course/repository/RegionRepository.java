@@ -22,4 +22,29 @@ public interface RegionRepository extends JpaRepository<Region, Integer> {
           + "and (:sigunguCode is null or region.sigunguCode = :sigunguCode)")
   List<Integer> findIdsByCodes(
       @Param("sidoCode") String sidoCode, @Param("sigunguCode") String sigunguCode);
+
+  /**
+   * 시·도 코드에 속하는 모든 지역 식별자를 조회합니다.
+   *
+   * @param sidoCode 시·도 코드
+   * @return 지역 식별자 목록
+   */
+  @Query("select region.regionId from Region region where region.sidoCode = :sidoCode")
+  List<Integer> findIdsBySidoCode(@Param("sidoCode") String sidoCode);
+
+  /**
+   * 시·도 코드 및 특정 시·군·구 코드들에 해당하는 행정 지역 엔티티 목록을 조회합니다.
+   *
+   * @param sidoCode 시·도 코드
+   * @param sigunguCodes 시·군·구 코드 목록
+   * @return 행정 지역 엔티티 목록
+   */
+  List<Region> findBySidoCodeAndSigunguCodeIn(String sidoCode, List<String> sigunguCodes);
+
+  /**
+   * 전체 행정 지역 목록을 시·도 코드 및 시·군·구 코드 오름차순으로 조회합니다.
+   *
+   * @return 정렬된 전체 행정 지역 엔티티 목록
+   */
+  List<Region> findAllByOrderBySidoCodeAscSigunguCodeAsc();
 }

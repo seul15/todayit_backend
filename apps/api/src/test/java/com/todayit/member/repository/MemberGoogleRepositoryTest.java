@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,7 @@ class MemberGoogleRepositoryTest {
     assertThat(storedEmail).isNull();
 
     // 저장한 Google 계정이 기존 로그인 조회 조건으로 검색되는지 검증
-    var savedMember =
+    Optional<Member> savedMember =
         memberRepository.findByProviderAndProviderUserId(
             MemberProvider.GOOGLE, "google-new-user-123");
 

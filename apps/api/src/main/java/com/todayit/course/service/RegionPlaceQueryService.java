@@ -1,6 +1,7 @@
 package com.todayit.course.service;
 
 import com.todayit.course.exception.InvalidRegionPathException;
+import com.todayit.course.service.model.RegionFilter;
 import java.util.List;
 
 /** 장소 필터용 지역 코드를 검증하고 조회하는 서비스 계약입니다. */
@@ -15,4 +16,13 @@ public interface RegionPlaceQueryService {
    * @throws InvalidRegionPathException 코드 형식이 잘못되었거나 해당 지역이 없을 때
    */
   List<Integer> findRegionIds(String sidoCode, String sigunguCode);
+
+  /**
+   * 전달한 지역 필터 조건에 해당하는 지역 식별자 목록을 조회합니다.
+   *
+   * @param filters 지역 필터 목록
+   * @return 조건에 해당하는 지역 식별자 목록
+   * @throws InvalidRegionPathException 코드 형식이 잘못되었거나 해당 지역이 없을 때
+   */
+  List<Integer> findRegionIds(List<RegionFilter> filters);
 }

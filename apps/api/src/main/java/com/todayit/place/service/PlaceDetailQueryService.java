@@ -67,6 +67,7 @@ public class PlaceDetailQueryService {
             .toList(),
         memberId != null && likes.existsByMemberIdAndPlacePlaceId(memberId, placeId),
         memberId != null
-            && scraps.existsByMemberIdAndPlacePlaceIdAndIsDeletedFalse(memberId, placeId));
+            && scraps.existsByMemberIdAndPlacePlaceIdAndIsDeletedFalse(memberId, placeId),
+        place.getVisitorInfo());
   }
 }

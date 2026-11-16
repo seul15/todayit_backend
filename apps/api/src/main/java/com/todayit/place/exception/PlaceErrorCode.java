@@ -16,7 +16,11 @@ public enum PlaceErrorCode implements ErrorCode {
 
   /** 요청한 장소 카테고리 필터 값이 올바르지 않은 경우입니다. */
   INVALID_CATEGORY_FILTER(
-      "INVALID_PLACE_CATEGORY", "카테고리 필터 값이 올바르지 않습니다.", ErrorStatus.BAD_REQUEST);
+      "INVALID_PLACE_CATEGORY", "카테고리 필터 값이 올바르지 않습니다.", ErrorStatus.BAD_REQUEST),
+
+  /** 요청한 시군구 필터 개수가 시도당 최대 개수를 초과한 경우입니다. */
+  EXCEEDED_SIGUNGU_LIMIT(
+      "EXCEEDED_SIGUNGU_LIMIT", "시군구 필터는 시도당 최대 3개까지 선택할 수 있습니다.", ErrorStatus.BAD_REQUEST);
 
   /** 클라이언트에 전달할 오류 코드입니다. */
   private final String code;
