@@ -104,17 +104,19 @@ public class MemberProfileService {
    * 회원의 프로필 이미지 URL과 수정 시각을 변경합니다.
    *
    * @param memberId 변경할 회원 식별자
-   * @param profileImage 업로드가 완료된 프로필 이미지 URL
+   * @param profileImage 업로드가 완료된 이미지 URL
    * @return 변경된 회원 프로필 이미지 정보
    * @throws BusinessException 회원이 없거나 비활성 상태인 경우
    */
   @Transactional
   public MemberProfileResult changeProfileImage(String memberId, String profileImage) {
+
     Member member = findActiveMemberForUpdate(memberId);
     LocalDateTime now = LocalDateTime.now();
-    member.changeProfileImage(profileImage, now);
 
-    return new MemberProfileResult(member.getId(), member.getProfileImage(), member.getUpdatedAt());
+    memberRepository.updateProfileImage(memberId, profileImage, now);
+
+    return new MemberProfileResult(member.getId(), profileImage, now);
   }
 
   /**
@@ -131,23 +133,24 @@ public class MemberProfileService {
    */
   @Transactional
   public MemberProfileDetailsResult updateProfile(String memberId, MemberProfileCommand command) {
+
     Member member = findActiveMemberForUpdate(memberId);
     LocalDateTime now = LocalDateTime.now();
 
-    // 닉네임 검증
+    // 1. 닉네임 검증
     String normalizedNickname =
         command.nickname() == null ? null : validateNicknameChange(member, command.nickname(), now);
 
-    // 선호 지역 검증
+    // 2. 선호 지역 검증
     List<PreferredRegionCode> regions = command.preferredRegions();
 
     Region selectedRegion =
         regions == null || regions.isEmpty() ? null : resolvePreferredRegion(regions.get(0));
 
-    // 선호 테마 검증
+    // 3. 선호 테마
     List<Theme> themes = command.preferredThemes();
 
-    // 선호 지역 또는 테마를 저장하는 경우 약관 동의 확인
+    // 4. 선호정보 약관 동의 확인
     boolean settingPreference =
         (regions != null && !regions.isEmpty()) || (themes != null && !themes.isEmpty());
 
@@ -157,31 +160,74 @@ public class MemberProfileService {
       throw new BusinessException(MemberErrorCode.PREFERENCE_CONSENT_REQUIRED);
     }
 
-    // 검증 완료 후 닉네임 변경
+    // 변경 전 값 보관
+    Region currentRegion = member.getPreferredRegion();
+    List<Theme> currentThemes = member.getPreferredThemes();
+
+    boolean changed = false;
+
+    // 5. 닉네임 변경
     if (normalizedNickname != null) {
-      member.changeNickname(normalizedNickname, now);
-      flushNicknameChange();
+      try {
+        memberRepository.updateNickname(memberId, normalizedNickname, now);
+      } catch (DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+
+        while (cause != null) {
+          if (cause instanceof ConstraintViolationException constraint
+              && "uk_member_nickname_normalized".equalsIgnoreCase(constraint.getConstraintName())) {
+            throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
+          }
+
+          cause = cause.getCause();
+        }
+
+        throw exception;
+      }
+
+      changed = true;
     }
 
-    // 선호 지역 변경
+    // 6. 선호 지역 변경
     if (regions != null) {
-      Region currentRegion = member.getPreferredRegion();
-
       Integer currentId = currentRegion == null ? null : currentRegion.getRegionId();
 
       Integer selectedId = selectedRegion == null ? null : selectedRegion.getRegionId();
 
       if (!Objects.equals(currentId, selectedId)) {
-        member.changePreferredRegion(selectedRegion, now);
+        memberRepository.updatePreferredRegion(memberId, selectedRegion, now);
+        changed = true;
       }
     }
 
-    // 선호 테마 변경
-    if (themes != null && !member.getPreferredThemes().equals(themes)) {
-      member.changePreferredThemes(themes, now);
+    // 7. 선호 테마 변경
+    if (themes != null && !currentThemes.equals(themes)) {
+      String themeCodes = String.join(",", themes.stream().map(Theme::name).toList());
+
+      memberRepository.updatePreferredThemes(memberId, themeCodes, now);
+      changed = true;
     }
 
-    return toDetailsResult(member);
+    // 8. 응답 생성
+    // Repository 직접 UPDATE 이후 기존 Member 객체에는 이전 값이
+    // 남아 있을 수 있으므로 검증된 요청값으로 응답을 구성합니다.
+    List<PreferredRegionCode> resultRegions =
+        regions != null
+            ? regions
+            : currentRegion == null
+                ? List.of()
+                : List.of(
+                    new PreferredRegionCode(
+                        currentRegion.getSidoCode(), currentRegion.getSigunguCode()));
+
+    return new MemberProfileDetailsResult(
+        member.getId(),
+        member.getEmail(),
+        normalizedNickname == null ? member.getNickname() : normalizedNickname,
+        member.getRegisteredProfileImage(),
+        resultRegions,
+        themes == null ? currentThemes : themes,
+        changed ? now : member.getUpdatedAt());
   }
 
   /**
@@ -314,32 +360,13 @@ public class MemberProfileService {
   @Transactional
   public MemberProfileResult resetProfileImage(String memberId) {
     Member member = findActiveMemberForUpdate(memberId);
+    LocalDateTime updatedAt = member.getUpdatedAt();
 
     if (member.getRegisteredProfileImage() != null) {
-      member.resetProfileImage(LocalDateTime.now());
+      updatedAt = LocalDateTime.now();
+      memberRepository.resetProfileImage(memberId, updatedAt);
     }
 
-    return new MemberProfileResult(member.getId(), null, member.getUpdatedAt());
-  }
-
-  private void flushNicknameChange() {
-    try {
-      // 트랜잭션 종료 전 DB UNIQUE 제약 검증
-      memberRepository.flush();
-    } catch (DataIntegrityViolationException exception) {
-      Throwable cause = exception;
-
-      while (cause != null) {
-        if (cause instanceof ConstraintViolationException constraint
-            && "uk_member_nickname_normalized".equalsIgnoreCase(constraint.getConstraintName())) {
-          throw new BusinessException(MemberErrorCode.NICKNAME_ALREADY_EXISTS);
-        }
-
-        cause = cause.getCause();
-      }
-
-      // 닉네임 중복 이외의 DB 오류는 그대로 전파
-      throw exception;
-    }
+    return new MemberProfileResult(member.getId(), null, updatedAt);
   }
 }

@@ -8,7 +8,6 @@ import com.todayit.member.entity.Member;
 import com.todayit.theme.Theme;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,14 +60,12 @@ class MemberPreferenceRepositoryTest {
 
     Region region = regionRepository.findById(regionId).orElseThrow();
 
-    Member stored = memberRepository.findById(member.getId()).orElseThrow();
-
     LocalDateTime now = LocalDateTime.now();
 
-    stored.changePreferredRegion(region, now);
-    stored.changePreferredThemes(List.of(Theme.QUIET, Theme.ROMANTIC), now);
+    memberRepository.updatePreferredRegion(member.getId(), region, now);
 
-    memberRepository.saveAndFlush(stored);
+    memberRepository.updatePreferredThemes(member.getId(), "QUIET,ROMANTIC", now);
+
     entityManager.clear();
 
     // Then
@@ -82,5 +79,12 @@ class MemberPreferenceRepositoryTest {
     assertThat(loaded.getPreferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
 
     assertThat(loaded.getNickname()).isEqualTo("선호수정검증");
+
+    memberRepository.updatePreferredRegion(member.getId(), null, now);
+    entityManager.clear();
+
+    Member cleared = memberRepository.findById(member.getId()).orElseThrow();
+
+    assertThat(cleared.getPreferredRegion()).isNull();
   }
 }

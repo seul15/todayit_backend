@@ -1,12 +1,15 @@
 package com.todayit.member.repository;
 
+import com.todayit.course.entity.Region;
 import com.todayit.member.entity.Member;
 import com.todayit.member.entity.MemberProvider;
 import jakarta.persistence.LockModeType;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -86,4 +89,112 @@ public interface MemberRepository extends JpaRepository<Member, String> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("SELECT m FROM Member m WHERE m.id = :memberId")
   Optional<Member> findByIdForUpdate(@Param("memberId") String memberId);
+
+  /**
+   * 프로필 이미지 URL과 수정 시각을 변경합니다.
+   *
+   * @param memberId 회원 식별자
+   * @param profileImage 이미지 URL
+   * @param updatedAt 수정 시각
+   * @return 변경된 행 수
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      """
+    UPDATE Member m
+    SET m.profileImage = :profileImage,
+        m.updatedAt = :updatedAt
+    WHERE m.id = :memberId
+    """)
+  int updateProfileImage(
+      @Param("memberId") String memberId,
+      @Param("profileImage") String profileImage,
+      @Param("updatedAt") LocalDateTime updatedAt);
+
+  /**
+   * 프로필 이미지를 DB 기본값으로 복원합니다.
+   *
+   * @param memberId 회원 식별자
+   * @param updatedAt 수정 시각
+   * @return 변경된 행 수
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      value =
+          """
+        UPDATE member
+        SET profile_image = DEFAULT,
+            updated_at = :updatedAt
+        WHERE member_id = :memberId
+        """,
+      nativeQuery = true)
+  int resetProfileImage(
+      @Param("memberId") String memberId, @Param("updatedAt") LocalDateTime updatedAt);
+
+  /**
+   * 닉네임과 마지막 변경 시각을 갱신합니다.
+   *
+   * @param memberId 회원 식별자
+   * @param nickname 변경할 닉네임
+   * @param updatedAt 변경 시각
+   * @return 변경된 행 수
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      """
+    UPDATE Member m
+    SET m.nickname = :nickname,
+        m.nicknameUpdatedAt = :updatedAt,
+        m.updatedAt = :updatedAt
+    WHERE m.id = :memberId
+    """)
+  int updateNickname(
+      @Param("memberId") String memberId,
+      @Param("nickname") String nickname,
+      @Param("updatedAt") LocalDateTime updatedAt);
+
+  /**
+   * 선호 지역과 수정 시각을 변경합니다.
+   *
+   * @param memberId 회원 식별자
+   * @param region 선택한 지역, 해제 시 null
+   * @param updatedAt 수정 시각
+   * @return 변경된 행 수
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      """
+    UPDATE Member m
+    SET m.preferredRegion = :region,
+        m.updatedAt = :updatedAt
+    WHERE m.id = :memberId
+    """)
+  int updatePreferredRegion(
+      @Param("memberId") String memberId,
+      @Param("region") Region region,
+      @Param("updatedAt") LocalDateTime updatedAt);
+
+  /**
+   * 선호 테마 배열과 수정 시각을 변경합니다.
+   *
+   * @param memberId 회원 식별자
+   * @param themeCodes 쉼표로 구분한 테마 코드, 빈 문자열이면 전체 해제
+   * @param updatedAt 수정 시각
+   * @return 변경된 행 수
+   */
+  @Modifying(flushAutomatically = true)
+  @Query(
+      value =
+          """
+        UPDATE member
+        SET preferred_theme =
+            CAST(string_to_array(:themeCodes, ',') AS varchar(20)[]),
+            updated_at = :updatedAt
+        WHERE member_id = :memberId
+        """,
+      nativeQuery = true)
+  int updatePreferredThemes(
+      @Param("memberId") String memberId,
+      @Param("themeCodes") String themeCodes,
+      @Param("updatedAt") LocalDateTime updatedAt);
 }

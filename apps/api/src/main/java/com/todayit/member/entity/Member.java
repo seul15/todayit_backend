@@ -99,60 +99,6 @@ public class Member {
       "https://res.cloudinary.com/xmb52jrp/image/upload/v1793191339/default_profile.png";
 
   /**
-   * 회원의 프로필 이미지와 수정 시각을 변경합니다.
-   *
-   * @param profileImage 변경할 이미지 URL
-   * @param updatedAt 변경 시각
-   */
-  public void changeProfileImage(String profileImage, LocalDateTime updatedAt) {
-    this.profileImage = profileImage;
-    this.updatedAt = updatedAt;
-  }
-
-  /**
-   * 회원의 프로필 이미지를 기본 이미지로 복원합니다.
-   *
-   * @param updatedAt 변경 시각
-   */
-  public void resetProfileImage(LocalDateTime updatedAt) {
-    changeProfileImage(DEFAULT_PROFILE_IMAGE, updatedAt);
-  }
-
-  /**
-   * 회원의 닉네임과 마지막 변경 시각을 갱신합니다.
-   *
-   * @param nickname 변경할 닉네임
-   * @param updatedAt 변경 시각
-   */
-  public void changeNickname(String nickname, LocalDateTime updatedAt) {
-    this.nickname = nickname;
-    this.nicknameUpdatedAt = updatedAt;
-    this.updatedAt = updatedAt;
-  }
-
-  /**
-   * 회원의 선호 지역을 변경하거나 해제합니다.
-   *
-   * @param region 변경할 지역, 해제 시 null
-   * @param updatedAt 수정 시각
-   */
-  public void changePreferredRegion(Region region, LocalDateTime updatedAt) {
-    this.preferredRegion = region;
-    this.updatedAt = updatedAt;
-  }
-
-  /**
-   * 회원의 선호 테마를 변경합니다.
-   *
-   * @param themes 변경할 선호 테마 목록, 빈 목록이면 전체 해제
-   * @param updatedAt 변경 시각
-   */
-  public void changePreferredThemes(List<Theme> themes, LocalDateTime updatedAt) {
-    this.preferredThemeCodes = themes.stream().map(Theme::name).toArray(String[]::new);
-    this.updatedAt = updatedAt;
-  }
-
-  /**
    * 이메일과 비밀번호를 사용하는 로컬 회원을 생성합니다.
    *
    * @param email 회원 이메일

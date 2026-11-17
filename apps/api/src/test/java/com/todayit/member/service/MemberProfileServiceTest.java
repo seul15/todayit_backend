@@ -3,7 +3,9 @@ package com.todayit.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** 회원 프로필 이미지 변경과 회원 상태 검증을 테스트합니다. */
 @ExtendWith(MockitoExtension.class)
@@ -75,9 +78,8 @@ class MemberProfileServiceTest {
     assertThat(result.profileImage()).isEqualTo(PROFILE_IMAGE_URL);
     assertThat(result.updatedAt()).isBetween(before, after);
 
-    assertThat(member.getProfileImage()).isEqualTo(PROFILE_IMAGE_URL);
-    assertThat(member.getUpdatedAt()).isEqualTo(result.updatedAt());
-
+    verify(memberRepository)
+        .updateProfileImage(eq(memberId), eq(PROFILE_IMAGE_URL), any(LocalDateTime.class));
     verify(memberRepository).findByIdForUpdate(memberId);
   }
 
@@ -114,10 +116,8 @@ class MemberProfileServiceTest {
             exception ->
                 assertThat(exception.getErrorCode()).isEqualTo(MemberErrorCode.MEMBER_NOT_FOUND));
 
-    verify(member, never())
-        .changeProfileImage(
-            org.mockito.ArgumentMatchers.anyString(),
-            org.mockito.ArgumentMatchers.any(LocalDateTime.class));
+    verify(memberRepository, never())
+        .updateProfileImage(anyString(), anyString(), any(LocalDateTime.class));
   }
 
   @Test
@@ -161,7 +161,7 @@ class MemberProfileServiceTest {
 
     LocalDateTime changedAt = LocalDateTime.now().minusDays(30);
 
-    member.changeNickname("기존닉네임", changedAt);
+    ReflectionTestUtils.setField(member, "nicknameUpdatedAt", changedAt);
 
     when(memberRepository.findByIdForUpdate(memberId)).thenReturn(Optional.of(member));
 
@@ -195,8 +195,6 @@ class MemberProfileServiceTest {
     Region region = mock(Region.class);
 
     when(region.getRegionId()).thenReturn(1);
-    when(region.getSidoCode()).thenReturn("11");
-    when(region.getSigunguCode()).thenReturn("110");
 
     when(regionRepository.findIdsByCodes("11", "110")).thenReturn(List.of(1));
 
@@ -218,8 +216,13 @@ class MemberProfileServiceTest {
     assertThat(result.preferredThemes()).containsExactly(Theme.QUIET, Theme.ROMANTIC);
     assertThat(result.updatedAt()).isNotNull();
 
-    assertThat(member.getNickname()).isEqualTo("새닉네임");
-    assertThat(member.getPreferredRegion()).isSameAs(region);
+    verify(memberRepository).updateNickname(eq(memberId), eq("새닉네임"), any(LocalDateTime.class));
+
+    verify(memberRepository)
+        .updatePreferredRegion(eq(memberId), eq(region), any(LocalDateTime.class));
+
+    verify(memberRepository)
+        .updatePreferredThemes(eq(memberId), eq("QUIET,ROMANTIC"), any(LocalDateTime.class));
 
     verify(regionRepository).findIdsByCodes("11", "110");
     verify(regionRepository).findById(1);
@@ -236,22 +239,25 @@ class MemberProfileServiceTest {
     Region region = mock(Region.class);
     when(region.getRegionId()).thenReturn(1);
 
-    member.changePreferredRegion(region, now);
-    member.changePreferredThemes(List.of(Theme.QUIET), now);
+    ReflectionTestUtils.setField(member, "preferredRegion", region);
+    ReflectionTestUtils.setField(member, "preferredThemeCodes", new String[] {"QUIET"});
 
     when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
     MemberProfileCommand command = new MemberProfileCommand(null, List.of(), List.of());
 
     // When
-    service.updateProfile(member.getId(), command);
+    MemberProfileDetailsResult result = service.updateProfile(member.getId(), command);
 
     // Then
-    assertThat(member.getPreferredRegion()).isNull();
-    assertThat(member.getPreferredThemes()).isEmpty();
+    assertThat(result.preferredRegions()).isEmpty();
+    assertThat(result.preferredThemes()).isEmpty();
 
-    verify(memberAgreementRepository, never())
-        .existsAgreedActiveAgreement(member.getId(), "PREFERENCE");
+    verify(memberRepository)
+        .updatePreferredRegion(eq(member.getId()), eq(null), any(LocalDateTime.class));
+
+    verify(memberRepository)
+        .updatePreferredThemes(eq(member.getId()), eq(""), any(LocalDateTime.class));
   }
 
   @Test
@@ -314,10 +320,12 @@ class MemberProfileServiceTest {
     MemberProfileCommand command = new MemberProfileCommand("새닉네임", null, null);
 
     // When
-    service.updateProfile(memberId, command);
+    MemberProfileDetailsResult result = service.updateProfile(memberId, command);
 
     // Then
-    assertThat(member.getNickname()).isEqualTo("새닉네임");
+    assertThat(result.nickname()).isEqualTo("새닉네임");
+
+    verify(memberRepository).updateNickname(eq(memberId), eq("새닉네임"), any(LocalDateTime.class));
 
     verify(memberAgreementRepository, never()).existsAgreedActiveAgreement(memberId, "PREFERENCE");
   }
@@ -328,7 +336,7 @@ class MemberProfileServiceTest {
     // Given
     Member member = Member.createLocal("test@example.com", "encoded-password", "테스트회원");
 
-    member.changeProfileImage(PROFILE_IMAGE_URL, LocalDateTime.now().minusDays(1));
+    ReflectionTestUtils.setField(member, "profileImage", PROFILE_IMAGE_URL);
 
     when(memberRepository.findByIdForUpdate(member.getId())).thenReturn(Optional.of(member));
 
@@ -337,7 +345,7 @@ class MemberProfileServiceTest {
 
     // Then
     assertThat(result.profileImage()).isNull();
-    assertThat(member.getRegisteredProfileImage()).isNull();
+    verify(memberRepository).resetProfileImage(eq(member.getId()), any(LocalDateTime.class));
     assertThat(result.updatedAt()).isNotNull();
   }
 
@@ -357,6 +365,9 @@ class MemberProfileServiceTest {
     // Then
     assertThat(result.profileImage()).isNull();
     assertThat(result.updatedAt()).isEqualTo(previousUpdatedAt);
+
+    verify(memberRepository, never())
+        .resetProfileImage(eq(member.getId()), any(LocalDateTime.class));
   }
 
   @Test
@@ -373,9 +384,8 @@ class MemberProfileServiceTest {
 
     when(constraint.getConstraintName()).thenReturn("uk_member_nickname_normalized");
 
-    doThrow(new DataIntegrityViolationException("닉네임 중복", constraint))
-        .when(memberRepository)
-        .flush();
+    when(memberRepository.updateNickname(eq(member.getId()), eq("새닉네임"), any(LocalDateTime.class)))
+        .thenThrow(new DataIntegrityViolationException("닉네임 중복", constraint));
 
     MemberProfileCommand command = new MemberProfileCommand("새닉네임", null, null);
 
