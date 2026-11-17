@@ -182,7 +182,7 @@ class FileMetadataServiceTest {
     AtomicBoolean callbackExecuted = new AtomicBoolean(false);
 
     // When
-    var result =
+    FileRegistrationResult result =
         service.registerWithCallback(
             FileRelatedType.MEMBER_PROFILE,
             "member",
