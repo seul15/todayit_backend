@@ -51,5 +51,8 @@ public record MemberProfileCommand(
         throw new InvalidRequestException("선호 테마를 중복 선택할 수 없습니다.");
       }
     }
+
+    preferredRegions = preferredRegions == null ? null : List.copyOf(preferredRegions);
+    preferredThemes = preferredThemes == null ? null : List.copyOf(preferredThemes);
   }
 }

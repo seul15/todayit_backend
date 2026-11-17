@@ -54,6 +54,13 @@ public record MemberProfileDetailResponse(
             requiredMode = Schema.RequiredMode.NOT_REQUIRED,
             nullable = true)
         LocalDateTime updatedAt) {
+
+  /** 선호 지역과 테마 목록을 불변으로 보관합니다. */
+  public MemberProfileDetailResponse {
+    preferredRegions = List.copyOf(preferredRegions);
+    preferredThemes = List.copyOf(preferredThemes);
+  }
+
   /**
    * 서비스 조회 결과를 API 응답으로 변환합니다.
    *

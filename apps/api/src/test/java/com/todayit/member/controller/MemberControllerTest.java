@@ -249,7 +249,14 @@ class MemberControllerTest {
         .andExpect(jsonPath("$.data.preferredThemes[1]").value("ROMANTIC"))
         .andExpect(jsonPath("$.data.updatedAt").value("2026-11-09T04:00:00"));
 
-    verify(memberProfileService).updateProfile(eq(memberId), any(MemberProfileCommand.class));
+    verify(memberProfileService)
+        .updateProfile(
+            eq(memberId),
+            eq(
+                new MemberProfileCommand(
+                    "새닉네임",
+                    List.of(new PreferredRegionCode("11", "110")),
+                    List.of(Theme.QUIET, Theme.ROMANTIC))));
   }
 
   @Test
